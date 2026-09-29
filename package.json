@@ -4,12 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
-    "start": "tsx server.ts",
-    "build": "vite build",
-    "preview": "vite preview",
+    "dev": "node node_modules/tsx/dist/cli.mjs server.ts",
+    "start": "node node_modules/tsx/dist/cli.mjs server.ts",
+    "build": "node node_modules/vite/bin/vite.js build",
+    "preview": "node node_modules/vite/bin/vite.js preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "node node_modules/typescript/bin/tsc --noEmit"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -32,7 +32,6 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.4.21",
-    "esbuild": "^0.25.0",
     "sharp": "^0.35.5",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
