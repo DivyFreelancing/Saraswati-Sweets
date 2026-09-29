@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ivory: #FBF6EF;
+  --color-surface: #FFFFFF;
+  --color-surface-muted: #F5EAD9;
+  
+  --color-maroon: #7A1129;
+  --color-maroon-hover: #5E0D20;
+  --color-maroon-light: #F7E9EE;
+  
+  --color-gold: #C79A3D;
+  --color-gold-hover: #B0852E;
+  --color-gold-light: #FAF4DE;
+  
+  --color-base: #221A14;
+  --color-muted: #6E6259;
+  --color-border-subtle: #E8DCC8;
+  
+  --color-brand-success: #2E7D4F;
+  --color-brand-warning: #B8781E;
+  --color-brand-danger: #B3261E;
+
+  --font-serif: "Fraunces", "Playfair Display", "Cormorant", Georgia, serif;
+  --font-sans: "Plus Jakarta Sans", "Manrope", "Inter", system-ui, -apple-system, sans-serif;
+  --font-script: "Alex Brush", cursive;
+  
+  --radius-input: 8px;
+  --radius-card: 12px;
+  --radius-panel: 20px;
+  
+  --shadow-card: 0 2px 12px -2px rgba(34, 26, 20, 0.05), 0 1px 3px 0 rgba(34, 26, 20, 0.03);
+  --shadow-soft: 0 4px 20px -2px rgba(34, 26, 20, 0.06);
+  --shadow-elevated: 0 10px 30px -4px rgba(122, 17, 41, 0.08), 0 4px 12px -2px rgba(34, 26, 20, 0.04);
+}
+
+:root {
+  --bg-ivory: #FBF6EF;
+  --bg-surface: #FFFFFF;
+  --bg-muted: #F5EAD9;
+  --primary-maroon: #7A1129;
+  --primary-maroon-hover: #5E0D20;
+  --accent-gold: #C79A3D;
+  --text-main: #221A14;
+  --text-muted: #6E6259;
+  --border-line: #E8DCC8;
+}
+
+body {
+  background-color: #FBF6EF;
+  color: #221A14;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, .font-display {
+  font-family: var(--font-serif);
+}
+
+.font-script {
+  font-family: var(--font-script);
+}
+
+/* Custom scrollbars for delicate boutique feel */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F5EAD9;
+}
+::-webkit-scrollbar-thumb {
+  background: #C79A3D;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #7A1129;
+}
+
+/* Hide scrollbars for pill navigation and clean touch scrollers */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Respect user motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

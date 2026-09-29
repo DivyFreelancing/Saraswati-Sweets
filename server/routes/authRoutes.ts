@@ -1,0 +1,186 @@
+import { Router, Response } from 'express';
+import { AuthenticatedRequest, requireAuth } from '../authMiddleware';
+import { supabaseServer, isLiveSupabase, inMemoryStore, ServerProfile } from '../db';
+
+const router = Router();
+
+// GET /api/auth/profile - Fetch current authenticated profile
+router.get('/profile', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  res.json({
+    profile: req.user,
+  });
+});
+
+// PUT /api/auth/profile - Update user profile (name, phone)
+router.put('/profile', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const { full_name, phone } = req.body;
+  if (!req.user) {
+    res.status(401).json({ error: 'UNAUTHORIZED', message: 'Authentication required' });
+    return;
+  }
+
+  const cleanName = typeof full_name === 'string' ? full_name.trim() : '';
+  if (cleanName) {
+    req.user.full_name = cleanName;
+  }
+
+  if (typeof phone === 'string') {
+    const cleanPhone = phone.replace(/\D/g, '').slice(-10);
+    if (cleanPhone.length === 10) {
+      req.user.phone = `+91 ${cleanPhone.slice(0, 5)} ${cleanPhone.slice(5)}`;
+    }
+  }
+
+  req.user.updated_at = new Date().toISOString();
+
+  // Save to in-memory store under canonical id and alias tokens
+  inMemoryStore.profiles.set(req.user.id, req.user);
+  if (req.user.phone) {
+    const rawClean = req.user.phone.replace(/\D/g, '').slice(-10);
+    inMemoryStore.profiles.set(`usr-${rawClean}`, req.user);
+    inMemoryStore.profiles.set(`dev-user-${rawClean}`, req.user);
+  }
+
+  // Also sync to Supabase if live
+  if (isLiveSupabase && supabaseServer) {
+    try {
+      await supabaseServer.from('profiles').upsert(req.user, { onConflict: 'id' });
+    } catch (err) {
+      console.warn('Supabase profile update warning:', err);
+    }
+  }
+
+  res.json({ success: true, profile: req.user });
+});
+
+// POST /api/auth/sync - Sync profile row on first login
+router.post('/sync', async (req: AuthenticatedRequest, res: Response) => {
+  const { id, email, phone, full_name, role } = req.body;
+
+  if (!id) {
+    res.status(400).json({ error: 'MISSING_ID', message: 'User ID is required' });
+    return;
+  }
+
+  const cleanPhone = phone ? phone.replace(/\D/g, '').slice(-10) : '';
+  const formattedPhone = cleanPhone ? `+91 ${cleanPhone.slice(0, 5)} ${cleanPhone.slice(5)}` : phone;
+
+  const assignedRole = role || (email?.includes('admin') ? 'ADMIN' : email?.includes('staff') ? 'STAFF' : 'CUSTOMER');
+  const displayName = full_name?.trim() || (cleanPhone ? `Patron ${cleanPhone.slice(-4)}` : email ? email.split('@')[0] : 'Valued Patron');
+
+  const profileData: ServerProfile = {
+    id,
+    email: email || undefined,
+    phone: formattedPhone || undefined,
+    full_name: displayName,
+    role: assignedRole,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  if (isLiveSupabase && supabaseServer) {
+    try {
+      const { data, error } = await supabaseServer
+        .from('profiles')
+        .upsert(profileData, { onConflict: 'id' })
+        .select()
+        .single();
+
+      if (!error && data) {
+        res.json({ success: true, profile: data });
+        return;
+      }
+    } catch (err) {
+      console.warn('Supabase profile sync warning:', err);
+    }
+  }
+
+  // Sync to in-memory store
+  inMemoryStore.profiles.set(id, profileData);
+  if (cleanPhone) {
+    inMemoryStore.profiles.set(`usr-${cleanPhone}`, profileData);
+    inMemoryStore.profiles.set(`dev-user-${cleanPhone}`, profileData);
+  }
+  res.json({ success: true, profile: profileData });
+});
+
+// POST /api/auth/demo-login - Facilitates instant testing for both customer phone & admin credentials
+router.post('/demo-login', async (req, res) => {
+  const { phone, email, password } = req.body;
+
+  if (email && password) {
+    // Admin / Staff login
+    if (email === 'admin@saraswatisweets.in' || email.includes('admin')) {
+      const adminProfile = inMemoryStore.profiles.get('admin-default')!;
+      const token = 'demo-admin-token';
+      res.json({
+        success: true,
+        token,
+        profile: adminProfile,
+      });
+      return;
+    } else if (email === 'staff@saraswatisweets.in' || email.includes('staff')) {
+      const staffProfile = inMemoryStore.profiles.get('staff-default')!;
+      const token = 'demo-staff-token';
+      res.json({
+        success: true,
+        token,
+        profile: staffProfile,
+      });
+      return;
+    } else {
+      res.status(401).json({ error: 'INVALID_CREDENTIALS', message: 'Invalid email or password' });
+      return;
+    }
+  }
+
+  if (phone) {
+    // Customer phone login
+    const cleanPhone = phone.replace(/\D/g, '').slice(-10);
+    if (cleanPhone.length < 10) {
+      res.status(400).json({ error: 'INVALID_PHONE', message: 'Please enter a valid 10-digit mobile number' });
+      return;
+    }
+
+    const userId = `usr-${cleanPhone}`;
+    const token = `dev-user-${cleanPhone}`;
+    const formattedPhone = `+91 ${cleanPhone.slice(0, 5)} ${cleanPhone.slice(5)}`;
+    const providedName = (req.body.full_name && typeof req.body.full_name === 'string' && req.body.full_name.trim()) || '';
+
+    // Check if profile exists under canonical ID or token
+    let profile = inMemoryStore.profiles.get(userId) || inMemoryStore.profiles.get(token);
+
+    if (!profile) {
+      profile = {
+        id: userId,
+        phone: formattedPhone,
+        full_name: providedName || `Patron ${cleanPhone.slice(-4)}`,
+        role: 'CUSTOMER',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+    } else {
+      // If user provides a real full name, update it!
+      if (providedName) {
+        profile.full_name = providedName;
+      }
+      profile.phone = formattedPhone;
+      profile.updated_at = new Date().toISOString();
+    }
+
+    // Persist under both keys so lookups never fail
+    inMemoryStore.profiles.set(userId, profile);
+    inMemoryStore.profiles.set(token, profile);
+
+    res.json({
+      success: true,
+      token,
+      profile,
+    });
+    return;
+  }
+
+  res.status(400).json({ error: 'BAD_REQUEST', message: 'Provide either phone or email credentials' });
+});
+
+export default router;

@@ -1,0 +1,6 @@
+{
+  "name": "Saraswati Sweets - Artisanal Mithai & Namkeen",
+  "description": "Authentic artisanal Indian sweets (mithai), namkeen, and festive gift hampers from Saraswati Sweets in Barabanki, Uttar Pradesh.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
