@@ -17,6 +17,9 @@ import {
   logAuditEvent,
   OrderStatus,
   VALID_ORDER_TRANSITIONS,
+  saveStoreState,
+  isLiveSupabase,
+  supabaseServer,
 } from '../db';
 import { createRazorpayRefund } from '../services/razorpayService';
 import { emailProvider } from '../services/notificationService';
@@ -304,6 +307,9 @@ router.post('/products', requireRole(['ADMIN']), (req: AuthenticatedRequest, res
     shelf_life_days = 7,
     ingredients = '',
     variants = [],
+    is_bestseller = false,
+    is_featured = false,
+    badge_label = '',
   } = req.body;
 
   if (!name || !category_id) {
@@ -325,6 +331,9 @@ router.post('/products', requireRole(['ADMIN']), (req: AuthenticatedRequest, res
     shelf_life_days: Number(shelf_life_days) || 7,
     is_active: true,
     ingredients: ingredients || '',
+    is_bestseller: Boolean(is_bestseller),
+    is_featured: Boolean(is_featured),
+    badge_label: badge_label || '',
   };
 
   inMemoryStore.products.set(id, newProd);
@@ -353,6 +362,30 @@ router.post('/products', requireRole(['ADMIN']), (req: AuthenticatedRequest, res
 
   logAuditEvent(req.user, 'PRODUCT_CREATED', 'PRODUCT', id, { name, category_id, variantsCount: createdVariants.length });
 
+  if (isLiveSupabase && supabaseServer) {
+    try {
+      supabaseServer.from('products').insert([{
+        id: newProd.id,
+        category_id: newProd.category_id,
+        name: newProd.name,
+        slug: newProd.slug,
+        description: newProd.description,
+        image_url: newProd.image_url,
+        is_pure_ghee: newProd.pure_ghee,
+        shelf_life_days: newProd.shelf_life_days,
+        is_active: newProd.is_active,
+        ingredients: newProd.ingredients,
+        is_bestseller: newProd.is_bestseller,
+        is_featured: newProd.is_featured,
+        badge_label: newProd.badge_label,
+      }]).then(() => {});
+    } catch (e) {
+      console.warn('Supabase product insert failed:', e);
+    }
+  }
+
+  saveStoreState();
+
   res.status(201).json({ success: true, product: { ...newProd, variants: createdVariants } });
 });
 
@@ -365,7 +398,7 @@ router.put('/products/:id', requireRole(['ADMIN']), (req: AuthenticatedRequest, 
     return;
   }
 
-  const { name, description, category_id, image_url, pure_ghee, shelf_life_days, is_active, ingredients } = req.body;
+  const { name, description, category_id, image_url, pure_ghee, shelf_life_days, is_active, ingredients, is_bestseller, is_featured, badge_label } = req.body;
   if (name !== undefined) prod.name = name;
   if (description !== undefined) prod.description = description;
   if (category_id !== undefined) prod.category_id = category_id;
@@ -383,9 +416,34 @@ router.put('/products/:id', requireRole(['ADMIN']), (req: AuthenticatedRequest, 
   if (shelf_life_days !== undefined) prod.shelf_life_days = Number(shelf_life_days);
   if (is_active !== undefined) prod.is_active = Boolean(is_active);
   if (ingredients !== undefined) prod.ingredients = ingredients;
+  if (is_bestseller !== undefined) prod.is_bestseller = Boolean(is_bestseller);
+  if (is_featured !== undefined) prod.is_featured = Boolean(is_featured);
+  if (badge_label !== undefined) prod.badge_label = badge_label;
 
   inMemoryStore.products.set(id, prod);
   logAuditEvent(req.user, 'PRODUCT_UPDATED', 'PRODUCT', id, req.body);
+
+  if (isLiveSupabase && supabaseServer) {
+    try {
+      supabaseServer.from('products').update({
+        name: prod.name,
+        description: prod.description,
+        category_id: prod.category_id,
+        image_url: prod.image_url,
+        is_pure_ghee: prod.pure_ghee,
+        shelf_life_days: prod.shelf_life_days,
+        is_active: prod.is_active,
+        ingredients: prod.ingredients,
+        is_bestseller: prod.is_bestseller,
+        is_featured: prod.is_featured,
+        badge_label: prod.badge_label,
+      }).eq('id', id).then(() => {});
+    } catch (e) {
+      console.warn('Supabase product update failed:', e);
+    }
+  }
+
+  saveStoreState();
 
   res.json({ success: true, product: prod });
 });
@@ -406,6 +464,18 @@ router.delete('/products/:id', requireRole(['ADMIN']), (req: AuthenticatedReques
   }
 
   logAuditEvent(req.user, 'PRODUCT_DELETED', 'PRODUCT', id, { name: prod.name });
+
+  if (isLiveSupabase && supabaseServer) {
+    try {
+      supabaseServer.from('product_variants').delete().eq('product_id', id).then(() => {
+        supabaseServer.from('products').delete().eq('id', id).then(() => {});
+      });
+    } catch (e) {
+      console.warn('Supabase product delete failed:', e);
+    }
+  }
+
+  saveStoreState();
 
   res.json({ success: true, message: `Product '${prod.name}' deleted.` });
 });

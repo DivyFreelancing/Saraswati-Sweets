@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 dotenv.config();
@@ -791,6 +793,9 @@ export interface ServerProduct {
   shelf_life_days: number;
   is_active: boolean;
   ingredients: string;
+  is_bestseller?: boolean;
+  is_featured?: boolean;
+  badge_label?: string;
 }
 
 export interface ServerDeliveryPartner {
@@ -933,6 +938,9 @@ export const inMemoryStore = {
         shelf_life_days: 20,
         is_active: true,
         ingredients: 'Cashew nuts, Sugar, Edible Silver Leaf (Vark), Cardamom',
+        is_bestseller: true,
+        is_featured: true,
+        badge_label: 'Shop Pride',
       },
     ],
     [
@@ -948,6 +956,9 @@ export const inMemoryStore = {
         shelf_life_days: 7,
         is_active: true,
         ingredients: 'Besan (Gram Flour), Pure Desi Ghee, Sugar, Saffron, Magaz Seeds',
+        is_bestseller: true,
+        is_featured: true,
+        badge_label: 'Bestseller',
       },
     ],
     [
@@ -963,6 +974,9 @@ export const inMemoryStore = {
         shelf_life_days: 5,
         is_active: true,
         ingredients: 'Pure Khoya, Milk, Sugar, Kashmiri Kesar, Pistachio Slivers',
+        is_bestseller: false,
+        is_featured: true,
+        badge_label: 'Royal Treat',
       },
     ],
     [
@@ -978,6 +992,9 @@ export const inMemoryStore = {
         shelf_life_days: 21,
         is_active: true,
         ingredients: 'Chana Besan, Cow Desi Ghee, Bura Sugar, Almonds, Cardamom',
+        is_bestseller: true,
+        is_featured: false,
+        badge_label: 'Heritage Recipe',
       },
     ],
     [
@@ -993,6 +1010,9 @@ export const inMemoryStore = {
         shelf_life_days: 14,
         is_active: true,
         ingredients: 'Roasted Mawa, Desi Ghee, Boora, Jaiphal, Cardamom',
+        is_bestseller: false,
+        is_featured: true,
+        badge_label: 'Vintage Awadh',
       },
     ],
     [
@@ -1008,6 +1028,9 @@ export const inMemoryStore = {
         shelf_life_days: 3,
         is_active: true,
         ingredients: 'Fresh Cow Milk Chhena, Purified Water, Sugar, Rose Water',
+        is_bestseller: true,
+        is_featured: false,
+        badge_label: 'Chhena Special',
       },
     ],
     [
@@ -1023,6 +1046,9 @@ export const inMemoryStore = {
         shelf_life_days: 60,
         is_active: true,
         ingredients: 'Whole Masoor, Gram Flour Sev, Fried Cashews, Amchoor, Black Salt',
+        is_bestseller: true,
+        is_featured: true,
+        badge_label: 'Savory Hit',
       },
     ],
     [
@@ -1038,6 +1064,9 @@ export const inMemoryStore = {
         shelf_life_days: 45,
         is_active: true,
         ingredients: 'Wheat Flour, Carom Seeds (Ajwain), Ground Spices, Edible Oil, Sea Salt',
+        is_bestseller: false,
+        is_featured: false,
+        badge_label: 'Tea Time Classic',
       },
     ],
     ['prod-mini-samosa', { id: 'prod-mini-samosa', name: 'Mini Samosa', slug: 'mini-samosa', description: 'A crispy savory snack – mini samosa.', category_id: 'cat-namkeen-snacks', image_url: '', pure_ghee: false, shelf_life_days: 30, is_active: true, ingredients: '' }],
@@ -1688,3 +1717,58 @@ export function logAuditEvent(
   return log;
 }
 
+
+
+// ==========================================================
+// PERSISTENCE ENGINE (JSON State on disk)
+// ==========================================================
+const DATA_DIR = path.resolve(process.cwd(), 'data');
+const STATE_FILE = path.join(DATA_DIR, 'store_state.json');
+
+export function saveStoreState(): void {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    const state = {
+      categories: Array.from(inMemoryStore.categories.entries()),
+      products: Array.from(inMemoryStore.products.entries()),
+      variants: Array.from(inMemoryStore.variants.entries()),
+      offers: Array.from(inMemoryStore.offers.entries()),
+      banners: Array.from(inMemoryStore.banners.entries()),
+      giftHampers: Array.from(inMemoryStore.giftHampers.entries()),
+      coupons: Array.from(inMemoryStore.coupons.entries()),
+      storeSettings: inMemoryStore.storeSettings,
+      orders: Array.from(inMemoryStore.orders.entries()),
+      payments: Array.from(inMemoryStore.payments.entries()),
+    };
+    fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Failed to save store state to disk:', err);
+  }
+}
+
+export function loadStoreState(): void {
+  try {
+    if (fs.existsSync(STATE_FILE)) {
+      const content = fs.readFileSync(STATE_FILE, 'utf-8');
+      const state = JSON.parse(content);
+      if (Array.isArray(state.categories)) inMemoryStore.categories = new Map(state.categories);
+      if (Array.isArray(state.products)) inMemoryStore.products = new Map(state.products);
+      if (Array.isArray(state.variants)) inMemoryStore.variants = new Map(state.variants);
+      if (Array.isArray(state.offers)) inMemoryStore.offers = new Map(state.offers);
+      if (Array.isArray(state.banners)) inMemoryStore.banners = new Map(state.banners);
+      if (Array.isArray(state.giftHampers)) inMemoryStore.giftHampers = new Map(state.giftHampers);
+      if (Array.isArray(state.coupons)) inMemoryStore.coupons = new Map(state.coupons);
+      if (state.storeSettings) inMemoryStore.storeSettings = state.storeSettings;
+      if (Array.isArray(state.orders)) inMemoryStore.orders = new Map(state.orders);
+      if (Array.isArray(state.payments)) inMemoryStore.payments = new Map(state.payments);
+      console.log(`[Store] Loaded persistent state from disk (${inMemoryStore.products.size} products).`);
+    }
+  } catch (err) {
+    console.error('Failed to load store state from disk:', err);
+  }
+}
+
+// Load initial persisted state on startup
+loadStoreState();

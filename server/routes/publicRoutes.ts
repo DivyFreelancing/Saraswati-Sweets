@@ -52,8 +52,23 @@ router.get('/products/:slug', (req, res: Response) => {
   res.json({
     product: {
       ...p,
+      is_eggless: true,
+      is_pure_ghee: Boolean(p.pure_ghee),
+      is_bestseller: Boolean(p.is_bestseller),
+      is_featured: Boolean(p.is_featured),
+      badge_label: p.badge_label || null,
       variants,
-      category: cat || null
+      images: [
+        {
+          id: `img-${p.id}`,
+          product_id: p.id,
+          image_url: p.image_url,
+          alt_text: p.name,
+          is_primary: true,
+          display_order: 1,
+        },
+      ],
+      category: cat || null,
     }
   });
 });
@@ -85,8 +100,23 @@ router.get('/products', (_req, res: Response) => {
     const cat = inMemoryStore.categories.get(p.category_id);
     return {
       ...p,
+      is_eggless: true,
+      is_pure_ghee: Boolean(p.pure_ghee),
+      is_bestseller: Boolean(p.is_bestseller),
+      is_featured: Boolean(p.is_featured),
+      badge_label: p.badge_label || null,
       variants: mappedVariants,
-      category: cat || null
+      images: [
+        {
+          id: `img-${p.id}`,
+          product_id: p.id,
+          image_url: p.image_url,
+          alt_text: p.name,
+          is_primary: true,
+          display_order: 1,
+        },
+      ],
+      category: cat || null,
     };
   });
   

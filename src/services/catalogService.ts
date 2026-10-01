@@ -31,16 +31,23 @@ export const catalogService = {
   isLive: () => isSupabaseConfigured(),
 
   async getCategories(): Promise<Category[]> {
+    let fetchedFromServer = false;
+    let categories: Category[] = [];
+
     try {
       const res = await fetch('/api/categories');
       if (res.ok) {
         const data = await res.json();
-        if (data.categories && data.categories.length > 0) return data.categories;
+        if (data.categories && Array.isArray(data.categories)) {
+          categories = data.categories;
+          fetchedFromServer = true;
+        }
       }
     } catch (e) {
       console.warn('Fetch from /api/categories failed:', e);
     }
-    if (isSupabaseConfigured() && supabase) {
+
+    if (!fetchedFromServer && isSupabaseConfigured() && supabase) {
       try {
         const { data, error } = await supabase
           .from('categories')
@@ -48,34 +55,40 @@ export const catalogService = {
           .eq('is_active', true)
           .order('display_order', { ascending: true });
 
-        if (!error && data && data.length > 0) {
-          return data as Category[];
+        if (!error && data) {
+          categories = data as Category[];
+          fetchedFromServer = true;
         }
       } catch (err) {
         console.warn('Supabase fetch categories failed, using fallback:', err);
       }
     }
-    return SEED_CATEGORIES.filter((c) => c.is_active);
+    
+    if (!fetchedFromServer) {
+      return SEED_CATEGORIES.filter((c) => c.is_active);
+    }
+    
+    return categories;
   },
 
   async getProducts(options: CatalogFilterOptions = {}): Promise<Product[]> {
     let products: Product[] = [];
+    let fetchedFromServer = false;
 
     try {
       const res = await fetch('/api/products');
       if (res.ok) {
         const data = await res.json();
-        if (data.products && data.products.length > 0) {
+        if (data.products && Array.isArray(data.products)) {
           products = data.products;
-          if (options.bestsellerOnly) products = products.filter(p => p.is_bestseller);
-          if (options.pureGheeOnly) products = products.filter(p => p.is_pure_ghee);
+          fetchedFromServer = true;
         }
       }
     } catch (e) {
       console.warn('Fetch from /api/products failed:', e);
     }
 
-    if (products.length === 0 && isSupabaseConfigured() && supabase) {
+    if (!fetchedFromServer && isSupabaseConfigured() && supabase) {
       try {
         let query = supabase
           .from('products')
@@ -88,28 +101,19 @@ export const catalogService = {
           .eq('is_active', true)
           .is('deleted_at', null);
 
-        if (options.bestsellerOnly) {
-          query = query.eq('is_bestseller', true);
-        }
-
-        if (options.pureGheeOnly) {
-          query = query.eq('is_pure_ghee', true);
-        }
-
         const { data, error } = await query;
 
-        if (!error && data && data.length > 0) {
+        if (!error && data) {
           products = data as Product[];
+          fetchedFromServer = true;
         }
       } catch (err) {
         console.warn('Supabase fetch products failed, using fallback:', err);
       }
     }
 
-    if (products.length === 0) {
+    if (!fetchedFromServer) {
       products = [...SEED_PRODUCTS];
-      if (options.bestsellerOnly) products = products.filter(p => p.is_bestseller);
-      if (options.pureGheeOnly) products = products.filter(p => p.is_pure_ghee);
     }
 
     // Filter by category slug
@@ -163,6 +167,8 @@ export const catalogService = {
       if (res.ok) {
         const data = await res.json();
         if (data.product) return data.product;
+      } else if (res.status === 404) {
+        return null;
       }
     } catch (e) {
       console.warn('Fetch from /api/products/:slug failed:', e);
@@ -183,6 +189,8 @@ export const catalogService = {
 
         if (!error && data) {
           return data as Product;
+        } else if (error && error.code === 'PGRST116') {
+          return null;
         }
       } catch (err) {
         console.warn('Supabase fetch product failed:', err);
