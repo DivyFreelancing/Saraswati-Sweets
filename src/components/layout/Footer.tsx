@@ -262,7 +262,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 <div className="mt-4 w-full h-32 sm:h-40 rounded-lg overflow-hidden border border-[#E8DCC8] shadow-xs group relative">
                   <div className="absolute inset-0 bg-[#7A1129]/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                   <iframe
-                    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3558.0776781255866!2d81.17621141504473!3d26.92484638312015!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x399961ab1234567%3A0xbccf0a7cbcd36c2e!2sGhantaghar%2C%20Barabanki%2C%20Uttar%20Pradesh%20225001!5e0!3m2!1sen!2sin!4v1717614055273!5m2!1sen!2sin"
+                    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d4247.277361027027!2d81.1914046!3d26.9303736!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x399960448077c48b%3A0x237c28b2c008a9e8!2sSaraswati%20Sweets!5e1!3m2!1sen!2sin!4v1790846537331!5m2!1sen!2sin"
                     className="w-full h-full border-0"
                     allowFullScreen={false}
                     loading="lazy"
