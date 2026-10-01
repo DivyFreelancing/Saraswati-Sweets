@@ -299,7 +299,11 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-5 pt-1 text-xs text-[#6E6259]">
               <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-[#E8DCC8] shadow-2xs">
                 <ShieldCheck className="w-3.5 h-3.5 text-[#2E7D4F]" />
-                <span className="font-semibold text-[#221A14]">FSSAI Lic: 12721008000492</span>
+                <span className="font-semibold text-[#221A14]">FSSAI: 12721008000492</span>
+              </div>
+
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-[#E8DCC8] shadow-2xs">
+                <span className="font-semibold text-[#221A14]">GST: 09ABEFS9729B1ZY</span>
               </div>
 
               <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-[#E8DCC8] shadow-2xs">
