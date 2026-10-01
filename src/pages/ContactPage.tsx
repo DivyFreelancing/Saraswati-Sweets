@@ -49,13 +49,13 @@ export const ContactPage: React.FC = () => {
           <div className="space-y-1 text-sm text-[#6B6258]">
             <p>
               Direct Order Line:{' '}
-              <a href="tel:+919450012345" className="text-[#1F1B16] font-semibold hover:text-[#8A1538]">
-                +91 94500 12345
+              <a href="tel:+919161110030" className="text-[#1F1B16] font-semibold hover:text-[#8A1538]">
+                +91 91611 10030
               </a>
             </p>
             <p>
               WhatsApp:{' '}
-              <a href="https://wa.me/919450012345" className="text-[#2E7D4F] font-semibold hover:underline">
+              <a href="https://wa.me/919161110030" className="text-[#2E7D4F] font-semibold hover:underline">
                 Chat on WhatsApp
               </a>
             </p>
@@ -78,7 +78,7 @@ export const ContactPage: React.FC = () => {
           </h3>
           <div className="text-sm text-[#6B6258] space-y-1">
             <p className="font-medium text-[#1F1B16]">Monday to Sunday</p>
-            <p>8:00 AM – 10:00 PM</p>
+            <p>6:30 AM – 10:00 PM</p>
             <p className="text-xs text-[#2E7D4F] font-semibold pt-1">
               • Open 365 Days a Year
             </p>

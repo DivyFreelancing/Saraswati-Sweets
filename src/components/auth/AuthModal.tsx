@@ -169,7 +169,7 @@ export const AuthModal: React.FC = () => {
                       maxLength={10}
                       value={phoneNumber}
                       onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
-                      placeholder="94500 12345"
+                      placeholder="91611 10030"
                       className="w-full px-4 py-3 text-sm text-[#221A14] bg-transparent focus:outline-none font-medium placeholder:text-[#6E6259]/60 tracking-wider"
                     />
                   </div>

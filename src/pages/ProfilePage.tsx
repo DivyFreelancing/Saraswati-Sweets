@@ -739,7 +739,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                       maxLength={10}
                       value={profilePhoneInput}
                       onChange={(e) => setProfilePhoneInput(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                      placeholder="9450012345"
+                      placeholder="9161110030"
                       className="w-full pl-12 pr-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-sm focus:outline-none focus:border-[#8A1538]"
                     />
                   </div>

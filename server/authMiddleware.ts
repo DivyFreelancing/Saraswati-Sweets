@@ -81,7 +81,7 @@ export async function authenticateToken(
       if (!existing) {
         const formattedPhone = cleanPhone
           ? `+91 ${cleanPhone.slice(0, 5)} ${cleanPhone.slice(5)}`
-          : (token.includes('phone') ? '+91 94500 12345' : undefined);
+          : (token.includes('phone') ? '+91 91611 10030' : undefined);
 
         existing = {
           id: canonicalUserId,

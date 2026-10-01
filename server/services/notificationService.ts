@@ -427,7 +427,7 @@ export async function notifyNewBulkEnquiry(enquiry: ServerBulkEnquiry): Promise<
           <p>Thank you for reaching out to Saraswati Sweets (Barabanki) for your upcoming <strong>${enquiry.event_type}</strong> celebration on <strong>${enquiry.event_date}</strong>.</p>
           <p>Our senior order coordinator has received your enquiry (Ref: <strong>${enquiry.enquiry_number}</strong>) and will call you on <strong>${enquiry.phone}</strong> with wholesale bulk rates, custom box packaging choices, and complimentary sample tasting options.</p>
           <p>We look forward to sweetening your auspicious occasion with 100% pure cow desi ghee craftsmanship.</p>
-          <p style="margin-top: 20px; font-size: 13px; color: #6B6258;">Saraswati Sweets • Main Market Road, Near Ghantaghar, Barabanki • Tel: ${STORE_SETTINGS.phone}</p>
+          <p style="margin-top: 20px; font-size: 13px; color: #6B6258;">Saraswati Sweets • Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001 • Tel: ${STORE_SETTINGS.phone}</p>
         </div>
       `,
     });

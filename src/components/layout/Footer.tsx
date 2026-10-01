@@ -235,16 +235,16 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               </h4>
               <div className="space-y-2 text-xs sm:text-sm text-[#6E6259]">
                 <a
-                  href="tel:+919450012345"
+                  href="tel:+919161110030"
                   className="font-semibold text-[#221A14] hover:text-[#7A1129] block"
                 >
-                  +91 94500 12345
+                  +91 91611 10030
                 </a>
                 <div className="text-xs text-[#6E6259]">
-                  Mon – Sun: 8:00 am – 10:00 pm IST
+                  Mon – Sun: 6:30 am – 10:00 pm IST
                 </div>
                 <div className="text-xs text-[#6E6259] leading-relaxed">
-                  Main Market Road, Near Ghantaghar, Barabanki, UP 225001
+                  Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001
                 </div>
                 <div className="pt-1">
                   <a
@@ -341,7 +341,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 <Facebook className="w-4 h-4" />
               </a>
               <a
-                href="https://wa.me/919450012345"
+                href="https://wa.me/919161110030"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="WhatsApp"

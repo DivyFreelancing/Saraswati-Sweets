@@ -121,7 +121,7 @@ export const BulkEnquiryPage: React.FC = () => {
               required
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              placeholder="e.g. 9450012345"
+              placeholder="e.g. 9161110030"
               className="w-full px-4 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-sm focus:outline-none focus:border-[#8A1538] focus:bg-white"
             />
           </div>
@@ -226,7 +226,7 @@ export const BulkEnquiryPage: React.FC = () => {
         </button>
 
         <p className="text-center text-xs text-[#6B6258]">
-          Prefer speaking directly? Call our store manager at <a href="tel:+919450012345" className="text-[#8A1538] font-bold underline">+91 94500 12345</a>
+          Prefer speaking directly? Call our store manager at <a href="tel:+919161110030" className="text-[#8A1538] font-bold underline">+91 91611 10030</a>
         </p>
       </form>
     </div>

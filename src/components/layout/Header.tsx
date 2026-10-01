@@ -109,17 +109,17 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
               Barabanki
             </span>
             <span className="truncate text-[#FAF4DE]/95">
-              Pure Desi Ghee Mithai Since 1989 · Barabanki · Open Daily 8:00 AM – 10:00 PM · Delivering across Barabanki & Nearby
+              Pure Desi Ghee Mithai Since 1989 · Barabanki · Open Daily 6:30 AM – 10:00 PM · Delivering across Barabanki & Nearby
             </span>
           </div>
 
           <div className="hidden md:flex items-center gap-4 shrink-0 text-[#FAF4DE]/90 text-[11px]">
             <a
-              href="tel:+919450012345"
+              href="tel:+919161110030"
               className="flex items-center gap-1 hover:text-white transition-colors"
             >
               <Phone className="w-3 h-3 text-[#C79A3D]" />
-              <span>+91 94500 12345</span>
+              <span>+91 91611 10030</span>
             </a>
             <span className="text-[#FAF4DE]/40">|</span>
             <span className="flex items-center gap-1">
@@ -536,11 +536,11 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
           <div className="pt-4 border-t border-[#E8DCC8] space-y-2 text-xs text-[#6E6259]">
             <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-[#7A1129]" />
-              <span>Main Market Road, Near Ghantaghar, Barabanki</span>
+              <span>Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001</span>
             </div>
             <div className="flex items-center gap-2">
               <Phone className="w-4 h-4 text-[#7A1129]" />
-              <span>+91 94500 12345 (8:00 AM – 10:00 PM)</span>
+              <span>+91 91611 10030 (6:30 AM – 10:00 PM)</span>
             </div>
           </div>
         </div>
