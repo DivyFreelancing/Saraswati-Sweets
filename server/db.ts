@@ -1742,7 +1742,7 @@ export function saveStoreState(): void {
       orders: Array.from(inMemoryStore.orders.entries()),
       payments: Array.from(inMemoryStore.payments.entries()),
     };
-    fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), 'utf-8');
+    fs.promises.writeFile(STATE_FILE, JSON.stringify(state, null, 2), 'utf-8').catch(err => console.error('Failed to save store state to disk:', err));
   } catch (err) {
     console.error('Failed to save store state to disk:', err);
   }

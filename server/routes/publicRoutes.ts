@@ -17,6 +17,7 @@ const router = Router();
 // 0. CATALOG (PUBLIC)
 // ==========================================================
 router.get('/categories', (_req, res: Response) => {
+  res.setHeader('Cache-Control', 'public, max-age=60');
   const categories = Array.from(inMemoryStore.categories.values())
     .filter((c) => c.is_active)
     .sort((a, b) => a.display_order - b.display_order);
@@ -25,6 +26,7 @@ router.get('/categories', (_req, res: Response) => {
 
 
 router.get('/products/:slug', (req, res: Response) => {
+  res.setHeader('Cache-Control', 'public, max-age=60');
   const { slug } = req.params;
   const p = Array.from(inMemoryStore.products.values()).find(p => p.slug === slug && p.is_active);
   if (!p) {
@@ -74,6 +76,7 @@ router.get('/products/:slug', (req, res: Response) => {
 });
 
 router.get('/products', (_req, res: Response) => {
+  res.setHeader('Cache-Control', 'public, max-age=60');
   const products = Array.from(inMemoryStore.products.values())
     .filter((p) => p.is_active);
     
@@ -128,6 +131,7 @@ router.get('/products', (_req, res: Response) => {
 // 1. OFFERS & PROMOTIONS (PUBLIC)
 // ==========================================================
 router.get('/offers', (_req, res: Response) => {
+  res.setHeader('Cache-Control', 'public, max-age=60');
   const offers = Array.from(inMemoryStore.offers.values())
     .filter((o) => o.is_active)
     .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
@@ -139,6 +143,7 @@ router.get('/offers', (_req, res: Response) => {
 // 2. HERO & PROMOTIONAL BANNERS (PUBLIC)
 // ==========================================================
 router.get('/banners', (_req, res: Response) => {
+  res.setHeader('Cache-Control', 'public, max-age=60');
   const banners = Array.from(inMemoryStore.banners.values())
     .filter((b) => b.is_active)
     .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
@@ -150,6 +155,7 @@ router.get('/banners', (_req, res: Response) => {
 // 3. GIFT HAMPERS (PUBLIC)
 // ==========================================================
 router.get('/hampers', (_req, res: Response) => {
+  res.setHeader('Cache-Control', 'public, max-age=60');
   const hampers = Array.from(inMemoryStore.giftHampers.values())
     .filter((h) => h.is_active)
     .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
@@ -158,6 +164,7 @@ router.get('/hampers', (_req, res: Response) => {
 });
 
 router.get('/hampers/:idOrSlug', (req, res: Response) => {
+  res.setHeader('Cache-Control', 'public, max-age=60');
   const { idOrSlug } = req.params;
   const hamper =
     inMemoryStore.giftHampers.get(idOrSlug) ||
@@ -182,6 +189,7 @@ router.get('/hampers/:idOrSlug', (req, res: Response) => {
  * Returns only APPROVED reviews for public display + aggregate ratings
  */
 router.get('/products/:productId/reviews', (req, res: Response) => {
+  res.setHeader('Cache-Control', 'public, max-age=60');
   const { productId } = req.params;
 
   const productReviews = Array.from(inMemoryStore.reviews.values())

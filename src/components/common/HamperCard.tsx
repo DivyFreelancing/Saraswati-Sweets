@@ -36,7 +36,7 @@ export const HamperCard: React.FC<HamperCardProps> = ({ hamper, onViewDetails })
     <div className="flex flex-col bg-white rounded-2xl border border-[#E8DCC8] overflow-hidden shadow-[0_2px_12px_-2px_rgba(34,26,20,0.05),0_1px_3px_0_rgba(34,26,20,0.03)] hover:shadow-[0_8px_30px_-4px_rgba(122,17,41,0.09)] transition-all duration-200">
       {/* Visual Header with subtle festive badge */}
       <div className="relative aspect-[16/10] overflow-hidden bg-[#F5EAD9]">
-        <img
+        <img loading="lazy" decoding="async"
           src={hamper.image_url}
           alt={hamper.name}
           className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"

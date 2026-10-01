@@ -1,4 +1,7 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
+
+
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -37,12 +40,30 @@ async function startServer() {
   app.use(authenticateToken);
 
   // --- API Routes ---
-  app.use('/api/auth', authRoutes);
+  
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per window
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests, please try again later.' }
+  });
+
+  const sensitiveLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 20, // Limit each IP to 20 requests per window for sensitive actions
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many attempts, please try again later.' }
+  });
+
+  app.use('/api/auth', sensitiveLimiter, authRoutes);
+  app.use('/api/checkout', sensitiveLimiter);
   app.use('/api/cart', cartRoutes);
   app.use('/api/addresses', addressRoutes);
   app.use('/api/admin', adminRoutes);
-  app.use('/api/payments', paymentRoutes); // Mounts /api/payments/verify, /api/payments/webhook/razorpay
-  app.use('/api', orderRoutes); // Mounts /api/checkout, /api/delivery-slots, /api/orders
+  app.use('/api/payments', sensitiveLimiter, paymentRoutes); // Mounts /api/payments/verify, /api/payments/webhook/razorpay
+  app.use('/api', apiLimiter, orderRoutes); // Mounts /api/checkout, /api/delivery-slots, /api/orders
   app.use('/api', publicRoutes); // Mounts /api/offers, /api/banners, /api/hampers, /api/enquiries, /api/notifications, /api/products/:id/reviews
 
   // Store settings endpoint
