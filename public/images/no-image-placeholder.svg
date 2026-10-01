@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <defs>
+    <radialGradient id="phGrad" cx="50%" cy="45%" r="65%">
+      <stop offset="0%" stop-color="#FCF9F3" />
+      <stop offset="70%" stop-color="#F5EAD9" />
+      <stop offset="100%" stop-color="#EEDEC7" />
+    </radialGradient>
+    <linearGradient id="goldAccent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E3B755" />
+      <stop offset="50%" stop-color="#C79A3D" />
+      <stop offset="100%" stop-color="#9A7524" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="400" height="400" fill="url(#phGrad)" />
+
+  <!-- Outer Decorative Ring -->
+  <circle cx="200" cy="180" r="130" fill="none" stroke="#E8DCC8" stroke-width="2" />
+  <circle cx="200" cy="180" r="120" fill="none" stroke="url(#goldAccent)" stroke-width="1.5" stroke-dasharray="6 6" opacity="0.65" />
+  <circle cx="200" cy="180" r="110" fill="#FAF4DE" opacity="0.5" />
+
+  <!-- Stylized Cloche / Mithai Dome & Plate -->
+  <g transform="translate(200, 180) scale(1.15)">
+    <!-- Plate base -->
+    <path d="M-60,40 C-40,48 40,48 60,40 C45,35 -45,35 -60,40 Z" fill="url(#goldAccent)" opacity="0.9" />
+    <ellipse cx="0" cy="42" rx="68" ry="7" fill="none" stroke="url(#goldAccent)" stroke-width="2.5" />
+    <ellipse cx="0" cy="42" rx="76" ry="9" fill="none" stroke="#E8DCC8" stroke-width="1" />
+
+    <!-- Cloche dome -->
+    <path d="M-52,36 C-52,-15 -25,-42 0,-42 C25,-42 52,-15 52,36 Z" fill="#FBF6EF" stroke="url(#goldAccent)" stroke-width="2.5" />
+    
+    <!-- Cloche knob -->
+    <circle cx="0" cy="-48" r="7" fill="url(#goldAccent)" />
+    <path d="M-3,-42 L3,-42 L2,-40 L-2,-40 Z" fill="url(#goldAccent)" />
+
+    <!-- Subtle decorative arch on dome -->
+    <path d="M-35,34 C-35,2 -18,-22 0,-22 C18,-22 35,2 35,34" fill="none" stroke="#E8DCC8" stroke-width="1.5" stroke-dasharray="3 3" />
+    
+    <!-- Subtle sweets motichoor accents -->
+    <circle cx="-14" cy="22" r="3" fill="#7A1129" opacity="0.6" />
+    <circle cx="0" cy="20" r="4" fill="#7A1129" opacity="0.8" />
+    <circle cx="14" cy="22" r="3" fill="#7A1129" opacity="0.6" />
+  </g>
+
+  <!-- Clean Typography -->
+  <text x="200" y="328" font-family="'Fraunces', Georgia, serif" font-size="14" font-weight="700" fill="#7A1129" text-anchor="middle" letter-spacing="2">PHOTO COMING SOON</text>
+  <text x="200" y="348" font-family="'Plus Jakarta Sans', sans-serif" font-size="10" font-weight="600" fill="#6E6259" text-anchor="middle" letter-spacing="1.5">SARASWATI SWEETS</text>
+</svg>

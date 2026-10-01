@@ -102,16 +102,13 @@ export const AuthModal: React.FC = () => {
           <div className="p-6 sm:p-8">
             {/* Modal Branding Header */}
             <div className="text-center space-y-2.5 mb-6">
-              {/* Royal Emblem */}
-              <div className="relative inline-flex items-center justify-center">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#7A1129] to-[#5E0D20] border-2 border-[#C79A3D]/60 shadow-[0_4px_16px_rgba(122,17,41,0.25)] flex items-center justify-center">
-                  <span className="font-serif font-bold text-2xl text-[#E8C872] drop-shadow-xs">
-                    स
-                  </span>
-                </div>
-                <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#C79A3D] text-[#2A0E14] flex items-center justify-center shadow-xs">
-                  <Sparkles className="w-3 h-3 text-[#2A0E14]" />
-                </div>
+              {/* Official Saraswati Sweets Brand Logo */}
+              <div className="flex items-center justify-center">
+                <img
+                  src="/images/logo.png"
+                  alt="Saraswati Sweets"
+                  className="h-16 sm:h-20 w-auto object-contain drop-shadow-sm select-none"
+                />
               </div>
 
               <div>

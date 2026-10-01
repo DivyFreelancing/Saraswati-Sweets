@@ -1,0 +1,420 @@
+﻿// --- CATEGORY ---
+{
+  "id": "5b521d3b-794c-4fee-9bf6-041be52664c4",
+  "name": "Namkeen & Snacks",
+  "slug": "namkeen-snacks",
+  "description": "A crisp, savory selection of traditional namkeen and snacks.",
+  "tag": "namkeen",
+  "display_order": 4
+},
+
+// --- PRODUCTS ---
+{
+  "id": "384f5dc3-3a57-488c-a409-5571b6ed2246",
+  "category_id": "5b521d3b-794c-4fee-9bf6-041be52664c4",
+  "name": "Mini Samosa",
+  "slug": "mini-samosa",
+  "description": "A classic, crispy savory snack ΓÇô mini samosa.",
+  "ingredients": "",
+  "shelf_life_days": 30,
+  "is_active": true,
+  "is_featured": false,
+  "rating": 0,
+  "reviews_count": 0
+},
+{
+  "id": "5755304c-babd-4f55-82d0-abc3d63aeea2",
+  "category_id": "5b521d3b-794c-4fee-9bf6-041be52664c4",
+  "name": "Mini Khasta",
+  "slug": "mini-khasta",
+  "description": "A classic, crispy savory snack ΓÇô mini khasta.",
+  "ingredients": "",
+  "shelf_life_days": 30,
+  "is_active": true,
+  "is_featured": false,
+  "rating": 0,
+  "reviews_count": 0
+},
+{
+  "id": "66d7f87f-6258-4662-a785-94c136995266",
+  "category_id": "5b521d3b-794c-4fee-9bf6-041be52664c4",
+  "name": "Plain Mathri",
+  "slug": "plain-mathri",
+  "description": "A classic, crispy savory snack ΓÇô plain mathri.",
+  "ingredients": "",
+  "shelf_life_days": 30,
+  "is_active": true,
+  "is_featured": false,
+  "rating": 0,
+  "reviews_count": 0
+},
+{
+  "id": "575a1083-f572-4ad7-9a14-c4cf35829a30",
+  "category_id": "5b521d3b-794c-4fee-9bf6-041be52664c4",
+  "name": "Achari Mathri",
+  "slug": "achari-mathri",
+  "description": "A classic, crispy savory snack ΓÇô achari mathri.",
+  "ingredients": "",
+  "shelf_life_days": 30,
+  "is_active": true,
+  "is_featured": false,
+  "rating": 0,
+  "reviews_count": 0
+},
+{
+  "id": "1955075c-7a02-4662-9ae7-a06976184e66",
+  "category_id": "5b521d3b-794c-4fee-9bf6-041be52664c4",
+  "name": "Achari Samosa",
+  "slug": "achari-samosa",
+  "description": "A classic, crispy savory snack ΓÇô achari samosa.",
+  "ingredients": "",
+  "shelf_life_days": 30,
+  "is_active": true,
+  "is_featured": false,
+  "rating": 0,
+  "reviews_count": 0
+},
+{
+  "id": "846f2282-6587-4a4d-9d01-183d88e5f6f3",
+  "category_id": "5b521d3b-794c-4fee-9bf6-041be52664c4",
+  "name": "Mewa Samosa",
+  "slug": "mewa-samosa",
+  "description": "A classic, crispy savory snack ΓÇô mewa samosa.",
+  "ingredients": "",
+  "shelf_life_days": 30,
+  "is_active": true,
+  "is_featured": false,
+  "rating": 0,
+  "reviews_count": 0
+},
+{
+  "id": "adb877bf-c5cd-4299-93d9-25c86100b826",
+  "category_id": "5b521d3b-794c-4fee-9bf6-041be52664c4",
+  "name": "Masoor Dalmoth",
+  "slug": "masoor-dalmoth",
+  "description": "A classic, crispy savory snack ΓÇô masoor dalmoth.",
+  "ingredients": "",
+  "shelf_life_days": 30,
+  "is_active": true,
+  "is_featured": false,
+  "rating": 0,
+  "reviews_count": 0
+},
+{
+  "id": "f3d0c05d-8c3a-4d8c-8353-7a363fd10410",
+  "category_id": "5b521d3b-794c-4fee-9bf6-041be52664c4",
+  "name": "Pudina Mixture",
+  "slug": "pudina-mixture",
+  "description": "A classic, crispy savory snack ΓÇô pudina mixture.",
+  "ingredients": "",
+  "shelf_life_days": 30,
+  "is_active": true,
+  "is_featured": false,
+  "rating": 0,
+  "reviews_count": 0
+},
+{
+  "id": "ec5b2868-1761-4394-a806-48d356812371",
+  "category_id": "5b521d3b-794c-4fee-9bf6-041be52664c4",
+  "name": "Kaju Dalmoth",
+  "slug": "kaju-dalmoth",
+  "description": "A classic, crispy savory snack ΓÇô kaju dalmoth.",
+  "ingredients": "",
+  "shelf_life_days": 30,
+  "is_active": true,
+  "is_featured": false,
+  "rating": 0,
+  "reviews_count": 0
+},
+{
+  "id": "23c12e69-4674-4f43-8494-5977c6f84386",
+  "category_id": "5b521d3b-794c-4fee-9bf6-041be52664c4",
+  "name": "Sev (Besan)",
+  "slug": "sev-besan",
+  "description": "A classic, crispy savory snack ΓÇô sev (besan).",
+  "ingredients": "",
+  "shelf_life_days": 30,
+  "is_active": true,
+  "is_featured": false,
+  "rating": 0,
+  "reviews_count": 0
+},
+{
+  "id": "865bcb26-61f5-4250-90ed-401ea6f00055",
+  "category_id": "5b521d3b-794c-4fee-9bf6-041be52664c4",
+  "name": "Ganthe",
+  "slug": "ganthe",
+  "description": "A classic, crispy savory snack ΓÇô ganthe.",
+  "ingredients": "",
+  "shelf_life_days": 30,
+  "is_active": true,
+  "is_featured": false,
+  "rating": 0,
+  "reviews_count": 0
+},
+
+// --- VARIANTS ---
+{
+  "id": "f1a4e615-8b06-4585-8645-60917163f87c",
+  "product_id": "384f5dc3-3a57-488c-a409-5571b6ed2246",
+  "weight_g": 250,
+  "price": 170,
+  "sku": "MINI-SAMOSA-250",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "a2399bd0-f94f-4cd3-911c-228f698a50fb",
+  "product_id": "384f5dc3-3a57-488c-a409-5571b6ed2246",
+  "weight_g": 500,
+  "price": 340,
+  "sku": "MINI-SAMOSA-500",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "804532d6-6a25-4509-9bae-444b65da8853",
+  "product_id": "384f5dc3-3a57-488c-a409-5571b6ed2246",
+  "weight_g": 1000,
+  "price": 680,
+  "sku": "MINI-SAMOSA-1KG",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "cbef904e-fcdf-45ad-92a1-9bbba05b2253",
+  "product_id": "5755304c-babd-4f55-82d0-abc3d63aeea2",
+  "weight_g": 250,
+  "price": 170,
+  "sku": "MINI-KHASTA-250",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "f578e142-78d2-407e-9c7c-cb6778dc1fff",
+  "product_id": "5755304c-babd-4f55-82d0-abc3d63aeea2",
+  "weight_g": 500,
+  "price": 340,
+  "sku": "MINI-KHASTA-500",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "19e997fd-a8e4-44da-890f-a6f58c58322c",
+  "product_id": "5755304c-babd-4f55-82d0-abc3d63aeea2",
+  "weight_g": 1000,
+  "price": 680,
+  "sku": "MINI-KHASTA-1KG",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "b1c5e00c-57a5-4131-a2fb-3e66fe08933c",
+  "product_id": "66d7f87f-6258-4662-a785-94c136995266",
+  "weight_g": 250,
+  "price": 170,
+  "sku": "PLAIN-MATHRI-250",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "f5a6f903-bd6b-460b-908c-aac2ad108319",
+  "product_id": "66d7f87f-6258-4662-a785-94c136995266",
+  "weight_g": 500,
+  "price": 340,
+  "sku": "PLAIN-MATHRI-500",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "909b8a83-ee4a-45ba-b050-0ca6ce376b1f",
+  "product_id": "66d7f87f-6258-4662-a785-94c136995266",
+  "weight_g": 1000,
+  "price": 680,
+  "sku": "PLAIN-MATHRI-1KG",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "f9f21ee0-28e4-4f80-8737-bedec47a8489",
+  "product_id": "575a1083-f572-4ad7-9a14-c4cf35829a30",
+  "weight_g": 250,
+  "price": 180,
+  "sku": "ACHARI-MATHRI-250",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "06d7821b-6c1e-41e0-aaa3-60c1828f19d5",
+  "product_id": "575a1083-f572-4ad7-9a14-c4cf35829a30",
+  "weight_g": 500,
+  "price": 360,
+  "sku": "ACHARI-MATHRI-500",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "2e2ad996-5285-4e0d-a753-d0fc184dbc16",
+  "product_id": "575a1083-f572-4ad7-9a14-c4cf35829a30",
+  "weight_g": 1000,
+  "price": 720,
+  "sku": "ACHARI-MATHRI-1KG",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "e655b738-8041-45b6-8f10-3d9325737220",
+  "product_id": "1955075c-7a02-4662-9ae7-a06976184e66",
+  "weight_g": 250,
+  "price": 190,
+  "sku": "ACHARI-SAMOSA-250",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "577b1b44-db6b-440f-a7b5-d3dde9590efe",
+  "product_id": "1955075c-7a02-4662-9ae7-a06976184e66",
+  "weight_g": 500,
+  "price": 380,
+  "sku": "ACHARI-SAMOSA-500",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "ba6ee1b4-0ec0-428e-9bbe-e84f78df21f6",
+  "product_id": "1955075c-7a02-4662-9ae7-a06976184e66",
+  "weight_g": 1000,
+  "price": 760,
+  "sku": "ACHARI-SAMOSA-1KG",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "d8cd5940-3d3f-4e01-9b1a-b21d86435200",
+  "product_id": "846f2282-6587-4a4d-9d01-183d88e5f6f3",
+  "weight_g": 250,
+  "price": 190,
+  "sku": "MEWA-SAMOSA-250",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "52f0291f-0bb4-4e3b-b8e5-9ec88b81ef12",
+  "product_id": "846f2282-6587-4a4d-9d01-183d88e5f6f3",
+  "weight_g": 500,
+  "price": 380,
+  "sku": "MEWA-SAMOSA-500",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "14c9a290-832e-4025-a924-d5ab2ea24c25",
+  "product_id": "846f2282-6587-4a4d-9d01-183d88e5f6f3",
+  "weight_g": 1000,
+  "price": 760,
+  "sku": "MEWA-SAMOSA-1KG",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "fadc4cda-1d1f-465f-9e35-995479e310c3",
+  "product_id": "adb877bf-c5cd-4299-93d9-25c86100b826",
+  "weight_g": 250,
+  "price": 200,
+  "sku": "MASOOR-DALMOTH-250",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "faf5d190-7e16-45b2-94ac-ec7a4ba5e131",
+  "product_id": "adb877bf-c5cd-4299-93d9-25c86100b826",
+  "weight_g": 500,
+  "price": 400,
+  "sku": "MASOOR-DALMOTH-500",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "d74d7924-7b71-4f42-a863-0125015c4eb6",
+  "product_id": "adb877bf-c5cd-4299-93d9-25c86100b826",
+  "weight_g": 1000,
+  "price": 800,
+  "sku": "MASOOR-DALMOTH-1KG",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "0660bcca-0922-4051-a7f0-f874d010a536",
+  "product_id": "f3d0c05d-8c3a-4d8c-8353-7a363fd10410",
+  "weight_g": 250,
+  "price": 225,
+  "sku": "PUDINA-MIXTURE-250",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "07f19ac5-a390-45b0-a5b5-8752579b4a70",
+  "product_id": "f3d0c05d-8c3a-4d8c-8353-7a363fd10410",
+  "weight_g": 500,
+  "price": 450,
+  "sku": "PUDINA-MIXTURE-500",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "31914e9e-4cc5-4a08-be0a-5148af079280",
+  "product_id": "f3d0c05d-8c3a-4d8c-8353-7a363fd10410",
+  "weight_g": 1000,
+  "price": 900,
+  "sku": "PUDINA-MIXTURE-1KG",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "7a862397-2806-4824-8e03-0baa02e0211b",
+  "product_id": "ec5b2868-1761-4394-a806-48d356812371",
+  "weight_g": 250,
+  "price": 300,
+  "sku": "KAJU-DALMOTH-250",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "2611736e-48b7-4cee-9ae2-391255b0afd3",
+  "product_id": "ec5b2868-1761-4394-a806-48d356812371",
+  "weight_g": 500,
+  "price": 600,
+  "sku": "KAJU-DALMOTH-500",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "0c2851cc-3e81-4dee-a726-d7f67b88a936",
+  "product_id": "ec5b2868-1761-4394-a806-48d356812371",
+  "weight_g": 1000,
+  "price": 1200,
+  "sku": "KAJU-DALMOTH-1KG",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "5a3614f2-37c9-438c-86ac-d13aee17f1d0",
+  "product_id": "23c12e69-4674-4f43-8494-5977c6f84386",
+  "weight_g": 250,
+  "price": 150,
+  "sku": "SEV-250",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "badfb9cc-5b3a-44be-be8c-f3b329585c8c",
+  "product_id": "23c12e69-4674-4f43-8494-5977c6f84386",
+  "weight_g": 500,
+  "price": 300,
+  "sku": "SEV-500",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "9f9122fb-bcd9-4a30-8e62-6d3cbd2348bb",
+  "product_id": "23c12e69-4674-4f43-8494-5977c6f84386",
+  "weight_g": 1000,
+  "price": 600,
+  "sku": "SEV-1KG",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "54a6cc13-0567-4769-a494-0e43a7993175",
+  "product_id": "865bcb26-61f5-4250-90ed-401ea6f00055",
+  "weight_g": 250,
+  "price": 150,
+  "sku": "GANTHE-250",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "f56a2f3e-4b8f-4d41-9705-90a36c241097",
+  "product_id": "865bcb26-61f5-4250-90ed-401ea6f00055",
+  "weight_g": 500,
+  "price": 300,
+  "sku": "GANTHE-500",
+  "stock_status": "IN_STOCK"
+},
+{
+  "id": "bb7a1a0c-cde6-4792-b847-8a9e0acf666a",
+  "product_id": "865bcb26-61f5-4250-90ed-401ea6f00055",
+  "weight_g": 1000,
+  "price": 600,
+  "sku": "GANTHE-1KG",
+  "stock_status": "IN_STOCK"
+},

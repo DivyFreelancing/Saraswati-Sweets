@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { AuthenticatedRequest, requireRole } from '../authMiddleware';
 import {
   inMemoryStore,
+  ServerProfile,
   ServerCategory,
   ServerProduct,
   MasterVariant,

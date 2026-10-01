@@ -39,7 +39,13 @@ function AppContent() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
-  const [activeCategorySlug, setActiveCategorySlug] = useState<string>('');
+  const [activeCategorySlug, setActiveCategorySlug] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const searchParams = new URLSearchParams(window.location.search);
+      return searchParams.get('category') || '';
+    }
+    return '';
+  });
 
   // Handle client-side routing & browser back/forward
   useEffect(() => {

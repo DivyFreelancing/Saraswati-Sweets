@@ -3,6 +3,7 @@ import { Trash2 } from 'lucide-react';
 import { CartItemType } from '../../context/CartContext';
 import { QuantitySelector } from './QuantitySelector';
 import { formatINR } from '../../utils/formatters';
+import { ProductImagePlaceholder } from './ProductImagePlaceholder';
 
 interface CartItemProps {
   item: CartItemType;
@@ -18,12 +19,21 @@ export const CartItem: React.FC<CartItemProps> = ({
   return (
     <div className="flex gap-4 py-4 border-b border-[#E8DFD2] last:border-b-0 items-center">
       {/* 1:1 image */}
-      <div className="w-20 h-20 rounded-xl overflow-hidden bg-[#F3EBE0] shrink-0 border border-[#E8DFD2]">
-        <img
-          src={item.imageUrl}
-          alt={item.productName}
-          className="w-full h-full object-cover"
-        />
+      <div className="w-20 h-20 rounded-xl overflow-hidden bg-[#F3EBE0] shrink-0 border border-[#E8DFD2] flex items-center justify-center">
+        {item.imageUrl ? (
+          <img
+            src={item.imageUrl}
+            alt={item.productName}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <ProductImagePlaceholder
+            aspect="square"
+            size="sm"
+            productName={item.productName}
+            className="w-full h-full"
+          />
+        )}
       </div>
 
       {/* Details */}

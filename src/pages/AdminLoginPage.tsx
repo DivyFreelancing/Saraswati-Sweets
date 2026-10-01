@@ -50,9 +50,13 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
     <div className="min-h-[80vh] flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-2xl border border-[#E8DFD2] shadow-xl p-6 sm:p-8 space-y-6">
         {/* Header */}
-        <div className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-xl bg-[#8A1538] text-[#F6E08B] flex items-center justify-center mx-auto shadow-xs">
-            <Lock className="w-6 h-6" />
+        <div className="text-center space-y-3">
+          <div className="flex items-center justify-center">
+            <img
+              src="/images/logo.png"
+              alt="Saraswati Sweets"
+              className="h-16 w-auto object-contain drop-shadow-xs select-none"
+            />
           </div>
           <h1 className="font-display font-bold text-2xl text-[#1F1B16]">
             Staff & Shop Owner Login

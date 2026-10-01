@@ -46,6 +46,7 @@ import { AdminReviewsTab } from '../components/admin/AdminReviewsTab';
 import { AdminEnquiriesTab } from '../components/admin/AdminEnquiriesTab';
 import { AdminNotificationsTab } from '../components/admin/AdminNotificationsTab';
 import { AdminCouponUsageModal } from '../components/admin/AdminCouponUsageModal';
+import { ProductImagePlaceholder } from '../components/common/ProductImagePlaceholder';
 
 interface AdminPageProps {
   onBackToStore: () => void;
@@ -148,6 +149,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
   });
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sweet Catalog Tab filters
+  const [adminProductCategory, setAdminProductCategory] = useState<string>('ALL');
+  const [adminProductSearch, setAdminProductSearch] = useState<string>('');
 
   // Category Add / Edit Modal
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -1702,18 +1707,84 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
             )}
           </div>
 
+          {/* Category Filter Pills & Search */}
+          <div className="space-y-3">
+            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full no-scrollbar">
+                <button
+                  type="button"
+                  onClick={() => setAdminProductCategory('ALL')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors whitespace-nowrap shrink-0 ${
+                    adminProductCategory === 'ALL'
+                      ? 'bg-[#8A1538] text-white shadow-xs'
+                      : 'bg-[#FBF7F1] border border-[#E8DFD2] text-[#6B6258] hover:text-[#1F1B16]'
+                  }`}
+                >
+                  All Sweets ({products.length})
+                </button>
+                {categories.map((cat) => {
+                  const count = products.filter((p) => p.category_id === cat.id).length;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setAdminProductCategory(cat.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors whitespace-nowrap shrink-0 ${
+                        adminProductCategory === cat.id
+                          ? 'bg-[#8A1538] text-white shadow-xs'
+                          : 'bg-[#FBF7F1] border border-[#E8DFD2] text-[#6B6258] hover:text-[#1F1B16]'
+                      }`}
+                    >
+                      {cat.name} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="relative min-w-[200px]">
+                <Search className="w-3.5 h-3.5 text-[#6B6258] absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={adminProductSearch}
+                  onChange={(e) => setAdminProductSearch(e.target.value)}
+                  placeholder="Filter by sweet name or SKU..."
+                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] focus:bg-white focus:outline-none focus:border-[#8A1538]"
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {products.map((prod) => (
+            {products
+              .filter((prod) => {
+                const matchesCat = adminProductCategory === 'ALL' || prod.category_id === adminProductCategory;
+                const matchesSearch =
+                  !adminProductSearch.trim() ||
+                  prod.name.toLowerCase().includes(adminProductSearch.toLowerCase().trim()) ||
+                  prod.variants?.some((v: any) => v.sku?.toLowerCase().includes(adminProductSearch.toLowerCase().trim()));
+                return matchesCat && matchesSearch;
+              })
+              .map((prod) => (
               <div
                 key={prod.id}
                 className="p-4 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] flex flex-col justify-between space-y-3"
               >
                 <div className="flex items-start gap-3">
-                  <img
-                    src={prod.image_url}
-                    alt={prod.name}
-                    className="w-16 h-16 rounded-xl object-cover bg-[#F3EBE0] shrink-0 border border-[#E8DFD2]"
-                  />
+                  {prod.image_url ? (
+                    <img
+                      src={prod.image_url}
+                      alt={prod.name}
+                      className="w-16 h-16 rounded-xl object-cover bg-[#F3EBE0] shrink-0 border border-[#E8DFD2]"
+                    />
+                  ) : (
+                    <ProductImagePlaceholder
+                      aspect="square"
+                      size="sm"
+                      variant="admin-thumbnail"
+                      productName={prod.name}
+                      className="w-16 h-16 rounded-xl shrink-0 border border-[#E8DFD2]"
+                    />
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-1">
                       <h4 className="font-bold text-sm text-[#1F1B16] truncate">{prod.name}</h4>
@@ -1756,7 +1827,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                       )}
                     </div>
                     <p className="text-xs text-[#6B6258] line-clamp-1 mt-0.5">{prod.description}</p>
-                    <div className="flex items-center gap-2 mt-1 text-[11px] text-[#8A1538] font-semibold">
+                    <div className="flex items-center gap-2 mt-1 text-[11px] text-[#8A1538] font-semibold flex-wrap">
+                      {categories.find((c) => c.id === prod.category_id)?.name && (
+                        <span className="bg-[#FAF4DE] text-[#7A1129] px-2 py-0.5 rounded-md font-bold text-[10px] border border-[#C79A3D]/30">
+                          {categories.find((c) => c.id === prod.category_id)?.name}
+                        </span>
+                      )}
                       {prod.pure_ghee && <span>• 100% Desi Ghee</span>}
                       <span>• Shelf Life: {prod.shelf_life_days} days</span>
                     </div>
@@ -2610,9 +2686,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                       className="w-16 h-16 rounded-xl object-cover border border-[#E8DFD2] bg-[#F3EBE0]"
                     />
                   ) : (
-                    <div className="w-16 h-16 rounded-xl border border-dashed border-[#E8DFD2] bg-[#FBF7F1] flex items-center justify-center text-[#6B6258]">
-                      <Package className="w-6 h-6" />
-                    </div>
+                    <ProductImagePlaceholder
+                      aspect="square"
+                      size="sm"
+                      variant="admin-thumbnail"
+                      className="w-16 h-16 rounded-xl border border-[#E8DFD2]"
+                    />
                   )}
 
                   <div className="space-y-1">

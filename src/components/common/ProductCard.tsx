@@ -4,6 +4,7 @@ import { Product, ProductVariant } from '../../types/database';
 import { formatINR } from '../../utils/formatters';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
+import { ProductImagePlaceholder } from './ProductImagePlaceholder';
 
 interface ProductCardProps {
   product: Product;
@@ -13,11 +14,12 @@ interface ProductCardProps {
 export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenDetail }) => {
   const { addItem } = useCart();
   const { showToast } = useToast();
+  const [imageFailed, setImageFailed] = useState(false);
 
   const primaryImage =
-    product.images.find((i) => i.is_primary)?.image_url ||
-    product.images[0]?.image_url ||
-    'https://images.unsplash.com/photo-1505253758473-96b7015fcd40?auto=format&fit=crop&w=600&q=80';
+    product.images?.find((i) => i.is_primary)?.image_url ||
+    product.images?.[0]?.image_url ||
+    '';
 
   // Find first in-stock variant by default
   const defaultVariant =
@@ -59,6 +61,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenDetail 
     product.badge_label?.toLowerCase().includes('hero')
   ) {
     badge = { text: product.badge_label || 'Bestseller', type: 'bestseller' };
+  } else if (product.badge_label) {
+    badge = { text: product.badge_label, type: 'festival' };
   }
 
   const currentPrice = selectedVariant ? selectedVariant.price : product.variants[0]?.price || 0;
@@ -148,15 +152,24 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenDetail 
 
       {/* CIRCULAR Photo Crop with Generous Whitespace */}
       <div className="py-2 flex justify-center">
-        <div className="w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40 rounded-full overflow-hidden bg-[#F5EAD9] border-2 border-white shadow-xs ring-1 ring-[#E8DCC8] relative shrink-0">
-          <img
-            src={primaryImage}
-            alt={product.name}
-            loading="lazy"
-            className={`w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105 ${
-              isAllOutOfStock ? 'opacity-70 contrast-90 grayscale-[25%]' : ''
-            }`}
-          />
+        <div className="w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40 rounded-full overflow-hidden bg-[#F5EAD9] border-2 border-white shadow-xs ring-1 ring-[#E8DCC8] relative shrink-0 flex items-center justify-center">
+          {primaryImage && !imageFailed ? (
+            <img
+              src={primaryImage}
+              alt={product.name}
+              loading="lazy"
+              onError={() => setImageFailed(true)}
+              className={`w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105 ${
+                isAllOutOfStock ? 'opacity-70 contrast-90 grayscale-[25%]' : ''
+              }`}
+            />
+          ) : (
+            <ProductImagePlaceholder
+              aspect="circle"
+              productName={product.name}
+              className="w-full h-full"
+            />
+          )}
         </div>
       </div>
 

@@ -6,6 +6,7 @@ import { VariantSelector } from '../common/VariantSelector';
 import { QuantitySelector } from '../common/QuantitySelector';
 import { AddToCartButton } from '../common/AddToCartButton';
 import { ReviewCard } from '../common/ReviewCard';
+import { ProductImagePlaceholder } from '../common/ProductImagePlaceholder';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -111,8 +112,9 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   if (!isOpen || !product) return null;
 
   const currentVariant = selectedVariant || product.variants[0];
-  const images = product.images.length > 0 ? product.images : [{ id: '1', product_id: product.id, image_url: 'https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?auto=format&fit=crop&w=800&q=80', alt_text: product.name, is_primary: true, display_order: 1 }];
-  const currentImage = images[activeImageIndex] || images[0];
+  const hasImages = Boolean(product.images && product.images.length > 0 && product.images.some((i) => Boolean(i.image_url)));
+  const images = hasImages ? product.images.filter((i) => Boolean(i.image_url)) : [];
+  const currentImage = images[activeImageIndex] || images[0] || null;
 
   const handleAddToCart = () => {
     if (!currentVariant) return;
@@ -125,7 +127,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
         weightGrams: currentVariant.weight_grams,
         price: currentVariant.price,
         mrp: currentVariant.mrp,
-        imageUrl: currentImage.image_url,
+        imageUrl: currentImage?.image_url || '',
       },
       quantity
     );
@@ -156,12 +158,21 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-12 gap-0">
             {/* Left Column: Gallery */}
             <div className="md:col-span-6 bg-[#F3EBE0] p-6 flex flex-col justify-between">
-              <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-white border border-[#E8DFD2] shadow-xs">
-                <img
-                  src={currentImage.image_url}
-                  alt={currentImage.alt_text || product.name}
-                  className="w-full h-full object-cover"
-                />
+              <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-white border border-[#E8DFD2] shadow-xs flex items-center justify-center">
+                {currentImage ? (
+                  <img
+                    src={currentImage.image_url}
+                    alt={currentImage.alt_text || product.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <ProductImagePlaceholder
+                    aspect="square"
+                    size="lg"
+                    productName={product.name}
+                    className="w-full h-full"
+                  />
+                )}
 
                 {/* Pure Veg Indicator */}
                 <div className="absolute top-3 left-3 bg-white/90 p-1.5 rounded-sm border border-stone-200">
@@ -414,12 +425,22 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                         onClick={() => onSelectRelatedProduct && onSelectRelatedProduct(rel)}
                         className="p-2 rounded-lg border border-[#E8DFD2] hover:border-[#8A1538] text-left transition-colors bg-[#FBF7F1]"
                       >
-                        <div className="aspect-square rounded-md overflow-hidden bg-white mb-1.5">
-                          <img
-                            src={rel.images[0]?.image_url || ''}
-                            alt={rel.name}
-                            className="w-full h-full object-cover"
-                          />
+                        <div className="aspect-square rounded-md overflow-hidden bg-[#F5EAD9] mb-1.5 flex items-center justify-center">
+                          {rel.images?.[0]?.image_url ? (
+                            <img
+                              src={rel.images[0].image_url}
+                              alt={rel.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <ProductImagePlaceholder
+                              aspect="square"
+                              size="sm"
+                              showText={false}
+                              productName={rel.name}
+                              className="w-full h-full"
+                            />
+                          )}
                         </div>
                         <div className="font-display font-bold text-xs text-[#1F1B16] truncate">
                           {rel.name}

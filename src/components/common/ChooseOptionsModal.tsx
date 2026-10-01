@@ -4,6 +4,7 @@ import { Product, ProductVariant } from '../../types/database';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
 import { formatINR } from '../../utils/formatters';
+import { ProductImagePlaceholder } from './ProductImagePlaceholder';
 
 interface ChooseOptionsModalProps {
   product: Product | null;
@@ -53,9 +54,9 @@ export const ChooseOptionsModal: React.FC<ChooseOptionsModalProps> = ({
   if (!isOpen || !product) return null;
 
   const primaryImage =
-    product.images.find((i) => i.is_primary)?.image_url ||
-    product.images[0]?.image_url ||
-    'https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?auto=format&fit=crop&w=600&q=80';
+    product.images?.find((i) => i.is_primary)?.image_url ||
+    product.images?.[0]?.image_url ||
+    '';
 
   const isCurrentVariantOutOfStock = Boolean(
     !selectedVariant ||
@@ -147,12 +148,21 @@ export const ChooseOptionsModal: React.FC<ChooseOptionsModalProps> = ({
         <div className="p-5 overflow-y-auto space-y-5">
           {/* Product Thumbnail & Details */}
           <div className="flex gap-4 items-center">
-            <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-[#F5EAD9] border border-[#E8DCC8] shrink-0">
-              <img
-                src={primaryImage}
-                alt={product.name}
-                className="w-full h-full object-cover"
-              />
+            <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-[#F5EAD9] border border-[#E8DCC8] shrink-0 flex items-center justify-center">
+              {primaryImage ? (
+                <img
+                  src={primaryImage}
+                  alt={product.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <ProductImagePlaceholder
+                  aspect="square"
+                  size="sm"
+                  productName={product.name}
+                  className="w-full h-full"
+                />
+              )}
               {/* Veg icon */}
               <div className="absolute top-1.5 left-1.5 bg-white/95 p-0.5 rounded-[2px] shadow-xs">
                 <div className="w-2.5 h-2.5 border border-[#2E7D4F] flex items-center justify-center p-[1px]">
