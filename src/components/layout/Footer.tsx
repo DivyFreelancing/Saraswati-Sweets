@@ -257,6 +257,19 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 <div className="pt-2">
                   <PWAInstallButton variant="footer" />
                 </div>
+                
+                {/* Embedded Shop Location Map */}
+                <div className="mt-4 w-full h-32 sm:h-40 rounded-lg overflow-hidden border border-[#E8DCC8] shadow-xs group relative">
+                  <div className="absolute inset-0 bg-[#7A1129]/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                  <iframe
+                    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3558.0776781255866!2d81.17621141504473!3d26.92484638312015!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x399961ab1234567%3A0xbccf0a7cbcd36c2e!2sGhantaghar%2C%20Barabanki%2C%20Uttar%20Pradesh%20225001!5e0!3m2!1sen!2sin!4v1717614055273!5m2!1sen!2sin"
+                    className="w-full h-full border-0"
+                    allowFullScreen={false}
+                    loading="lazy"
+                    title="Saraswati Sweets Location"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
+                </div>
               </div>
             </div>
           </div>
