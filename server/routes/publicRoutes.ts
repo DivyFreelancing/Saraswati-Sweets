@@ -14,6 +14,87 @@ import { notifyNewBulkEnquiry } from '../services/notificationService';
 const router = Router();
 
 // ==========================================================
+// 0. CATALOG (PUBLIC)
+// ==========================================================
+router.get('/categories', (_req, res: Response) => {
+  const categories = Array.from(inMemoryStore.categories.values())
+    .filter((c) => c.is_active)
+    .sort((a, b) => a.display_order - b.display_order);
+  res.json({ categories });
+});
+
+
+router.get('/products/:slug', (req, res: Response) => {
+  const { slug } = req.params;
+  const p = Array.from(inMemoryStore.products.values()).find(p => p.slug === slug && p.is_active);
+  if (!p) {
+    res.status(404).json({ error: 'Product not found' });
+    return;
+  }
+  
+  const variants = Array.from(inMemoryStore.variants.values())
+    .filter(v => v.productId === p.id)
+    .sort((a, b) => a.weightGrams - b.weightGrams)
+    .map(v => ({
+      id: v.id,
+      product_id: v.productId,
+      label: v.label,
+      weight_grams: v.weightGrams,
+      price: v.price,
+      mrp: v.mrp,
+      sku: v.id,
+      stock_status: v.stockStatus,
+      stock_quantity: v.stockQuantity,
+      display_order: v.weightGrams
+    }));
+    
+  const cat = inMemoryStore.categories.get(p.category_id);
+  res.json({
+    product: {
+      ...p,
+      variants,
+      category: cat || null
+    }
+  });
+});
+
+router.get('/products', (_req, res: Response) => {
+  const products = Array.from(inMemoryStore.products.values())
+    .filter((p) => p.is_active);
+    
+  // Populate variants and categories
+  const populatedProducts = products.map(p => {
+    const variants = Array.from(inMemoryStore.variants.values())
+      .filter(v => v.productId === p.id)
+      .sort((a, b) => a.weightGrams - b.weightGrams);
+      
+    // Map MasterVariant to the shape expected by the client ProductVariant
+    const mappedVariants = variants.map(v => ({
+      id: v.id,
+      product_id: v.productId,
+      label: v.label,
+      weight_grams: v.weightGrams,
+      price: v.price,
+      mrp: v.mrp,
+      sku: v.id, // Or use actual sku if stored
+      stock_status: v.stockStatus,
+      stock_quantity: v.stockQuantity,
+      display_order: v.weightGrams
+    }));
+      
+    const cat = inMemoryStore.categories.get(p.category_id);
+    return {
+      ...p,
+      variants: mappedVariants,
+      category: cat || null
+    };
+  });
+  
+  res.json({ products: populatedProducts });
+});
+
+
+// ==========================================================
 // 1. OFFERS & PROMOTIONS (PUBLIC)
 // ==========================================================
 router.get('/offers', (_req, res: Response) => {

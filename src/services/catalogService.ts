@@ -31,6 +31,15 @@ export const catalogService = {
   isLive: () => isSupabaseConfigured(),
 
   async getCategories(): Promise<Category[]> {
+    try {
+      const res = await fetch('/api/categories');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.categories && data.categories.length > 0) return data.categories;
+      }
+    } catch (e) {
+      console.warn('Fetch from /api/categories failed:', e);
+    }
     if (isSupabaseConfigured() && supabase) {
       try {
         const { data, error } = await supabase
@@ -52,7 +61,21 @@ export const catalogService = {
   async getProducts(options: CatalogFilterOptions = {}): Promise<Product[]> {
     let products: Product[] = [];
 
-    if (isSupabaseConfigured() && supabase) {
+    try {
+      const res = await fetch('/api/products');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.products && data.products.length > 0) {
+          products = data.products;
+          if (options.bestsellerOnly) products = products.filter(p => p.is_bestseller);
+          if (options.pureGheeOnly) products = products.filter(p => p.is_pure_ghee);
+        }
+      }
+    } catch (e) {
+      console.warn('Fetch from /api/products failed:', e);
+    }
+
+    if (products.length === 0 && isSupabaseConfigured() && supabase) {
       try {
         let query = supabase
           .from('products')
@@ -68,11 +91,13 @@ export const catalogService = {
         if (options.bestsellerOnly) {
           query = query.eq('is_bestseller', true);
         }
+
         if (options.pureGheeOnly) {
           query = query.eq('is_pure_ghee', true);
         }
 
         const { data, error } = await query;
+
         if (!error && data && data.length > 0) {
           products = data as Product[];
         }
@@ -83,6 +108,8 @@ export const catalogService = {
 
     if (products.length === 0) {
       products = [...SEED_PRODUCTS];
+      if (options.bestsellerOnly) products = products.filter(p => p.is_bestseller);
+      if (options.pureGheeOnly) products = products.filter(p => p.is_pure_ghee);
     }
 
     // Filter by category slug
@@ -131,6 +158,16 @@ export const catalogService = {
   },
 
   async getProductBySlug(slug: string): Promise<Product | null> {
+    try {
+      const res = await fetch(`/api/products/${slug}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.product) return data.product;
+      }
+    } catch (e) {
+      console.warn('Fetch from /api/products/:slug failed:', e);
+    }
+
     if (isSupabaseConfigured() && supabase) {
       try {
         const { data, error } = await supabase
@@ -142,7 +179,6 @@ export const catalogService = {
             images:product_images(*)
           `)
           .eq('slug', slug)
-          .eq('is_active', true)
           .single();
 
         if (!error && data) {
