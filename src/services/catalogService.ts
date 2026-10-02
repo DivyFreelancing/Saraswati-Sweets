@@ -397,13 +397,17 @@ export const catalogService = {
     return SEED_STORE_SETTINGS;
   },
 
-  async getReviews(productId: string): Promise<Review[]> {
+  async getReviews(productId?: string): Promise<Review[]> {
+    let fetchedFromServer = false;
+    let fetchedReviews: Review[] = [];
+    const endpoint = productId ? `/api/products/${productId}/reviews` : `/api/reviews`;
+
     try {
-      const res = await fetch(`/api/products/${productId}/reviews`);
+      const res = await fetch(endpoint);
       if (res.ok) {
         const data = await res.json();
-        if (data.reviews && data.reviews.length > 0) {
-          return data.reviews.map((r: any) => ({
+        if (data.reviews && Array.isArray(data.reviews)) {
+          fetchedReviews = data.reviews.map((r: any) => ({
             id: r.id,
             product_id: r.product_id,
             customer_name: r.user_name || 'Patron',
@@ -411,29 +415,34 @@ export const catalogService = {
             comment: r.comment,
             created_at: r.created_at,
           }));
+          fetchedFromServer = true;
         }
       }
     } catch (e) {
-      console.warn('Fetch from /api/products/:id/reviews failed:', e);
+      console.warn('Fetch from ' + endpoint + ' failed:', e);
     }
 
-    if (isSupabaseConfigured() && supabase) {
+    if (!fetchedFromServer && isSupabaseConfigured() && supabase) {
       try {
-        const { data, error } = await supabase
-          .from('reviews')
-          .select('*')
-          .eq('product_id', productId)
-          .eq('is_published', true)
-          .order('created_at', { ascending: false });
-
-        if (!error && data && data.length > 0) {
-          return data as Review[];
+        let query = supabase.from('reviews').select('*').eq('is_published', true).order('created_at', { ascending: false });
+        if (productId) {
+           query = query.eq('product_id', productId);
+        }
+        const { data, error } = await query;
+        if (!error && data) {
+          fetchedReviews = data as Review[];
+          fetchedFromServer = true;
         }
       } catch (err) {
         console.warn('Supabase fetch reviews failed:', err);
       }
     }
-    return SEED_REVIEWS.filter((r) => r.product_id === productId);
+
+    if (!fetchedFromServer) {
+      return productId ? SEED_REVIEWS.filter((r) => r.product_id === productId) : SEED_REVIEWS;
+    }
+
+    return fetchedReviews;
   },
 
   async checkReviewEligibility(productId: string, headers: Record<string, string>): Promise<{ canReview: boolean; reason?: string; alreadyReviewed?: boolean }> {

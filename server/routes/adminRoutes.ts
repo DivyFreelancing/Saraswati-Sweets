@@ -1363,6 +1363,7 @@ router.patch('/reviews/:id/status', requireRole(['ADMIN', 'STAFF']), (req: Authe
   }
 
   inMemoryStore.reviews.set(id, review);
+  saveStoreState();
   logAuditEvent(req.user, 'REVIEW_STATUS_CHANGED', 'REVIEW', id, {
     is_approved: review.is_approved,
     product: review.product_name,

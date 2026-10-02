@@ -188,6 +188,21 @@ router.get('/hampers/:idOrSlug', (req, res: Response) => {
  * GET /api/products/:productId/reviews
  * Returns only APPROVED reviews for public display + aggregate ratings
  */
+
+/**
+ * GET /api/reviews
+ * Returns the latest globally approved reviews for the homepage
+ */
+router.get('/reviews', (req, res: Response) => {
+  res.setHeader('Cache-Control', 'public, max-age=60');
+  const globalReviews = Array.from(inMemoryStore.reviews.values())
+    .filter((r) => r.is_approved)
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 10); // get top 10 latest reviews
+
+  res.json({ reviews: globalReviews });
+});
+
 router.get('/products/:productId/reviews', (req, res: Response) => {
   res.setHeader('Cache-Control', 'public, max-age=60');
   const { productId } = req.params;

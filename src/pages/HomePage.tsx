@@ -52,7 +52,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           catalogService.getGiftHampers(),
           catalogService.getBanners(),
           catalogService.getOffers(),
-          catalogService.getReviews('prod-kaju-katli'),
+          catalogService.getReviews(), // fetch global recent reviews
         ]);
 
         setCategories(cats);
