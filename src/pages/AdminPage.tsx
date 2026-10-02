@@ -386,7 +386,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
     try {
       const reader = new FileReader();
       reader.onload = async () => {
-        const base64Data = reader.result as string;
+        try {
+          const base64Data = reader.result as string;
 
         // 1. Get server-signed upload URL (Supabase Storage flow)
         const signRes = await fetch('/api/admin/signed-upload-url', {
@@ -433,6 +434,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
           showToast(data.message || 'Upload failed', 'error');
         }
         setIsUploadingImage(false);
+        } catch (innerErr: any) {
+          showToast(innerErr.message || 'Error uploading image to server', 'error');
+          setIsUploadingImage(false);
+        }
       };
       reader.readAsDataURL(file);
     } catch (err: any) {

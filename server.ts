@@ -30,6 +30,7 @@ async function startServer() {
   // Body parser for JSON API requests - captures rawBody for Razorpay webhook HMAC validation
   app.use(
     express.json({
+      limit: '10mb',
       verify: (req: any, _res, buf) => {
         req.rawBody = buf;
       },
