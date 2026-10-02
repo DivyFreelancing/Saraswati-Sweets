@@ -837,14 +837,44 @@ export interface ServerStoreSettings {
   allowed_pincodes: string[];
 }
 
+
+// ==========================================================
+// SUPABASE SYNC MAP (Write-Through Cache)
+// ==========================================================
+class SyncMap<K, V> extends Map<K, V> {
+  constructor(private tableName: string) {
+    super();
+  }
+
+  set(key: K, value: V) {
+    super.set(key, value);
+    if (isLiveSupabase && supabaseServer) {
+      supabaseServer.from(this.tableName).upsert(value as any).catch(err => {
+        console.error(`[SyncMap] Failed to upsert to ${this.tableName}:`, err);
+      });
+    }
+    return this;
+  }
+
+  delete(key: K) {
+    const res = super.delete(key);
+    if (isLiveSupabase && supabaseServer) {
+      supabaseServer.from(this.tableName).delete().eq('id', key).catch(err => {
+        console.error(`[SyncMap] Failed to delete from ${this.tableName}:`, err);
+      });
+    }
+    return res;
+  }
+}
+
 export const inMemoryStore = {
-  profiles: new Map<string, ServerProfile>(),
-  addresses: new Map<string, ServerAddress>(),
+  profiles: new SyncMap<string, ServerProfile>('profiles'),
+  addresses: new SyncMap<string, ServerAddress>('addresses'),
   userCarts: new Map<string, Map<string, number>>(), // profileId -> (variantId -> quantity)
   deliverySlots: generateInitialSlots(),
-  orders: new Map<string, ServerOrder>(),
+  orders: new SyncMap<string, ServerOrder>('orders'),
   ordersByIdempotency: new Map<string, ServerOrder>(),
-  payments: new Map<string, ServerPayment>(), // razorpay_payment_id or razorpay_order_id -> payment
+  payments: new SyncMap<string, ServerPayment>('payments'), // razorpay_payment_id or razorpay_order_id -> payment
   processedWebhookEvents: new Set<string>(), // event_id -> deduplication
   categories: new Map<string, ServerCategory>([
     [
@@ -1720,55 +1750,62 @@ export function logAuditEvent(
 
 
 // ==========================================================
-// PERSISTENCE ENGINE (JSON State on disk)
+// PERSISTENCE ENGINE (Supabase Postgres)
 // ==========================================================
-const DATA_DIR = path.resolve(process.cwd(), 'data');
-const STATE_FILE = path.join(DATA_DIR, 'store_state.json');
+export async function loadStoreState(): Promise<void> {
+  if (!isLiveSupabase || !supabaseServer) {
+    console.warn('[Store] Supabase not configured. Using empty memory state.');
+    return;
+  }
+
+  try {
+    console.log('[Store] Fetching all data from Supabase Postgres...');
+    
+    // Fetch critical tables
+    const [
+      cats, prods, vars, offs, bans, hampers, 
+      slots, ords, profs, addrs, pays, revs, 
+      coups, bulks
+    ] = await Promise.all([
+      supabaseServer.from('categories').select('*'),
+      supabaseServer.from('products').select('*'),
+      supabaseServer.from('product_variants').select('*'),
+      supabaseServer.from('offers').select('*'),
+      supabaseServer.from('banners').select('*'),
+      supabaseServer.from('gift_hampers').select('*'),
+      supabaseServer.from('delivery_slots').select('*'),
+      supabaseServer.from('orders').select('*'),
+      supabaseServer.from('profiles').select('*'),
+      supabaseServer.from('addresses').select('*'),
+      supabaseServer.from('payments').select('*'),
+      supabaseServer.from('reviews').select('*'),
+      supabaseServer.from('coupons').select('*'),
+      supabaseServer.from('bulk_enquiries').select('*')
+    ]);
+
+    // Populate SyncMaps (bypassing the custom .set to avoid re-upserting)
+    if (cats.data) cats.data.forEach(x => Map.prototype.set.call(inMemoryStore.categories, x.id, x));
+    if (prods.data) prods.data.forEach(x => Map.prototype.set.call(inMemoryStore.products, x.id, x));
+    if (vars.data) vars.data.forEach(x => Map.prototype.set.call(inMemoryStore.variants, x.id, x));
+    if (offs.data) offs.data.forEach(x => Map.prototype.set.call(inMemoryStore.offers, x.id, x));
+    if (bans.data) bans.data.forEach(x => Map.prototype.set.call(inMemoryStore.banners, x.id, x));
+    if (hampers.data) hampers.data.forEach(x => Map.prototype.set.call(inMemoryStore.giftHampers, x.id, x));
+    if (slots.data) slots.data.forEach(x => Map.prototype.set.call(inMemoryStore.deliverySlots, x.id, x));
+    if (ords.data) ords.data.forEach(x => Map.prototype.set.call(inMemoryStore.orders, x.id, x));
+    if (profs.data) profs.data.forEach(x => Map.prototype.set.call(inMemoryStore.profiles, x.id, x));
+    if (addrs.data) addrs.data.forEach(x => Map.prototype.set.call(inMemoryStore.addresses, x.id, x));
+    if (pays.data) pays.data.forEach(x => Map.prototype.set.call(inMemoryStore.payments, x.id, x));
+    if (revs.data) revs.data.forEach(x => Map.prototype.set.call(inMemoryStore.reviews, x.id, x));
+    if (coups.data) coups.data.forEach(x => Map.prototype.set.call(inMemoryStore.coupons, x.code, x));
+    if (bulks.data) bulks.data.forEach(x => Map.prototype.set.call(inMemoryStore.bulkEnquiries, x.id, x));
+
+    console.log(`[Store] Loaded persistent state from Postgres (${inMemoryStore.products.size} products, ${inMemoryStore.orders.size} orders).`);
+  } catch (err) {
+    console.error('Failed to load store state from Postgres:', err);
+  }
+}
 
 export function saveStoreState(): void {
-  try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-    const state = {
-      categories: Array.from(inMemoryStore.categories.entries()),
-      products: Array.from(inMemoryStore.products.entries()),
-      variants: Array.from(inMemoryStore.variants.entries()),
-      offers: Array.from(inMemoryStore.offers.entries()),
-      banners: Array.from(inMemoryStore.banners.entries()),
-      giftHampers: Array.from(inMemoryStore.giftHampers.entries()),
-      coupons: Array.from(inMemoryStore.coupons.entries()),
-      storeSettings: inMemoryStore.storeSettings,
-      orders: Array.from(inMemoryStore.orders.entries()),
-      payments: Array.from(inMemoryStore.payments.entries()),
-    };
-    fs.promises.writeFile(STATE_FILE, JSON.stringify(state, null, 2), 'utf-8').catch(err => console.error('Failed to save store state to disk:', err));
-  } catch (err) {
-    console.error('Failed to save store state to disk:', err);
-  }
+  // No-op. SyncMap automatically writes to Supabase on every mutation.
+  // The local store_state.json file has been eliminated.
 }
-
-export function loadStoreState(): void {
-  try {
-    if (fs.existsSync(STATE_FILE)) {
-      const content = fs.readFileSync(STATE_FILE, 'utf-8');
-      const state = JSON.parse(content);
-      if (Array.isArray(state.categories)) inMemoryStore.categories = new Map(state.categories);
-      if (Array.isArray(state.products)) inMemoryStore.products = new Map(state.products);
-      if (Array.isArray(state.variants)) inMemoryStore.variants = new Map(state.variants);
-      if (Array.isArray(state.offers)) inMemoryStore.offers = new Map(state.offers);
-      if (Array.isArray(state.banners)) inMemoryStore.banners = new Map(state.banners);
-      if (Array.isArray(state.giftHampers)) inMemoryStore.giftHampers = new Map(state.giftHampers);
-      if (Array.isArray(state.coupons)) inMemoryStore.coupons = new Map(state.coupons);
-      if (state.storeSettings) inMemoryStore.storeSettings = state.storeSettings;
-      if (Array.isArray(state.orders)) inMemoryStore.orders = new Map(state.orders);
-      if (Array.isArray(state.payments)) inMemoryStore.payments = new Map(state.payments);
-      console.log(`[Store] Loaded persistent state from disk (${inMemoryStore.products.size} products).`);
-    }
-  } catch (err) {
-    console.error('Failed to load store state from disk:', err);
-  }
-}
-
-// Load initial persisted state on startup
-loadStoreState();

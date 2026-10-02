@@ -15,7 +15,7 @@ import adminRoutes from './server/routes/adminRoutes';
 import orderRoutes from './server/routes/orderRoutes';
 import paymentRoutes from './server/routes/paymentRoutes';
 import publicRoutes from './server/routes/publicRoutes';
-import { STORE_SETTINGS } from './server/db';
+import { STORE_SETTINGS , loadStoreState } from './server/db';
 
 dotenv.config();
 
@@ -23,6 +23,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function startServer() {
+  await loadStoreState();
   const app = express();
   const PORT = parseInt(process.env.PORT || '3000', 10);
   const isDev = process.env.NODE_ENV !== 'production';

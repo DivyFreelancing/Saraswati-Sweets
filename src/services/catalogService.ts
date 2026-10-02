@@ -197,8 +197,7 @@ export const catalogService = {
       }
     }
 
-    const found = SEED_PRODUCTS.find((p) => p.slug === slug);
-    return found || null;
+    return null;
   },
 
   async getGiftHampers(): Promise<GiftHamper[]> {
@@ -239,7 +238,7 @@ export const catalogService = {
         console.warn('Supabase fetch gift hampers failed:', err);
       }
     }
-    return SEED_GIFT_HAMPERS;
+    return [];
   },
 
   async getGiftHamperBySlug(slug: string): Promise<GiftHamper | null> {
@@ -282,8 +281,7 @@ export const catalogService = {
         console.warn('Supabase fetch hamper by slug failed:', err);
       }
     }
-    const found = SEED_GIFT_HAMPERS.find((h) => h.slug === slug);
-    return found || null;
+    return null;
   },
 
   async getBanners(): Promise<Banner[]> {
@@ -314,7 +312,7 @@ export const catalogService = {
         console.warn('Supabase fetch banners failed:', err);
       }
     }
-    return SEED_BANNERS;
+    return [];
   },
 
   async getOffers(): Promise<Offer[]> {
@@ -347,7 +345,7 @@ export const catalogService = {
         console.warn('Supabase fetch offers failed:', err);
       }
     }
-    return SEED_OFFERS;
+    return [];
   },
 
   async getStoreSettings(): Promise<StoreSettings> {
@@ -394,7 +392,7 @@ export const catalogService = {
         console.warn('Supabase fetch store settings failed:', err);
       }
     }
-    return SEED_STORE_SETTINGS;
+    throw new Error("Store settings not found");
   },
 
   async getReviews(productId?: string): Promise<Review[]> {
@@ -439,7 +437,7 @@ export const catalogService = {
     }
 
     if (!fetchedFromServer) {
-      return productId ? SEED_REVIEWS.filter((r) => r.product_id === productId) : SEED_REVIEWS;
+      return [];
     }
 
     return fetchedReviews;
