@@ -221,11 +221,11 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
                     key={link.path}
                     type="button"
                     onClick={() => handleLinkClick(link.path)}
-                    className={`text-sm font-semibold transition-colors py-1 relative ${
+                    className={`text-sm font-semibold transition-colors py-1 relative flex items-center gap-1.5 whitespace-nowrap ${
                       isActive
                         ? 'text-[#7A1129]'
                         : 'text-[#221A14] hover:text-[#7A1129]'
-                    } ${link.isHighlight ? 'flex items-center gap-1.5 text-[#7A1129]' : ''}`}
+                    } ${link.isHighlight ? 'text-[#7A1129]' : ''}`}
                   >
                     {link.icon && <link.icon className="w-3.5 h-3.5 text-[#C79A3D]" />}
                     <span>{link.label}</span>
