@@ -1104,7 +1104,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       )}
 
       {/* 2. PHONE-FRIENDLY SCROLLABLE NAVIGATION TABS */}
-      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none border-b border-[#E8DFD2]">
+      <div className="flex gap-2 overflow-x-auto pb-3 pt-1 border-b border-[#E8DFD2]">
         {[
           { key: 'overview', label: 'Dashboard', icon: BarChart3 },
           { key: 'orders', label: `Orders (${orders.length})`, icon: ShoppingCart },
