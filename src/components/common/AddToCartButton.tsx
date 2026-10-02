@@ -29,9 +29,9 @@ export const AddToCartButton: React.FC<AddToCartButtonProps> = ({
   };
 
   const heightClasses = {
-    sm: 'h-9 px-4 text-xs',
-    md: 'min-h-[44px] h-11 px-6 text-sm',
-    lg: 'min-h-[48px] h-12 px-8 text-base',
+    sm: 'min-h-[36px] py-2 px-4 text-xs',
+    md: 'min-h-[44px] py-2.5 px-6 text-sm',
+    lg: 'min-h-[48px] py-3 px-8 text-base',
   }[size];
 
   if (disabled) {
@@ -58,12 +58,12 @@ export const AddToCartButton: React.FC<AddToCartButtonProps> = ({
       {justAdded ? (
         <>
           <Check className="w-4 h-4" />
-          <span>Added!</span>
+          <span className="whitespace-nowrap">Added!</span>
         </>
       ) : (
         <>
           <ShoppingBag className="w-4 h-4 text-[#FAF4DE]" />
-          <span>{label}</span>
+          <span className="whitespace-nowrap">{label}</span>
         </>
       )}
     </button>

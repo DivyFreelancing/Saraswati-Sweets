@@ -270,7 +270,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 </div>
 
                 {/* Quantity and Add CTA */}
-                <div className="pt-4 flex items-center gap-4">
+                <div className="pt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-4 sm:gap-6">
                   <div>
                     <label className="block text-xs font-medium text-[#6B6258] mb-1">
                       Quantity:
@@ -282,7 +282,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     />
                   </div>
 
-                  <div className="flex-1 pt-4">
+                  <div className="flex-1 pt-2 sm:pt-5">
                     <AddToCartButton
                       onClick={handleAddToCart}
                       disabled={isOutOfStock}
