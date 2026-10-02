@@ -75,7 +75,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
 
   const rightNavLinks: NavLinkItem[] = [
     { label: 'Gift Hampers', path: '/hampers', icon: Gift, isHighlight: true },
-    { label: 'Bulk Orders', path: '/bulk-enquiry', icon: FileText },
+    { label: 'Bulk Orders', path: '/bulk-enquiry', icon: FileText, isHighlight: true },
   ];
 
   const allNavLinks: NavLinkItem[] = [
