@@ -529,7 +529,16 @@ router.get('/orders', requireAuth, (req: AuthenticatedRequest, res: Response) =>
 
   userOrders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-  res.json({ orders: userOrders });
+  const allEnquiries = Array.from(inMemoryStore.bulkEnquiries.values());
+  const userEnquiries = isStaffOrAdmin 
+    ? allEnquiries 
+    : allEnquiries.filter((e) => {
+        const ePhone = e.phone.replace(/\D/g, '').slice(-10);
+        return ePhone === userCleanPhone;
+      });
+  userEnquiries.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  res.json({ orders: userOrders, bulkEnquiries: userEnquiries });
 });
 
 // GET /api/orders/:orderNumber - Fetch order details by order_number

@@ -31,6 +31,7 @@ export const OrderHistoryPage: React.FC<OrderHistoryPageProps> = ({
   const { showToast } = useToast();
 
   const [orders, setOrders] = useState<any[]>([]);
+  const [bulkEnquiries, setBulkEnquiries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'DELIVERED' | 'CANCELLED'>('ALL');
 
@@ -49,6 +50,7 @@ export const OrderHistoryPage: React.FC<OrderHistoryPageProps> = ({
         if (res.ok) {
           const data = await res.json();
           setOrders(data.orders || []);
+          setBulkEnquiries(data.bulkEnquiries || []);
         }
       } catch (err) {
         console.error('Failed to load orders:', err);
@@ -237,6 +239,60 @@ export const OrderHistoryPage: React.FC<OrderHistoryPageProps> = ({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Bulk Enquiries Section */}
+      {bulkEnquiries.length > 0 && (
+        <div className="pt-8">
+          <h2 className="font-display font-bold text-2xl text-[#1F1B16] tracking-tight mb-4 border-t border-[#E8DFD2] pt-8">
+            Your Bulk & Corporate Enquiries
+          </h2>
+          <div className="space-y-4">
+            {bulkEnquiries.map((enq) => {
+              const isResolved = enq.status === 'RESOLVED' || enq.status === 'CLOSED';
+              return (
+                <div
+                  key={enq.id}
+                  className="bg-white rounded-2xl border border-[#E8DFD2] p-5 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono font-bold text-sm text-[#8A1538]">
+                        #{enq.enquiry_number}
+                      </span>
+                      <span
+                        className={`text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                          isResolved
+                            ? 'bg-emerald-50 text-[#2E7D4F]'
+                            : enq.status === 'NEW'
+                            ? 'bg-blue-50 text-blue-700'
+                            : 'bg-[#F7E9EE] text-[#8A1538]'
+                        }`}
+                      >
+                        {enq.status}
+                      </span>
+                      <span className="text-xs text-[#6B6258]">
+                        {new Date(enq.created_at).toLocaleDateString('en-IN', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        })}
+                      </span>
+                    </div>
+
+                    <h3 className="text-sm font-semibold text-[#1F1B16]">
+                      {enq.event_type} - {enq.estimated_quantity_kg ? `${enq.estimated_quantity_kg} kg estimated` : `${enq.estimated_guests} guests estimated`}
+                    </h3>
+                    
+                    <div className="text-xs text-[#6B6258] line-clamp-2">
+                      <span className="font-medium">Requested:</span> {enq.requested_sweets || 'Custom selection'}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
