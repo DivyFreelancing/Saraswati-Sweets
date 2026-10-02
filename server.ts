@@ -30,7 +30,7 @@ async function startServer() {
   // Body parser for JSON API requests - captures rawBody for Razorpay webhook HMAC validation
   app.use(
     express.json({
-      limit: '10mb',
+      limit: '50mb',
       verify: (req: any, _res, buf) => {
         req.rawBody = buf;
       },
@@ -79,6 +79,20 @@ async function startServer() {
       timestamp: new Date().toISOString(),
       shop: 'Saraswati Sweets (Barabanki, UP)',
     });
+  });
+
+  
+  // Global API Error Handler (prevents HTML error pages for API routes)
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (req.path.startsWith('/api/')) {
+      console.error('API Error:', err.message);
+      res.status(err.status || 500).json({
+        error: err.name || 'InternalServerError',
+        message: err.message || 'An unexpected error occurred.',
+      });
+    } else {
+      next(err);
+    }
   });
 
   // --- Vite Dev Server Middleware vs Static Production ---
