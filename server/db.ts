@@ -849,9 +849,10 @@ class SyncMap<K, V> extends Map<K, V> {
   set(key: K, value: V) {
     super.set(key, value);
     if (isLiveSupabase && supabaseServer) {
-      supabaseServer.from(this.tableName).upsert(value as any).catch(err => {
-        console.error(`[SyncMap] Failed to upsert to ${this.tableName}:`, err);
-      });
+      (async () => {
+        const { error } = await supabaseServer.from(this.tableName).upsert(value as any);
+        if (error) console.error(`[SyncMap] Failed to upsert to ${this.tableName}:`, error);
+      })();
     }
     return this;
   }
@@ -859,9 +860,10 @@ class SyncMap<K, V> extends Map<K, V> {
   delete(key: K) {
     const res = super.delete(key);
     if (isLiveSupabase && supabaseServer) {
-      supabaseServer.from(this.tableName).delete().eq('id', key).catch(err => {
-        console.error(`[SyncMap] Failed to delete from ${this.tableName}:`, err);
-      });
+      (async () => {
+        const { error } = await supabaseServer.from(this.tableName).delete().eq('id', key);
+        if (error) console.error(`[SyncMap] Failed to delete from ${this.tableName}:`, error);
+      })();
     }
     return res;
   }
