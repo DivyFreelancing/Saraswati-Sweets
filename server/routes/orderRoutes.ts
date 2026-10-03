@@ -261,7 +261,7 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
         item_type: 'HAMPER',
         hamper_details: {
           box_type: hamper.box_type,
-          items_included: hamper.items_included.map((hi) => ({
+          items_included: hamper.items_included.map((hi: any) => ({
             product_name: hi.product_name,
             variant_label: hi.variant_label,
             quantity: hi.quantity,
@@ -460,36 +460,70 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
   // Clear customer's server cart for verified user
   inMemoryStore.userCarts.delete(verifiedUserId);
 
-  // Sync to live Supabase database if configured
-  if (isLiveSupabase && supabaseServer) {
-    try {
-      await supabaseServer.from('orders').insert([
-        {
-          id: orderId,
-          order_number: orderNumber,
-          profile_id: verifiedUserId,
-          address_snapshot: newOrder.address_snapshot,
-          slot_id: slot.id,
-          slot_snapshot: newOrder.slot_snapshot,
-          subtotal: newOrder.subtotal,
-          discount: newOrder.discount,
-          coupon_code: newOrder.coupon_code,
-          delivery_charge: newOrder.delivery_charge,
-          tax: newOrder.tax,
-          total: newOrder.total,
-          status: newOrder.status,
-          payment_method: newOrder.payment_method,
-          payment_status: newOrder.payment_status,
-          special_instructions: newOrder.special_instructions,
-          packaging_notes: newOrder.packaging_notes,
-          idempotency_key: idempotencyKey,
-          placed_at: newOrder.placed_at,
-        },
-      ]);
-    } catch (err) {
-      console.warn('[Supabase Order Sync Warning]:', err);
-    }
+  if (!isLiveSupabase || !supabaseServer) {
+    res.status(503).json({ error: 'DB_UNAVAILABLE', message: 'Database not available' });
+    return;
   }
+  
+  // Write direct to Supabase
+  const orderRow = {
+    id: orderId,
+    order_number: orderNumber,
+    profile_id: verifiedUserId,
+    guest_phone: newOrder.guest_phone,
+    guest_email: newOrder.guest_email,
+    address_snapshot: newOrder.address_snapshot,
+    slot_id: slot.id,
+    slot_snapshot: newOrder.slot_snapshot,
+    subtotal: newOrder.subtotal,
+    discount: newOrder.discount,
+    delivery_charge: newOrder.delivery_charge,
+    tax: newOrder.tax,
+    total: newOrder.total,
+    status: newOrder.status,
+    payment_method: newOrder.payment_method,
+    payment_status: newOrder.payment_status,
+    special_instructions: newOrder.special_instructions,
+    packaging_notes: newOrder.packaging_notes,
+    idempotency_key: idempotencyKey,
+    placed_at: newOrder.placed_at,
+  };
+
+  const { error: orderErr } = await supabaseServer.from('orders').insert([orderRow]);
+  if (orderErr) {
+    console.error('Order insert failed', orderErr);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: orderErr.message });
+    return;
+  }
+  
+  // Write order items
+  const orderItemsRows = orderItemsSnapshots.map(it => ({
+    id: it.id,
+    order_id: orderId,
+    product_id: it.product_id || null,
+    variant_id: it.variant_id || null,
+    product_name: it.product_name,
+    variant_label: it.variant_label,
+    unit_price: it.unit_price,
+    quantity: it.quantity,
+    total_price: it.total_price
+  }));
+  
+  if (orderItemsRows.length > 0) {
+     const { error: itemsErr } = await supabaseServer.from('order_items').insert(orderItemsRows);
+     if (itemsErr) {
+        console.error('Order items insert failed', itemsErr);
+        res.status(500).json({ error: 'DB_WRITE_FAILED', message: itemsErr.message });
+        return;
+     }
+  }
+
+  // Update memory only after DB success
+  inMemoryStore.orders.set(orderId, newOrder);
+  if (idempotencyKey) {
+    inMemoryStore.ordersByIdempotency.set(idempotencyKey, newOrder);
+  }
+
 
   // Dispatch transactional notifications (email via Resend + in-app notification)
   if (!isOnlinePayment) {

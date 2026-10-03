@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import { randomUUID } from 'crypto';
 import { AuthenticatedRequest, requireRole } from '../authMiddleware';
 import {
   inMemoryStore,
@@ -29,6 +30,18 @@ const router = Router();
 // Enforce server-side role checks on ALL admin endpoints: must be STAFF or ADMIN!
 router.use(requireRole(['ADMIN', 'STAFF']));
 
+// Helper: require Supabase or return 503
+function assertSupabase(res: Response): boolean {
+  if (!isLiveSupabase || !supabaseServer) {
+    res.status(503).json({
+      error: 'DATABASE_UNAVAILABLE',
+      message: 'Supabase is not configured. Set VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.',
+    });
+    return false;
+  }
+  return true;
+}
+
 // ==========================================================
 // 1. DASHBOARD & ANALYTICS OVERVIEW
 // ==========================================================
@@ -37,7 +50,6 @@ router.get('/overview', (req: AuthenticatedRequest, res: Response) => {
   const now = new Date();
   const todayStr = now.toISOString().split('T')[0];
 
-  // Calculate today's metrics
   const todayOrders = allOrders.filter(
     (o) =>
       o.created_at.startsWith(todayStr) &&
@@ -58,7 +70,6 @@ router.get('/overview', (req: AuthenticatedRequest, res: Response) => {
     (v) => v.stockStatus === 'LOW_STOCK' || v.stockQuantity < 10
   ).length;
 
-  // 7-Day Trend Array
   const trend7Days: { date: string; label: string; revenue: number; orders: number }[] = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(now);
@@ -70,16 +81,14 @@ router.get('/overview', (req: AuthenticatedRequest, res: Response) => {
         o.status !== 'CANCELLED' &&
         o.status !== 'PAYMENT_FAILED'
     );
-    const dayRevenue = dayOrders.reduce((acc, o) => acc + o.total, 0);
     trend7Days.push({
       date: dateStr,
       label: d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }),
-      revenue: dayRevenue,
+      revenue: dayOrders.reduce((acc, o) => acc + o.total, 0),
       orders: dayOrders.length,
     });
   }
 
-  // 30-Day Trend Summary
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   const ordersLast30Days = allOrders.filter(
     (o) =>
@@ -96,7 +105,6 @@ router.get('/overview', (req: AuthenticatedRequest, res: Response) => {
       uniqueCustomerKeys.add(cleanPhone ? `phone-${cleanPhone}` : (p.email || p.id));
     }
   });
-  const totalCustomers = uniqueCustomerKeys.size;
 
   res.json({
     role: req.user!.role,
@@ -106,7 +114,7 @@ router.get('/overview', (req: AuthenticatedRequest, res: Response) => {
       pendingOrders,
       preparingOrders,
       lowStockItems,
-      totalCustomers: totalCustomers || 24,
+      totalCustomers: uniqueCustomerKeys.size || 24,
       trend7Days,
       trend30Days: {
         totalRevenue: revenue30Days > 0 ? revenue30Days : 386200,
@@ -118,7 +126,7 @@ router.get('/overview', (req: AuthenticatedRequest, res: Response) => {
 });
 
 // ==========================================================
-// 2. IMAGE UPLOAD (JPEG/PNG/WebP <= 5MB, Single Primary Image)
+// 2. IMAGE UPLOAD
 // ==========================================================
 router.post('/upload-image', async (req: AuthenticatedRequest, res: Response) => {
   const { dataUrl, fileName = 'mithai-image.jpg', fileType = 'image/jpeg', fileSize = 0 } = req.body;
@@ -128,30 +136,25 @@ router.post('/upload-image', async (req: AuthenticatedRequest, res: Response) =>
     return;
   }
 
-  // 1. Validate MIME Type: JPEG, PNG, WebP only
   const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
   if (!allowedMimeTypes.includes(fileType.toLowerCase())) {
     res.status(400).json({
       error: 'INVALID_FILE_TYPE',
-      message: 'Only JPEG, PNG, and WebP images are allowed for sweets photography.',
+      message: 'Only JPEG, PNG, and WebP images are allowed.',
       allowedTypes: allowedMimeTypes,
     });
     return;
   }
 
-  // 2. Validate File Size <= 5MB (5,242,880 bytes)
   const MAX_SIZE = 5 * 1024 * 1024;
   if (fileSize > MAX_SIZE) {
     res.status(400).json({
       error: 'FILE_TOO_LARGE',
-      message: 'Image size exceeds maximum limit of 5MB. Please upload an optimized photo.',
+      message: 'Image size exceeds maximum limit of 5MB.',
       maxBytes: MAX_SIZE,
     });
     return;
   }
-
-  // Generate persistent image URL (in memory / data URL or static)
-  const imageUrl = dataUrl;
 
   logAuditEvent(req.user, 'PRODUCT_IMAGE_UPLOADED', 'PRODUCT', 'media', {
     fileName,
@@ -162,42 +165,27 @@ router.post('/upload-image', async (req: AuthenticatedRequest, res: Response) =>
   res.json({
     success: true,
     message: 'Primary sweet image uploaded successfully.',
-    imageUrl,
+    imageUrl: dataUrl,
     fileName,
   });
 });
 
-// POST /api/admin/signed-upload-url (Supabase Storage signed URL mock/wrapper)
 router.post('/signed-upload-url', (req: AuthenticatedRequest, res: Response) => {
   const { fileName = 'image.webp', fileType = 'image/webp', fileSize = 0 } = req.body;
 
   const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
   if (!allowedMimeTypes.includes(fileType.toLowerCase())) {
-    res.status(400).json({
-      error: 'INVALID_FILE_TYPE',
-      message: 'File type must be JPEG, PNG, or WebP.',
-    });
+    res.status(400).json({ error: 'INVALID_FILE_TYPE', message: 'File type must be JPEG, PNG, or WebP.' });
     return;
   }
-
   if (fileSize > 5 * 1024 * 1024) {
-    res.status(400).json({
-      error: 'FILE_TOO_LARGE',
-      message: 'File size exceeds 5MB limit.',
-    });
+    res.status(400).json({ error: 'FILE_TOO_LARGE', message: 'File size exceeds 5MB limit.' });
     return;
   }
 
   const cleanName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
   const path = `products/${Date.now()}-${cleanName}`;
-
-  res.json({
-    success: true,
-    path,
-    uploadUrl: `/api/admin/upload-image`,
-    token: `signed_token_${Date.now()}`,
-    expiresIn: 3600,
-  });
+  res.json({ success: true, path, uploadUrl: '/api/admin/upload-image', token: `signed_token_${Date.now()}`, expiresIn: 3600 });
 });
 
 // ==========================================================
@@ -207,75 +195,103 @@ router.get('/categories', (_req: AuthenticatedRequest, res: Response) => {
   const allProducts = Array.from(inMemoryStore.products.values());
   const categoriesWithCount = Array.from(inMemoryStore.categories.values())
     .sort((a, b) => a.display_order - b.display_order)
-    .map((cat) => ({
-      ...cat,
-      product_count: allProducts.filter((p) => p.category_id === cat.id).length,
-    }));
-
+    .map((cat) => ({ ...cat, product_count: allProducts.filter((p) => p.category_id === cat.id).length }));
   res.json({ categories: categoriesWithCount });
 });
 
-router.post('/categories', requireRole(['ADMIN']), (req: AuthenticatedRequest, res: Response) => {
-  const { name, description, image_url, display_order = 1, is_active = true } = req.body;
+router.post('/categories', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
 
+  const { name, description, image_url, display_order = 1, is_active = true } = req.body;
   if (!name) {
     res.status(400).json({ error: 'MISSING_NAME', message: 'Category name is required.' });
     return;
   }
 
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-  const id = `cat-${slug || Date.now()}`;
+  const id = randomUUID();
 
-  const newCat: ServerCategory = {
+  const row = {
     id,
-    name,
+    name: String(name).trim(),
     slug,
-    description: description || null,
+    description: description ? String(description).trim() : "",
     image_url: image_url || 'https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?auto=format&fit=crop&w=600&q=80',
     display_order: Number(display_order) || 1,
     is_active: Boolean(is_active),
   };
 
-  inMemoryStore.categories.set(id, newCat);
-  logAuditEvent(req.user, 'CATEGORY_CREATED', 'CATEGORY', id, { name, slug });
+  const { error } = await supabaseServer!.from('categories').insert([row]);
+  if (error) {
+    console.error('[Admin] Category insert failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
 
+  // Update cache after confirmed DB write
+  const newCat: ServerCategory = { ...row };
+  Map.prototype.set.call(inMemoryStore.categories, id, newCat);
+
+  logAuditEvent(req.user, 'CATEGORY_CREATED', 'CATEGORY', id, { name: row.name, slug });
   res.status(201).json({ success: true, category: newCat });
 });
 
-router.put('/categories/:id', requireRole(['ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+router.put('/categories/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
+
   const { id } = req.params;
   const cat = inMemoryStore.categories.get(id);
-
   if (!cat) {
     res.status(404).json({ error: 'NOT_FOUND', message: 'Category not found.' });
     return;
   }
 
+  // Explicit whitelist — no mass assignment
   const { name, description, image_url, display_order, is_active } = req.body;
-  if (name !== undefined) cat.name = name;
-  if (description !== undefined) cat.description = description;
-  if (image_url !== undefined) cat.image_url = image_url;
-  if (display_order !== undefined) cat.display_order = Number(display_order);
-  if (is_active !== undefined) cat.is_active = Boolean(is_active);
+  const updates: Record<string, any> = {};
+  if (name !== undefined) updates.name = String(name).trim();
+  if (description !== undefined) updates.description = String(description).trim();
+  if (image_url !== undefined) updates.image_url = image_url;
+  if (display_order !== undefined) updates.display_order = Number(display_order);
+  if (is_active !== undefined) updates.is_active = Boolean(is_active);
 
-  inMemoryStore.categories.set(id, cat);
-  logAuditEvent(req.user, 'CATEGORY_UPDATED', 'CATEGORY', id, req.body);
+  const { error } = await supabaseServer!.from('categories').update(updates).eq('id', id);
+  if (error) {
+    console.error('[Admin] Category update failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
 
+  Object.assign(cat, updates);
+  Map.prototype.set.call(inMemoryStore.categories, id, cat);
+
+  logAuditEvent(req.user, 'CATEGORY_UPDATED', 'CATEGORY', id, {
+    name: updates.name,
+    is_active: updates.is_active,
+    display_order: updates.display_order,
+  });
   res.json({ success: true, category: cat });
 });
 
-router.delete('/categories/:id', requireRole(['ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+router.delete('/categories/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
+
   const { id } = req.params;
   const cat = inMemoryStore.categories.get(id);
-
   if (!cat) {
     res.status(404).json({ error: 'NOT_FOUND', message: 'Category not found.' });
     return;
   }
 
-  inMemoryStore.categories.delete(id);
-  logAuditEvent(req.user, 'CATEGORY_DELETED', 'CATEGORY', id, { name: cat.name });
+  const { error } = await supabaseServer!.from('categories').delete().eq('id', id);
+  if (error) {
+    console.error('[Admin] Category delete failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
 
+  Map.prototype.delete.call(inMemoryStore.categories, id);
+  logAuditEvent(req.user, 'CATEGORY_DELETED', 'CATEGORY', id, { name: cat.name });
   res.json({ success: true, message: `Category '${cat.name}' deleted.` });
 });
 
@@ -285,31 +301,20 @@ router.delete('/categories/:id', requireRole(['ADMIN']), (req: AuthenticatedRequ
 router.get('/products', (_req: AuthenticatedRequest, res: Response) => {
   const allProducts = Array.from(inMemoryStore.products.values());
   const allVariants = Array.from(inMemoryStore.variants.values());
-
-  const result = allProducts.map((p) => {
-    const variants = allVariants.filter((v) => v.productId === p.id);
-    return {
-      ...p,
-      variants,
-    };
-  });
-
+  const result = allProducts.map((p) => ({
+    ...p,
+    variants: allVariants.filter((v) => v.productId === p.id),
+  }));
   res.json({ products: result });
 });
 
-router.post('/products', requireRole(['ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+router.post('/products', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
+
   const {
-    name,
-    description,
-    category_id,
-    image_url,
-    pure_ghee = true,
-    shelf_life_days = 7,
-    ingredients = '',
-    variants = [],
-    is_bestseller = false,
-    is_featured = false,
-    badge_label = '',
+    name, description, category_id, image_url,
+    pure_ghee = true, shelf_life_days = 7, ingredients = '',
+    variants = [], is_bestseller = false, is_featured = false, badge_label = '',
   } = req.body;
 
   if (!name || !category_id) {
@@ -318,180 +323,216 @@ router.post('/products', requireRole(['ADMIN']), (req: AuthenticatedRequest, res
   }
 
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-  const id = `prod-${slug || Date.now()}`;
+  const id = randomUUID();
+  const finalImageUrl = image_url || 'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=800&q=80';
 
-  const newProd: ServerProduct = {
+  // Write product to Supabase FIRST
+  const productRow = {
     id,
-    name,
+    name: String(name).trim(),
     slug,
-    description: description || '',
+    description: String(description || '').trim(),
     category_id,
-    image_url: image_url || 'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=800&q=80',
-    pure_ghee: Boolean(pure_ghee),
+    is_pure_ghee: Boolean(pure_ghee),
     shelf_life_days: Number(shelf_life_days) || 7,
     is_active: true,
-    ingredients: ingredients || '',
+    ingredients: String(ingredients || '').trim(),
     is_bestseller: Boolean(is_bestseller),
     is_featured: Boolean(is_featured),
-    badge_label: badge_label || '',
+    badge_label: String(badge_label || '').trim(),
   };
 
-  inMemoryStore.products.set(id, newProd);
-
-  // Add default variants if provided
-  const createdVariants: MasterVariant[] = [];
-  if (Array.isArray(variants) && variants.length > 0) {
-    variants.forEach((v, idx) => {
-      const vId = `v-${id}-${v.label ? v.label.replace(/\s+/g, '').toLowerCase() : idx}`;
-      const newVar: MasterVariant = {
-        id: vId,
-        productId: id,
-        productName: name,
-        label: v.label || 'Standard Pack',
-        weightGrams: Number(v.weightGrams) || 500,
-        price: Number(v.price) || 200,
-        mrp: Number(v.mrp) || Math.round(Number(v.price) * 1.1),
-        imageUrl: newProd.image_url,
-        stockStatus: 'IN_STOCK',
-        stockQuantity: Number(v.stockQuantity) || 50,
-      };
-      inMemoryStore.variants.set(vId, newVar);
-      createdVariants.push(newVar);
-    });
+  const { error: prodErr } = await supabaseServer!.from('products').insert([productRow]);
+  if (prodErr) {
+    console.error('[Admin] Product insert failed:', prodErr);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: prodErr.message });
+    return;
   }
 
-  logAuditEvent(req.user, 'PRODUCT_CREATED', 'PRODUCT', id, { name, category_id, variantsCount: createdVariants.length });
+  // Write primary image to product_images table
+  const imageId = randomUUID();
+  await supabaseServer!.from('product_images').insert([{
+    id: imageId,
+    product_id: id,
+    image_url: finalImageUrl,
+    is_primary: true,
+    display_order: 0,
+  }]);
 
-  if (isLiveSupabase && supabaseServer) {
-    try {
-      supabaseServer.from('products').insert([{
-        id: newProd.id,
-        category_id: newProd.category_id,
-        name: newProd.name,
-        slug: newProd.slug,
-        description: newProd.description,
-        image_url: newProd.image_url,
-        is_pure_ghee: newProd.pure_ghee,
-        shelf_life_days: newProd.shelf_life_days,
-        is_active: newProd.is_active,
-        ingredients: newProd.ingredients,
-        is_bestseller: newProd.is_bestseller,
-        is_featured: newProd.is_featured,
-        badge_label: newProd.badge_label,
-      }]).then(() => {});
-    } catch (e) {
-      console.warn('Supabase product insert failed:', e);
+  // Write variants to product_variants table
+  const createdVariants: MasterVariant[] = [];
+  if (Array.isArray(variants) && variants.length > 0) {
+    for (const [idx, v] of variants.entries()) {
+      const vId = randomUUID();
+      const variantRow = {
+        id: vId,
+        product_id: id,
+        label: String(v.label || 'Standard Pack'),
+        weight_grams: Number(v.weightGrams) || 500,
+        price: Number(v.price) || 200,
+        mrp: Number(v.mrp) || Math.round(Number(v.price) * 1.1),
+        stock_status: 'IN_STOCK',
+        stock_quantity: Number(v.stockQuantity) || 50,
+        display_order: idx,
+      };
+      const { error: varErr } = await supabaseServer!.from('product_variants').insert([variantRow]);
+      if (varErr) {
+        console.error('[Admin] Variant insert failed:', varErr);
+        // Don't fail the whole request; product is already created
+      } else {
+        const memVariant: MasterVariant = {
+          id: vId,
+          productId: id,
+          productName: name,
+          label: variantRow.label,
+          weightGrams: variantRow.weight_grams,
+          price: variantRow.price,
+          mrp: variantRow.mrp,
+          imageUrl: finalImageUrl,
+          stockStatus: 'IN_STOCK',
+          stockQuantity: variantRow.stock_quantity,
+        };
+        Map.prototype.set.call(inMemoryStore.variants, vId, memVariant);
+        createdVariants.push(memVariant);
+      }
     }
   }
 
-  saveStoreState();
+  // Update in-memory cache
+  const newProd: ServerProduct = {
+    id,
+    name: productRow.name,
+    slug,
+    description: productRow.description,
+    category_id,
+    image_url: finalImageUrl,
+    pure_ghee: Boolean(pure_ghee),
+    shelf_life_days: productRow.shelf_life_days,
+    is_active: true,
+    ingredients: productRow.ingredients,
+    is_bestseller: productRow.is_bestseller,
+    is_featured: productRow.is_featured,
+    badge_label: productRow.badge_label,
+  };
+  Map.prototype.set.call(inMemoryStore.products, id, newProd);
 
+  logAuditEvent(req.user, 'PRODUCT_CREATED', 'PRODUCT', id, { name: productRow.name, category_id, variantsCount: createdVariants.length });
   res.status(201).json({ success: true, product: { ...newProd, variants: createdVariants } });
 });
 
-router.put('/products/:id', requireRole(['ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+router.put('/products/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
+
   const { id } = req.params;
   const prod = inMemoryStore.products.get(id);
-
   if (!prod) {
     res.status(404).json({ error: 'NOT_FOUND', message: 'Product not found.' });
     return;
   }
 
+  // Explicit whitelist
   const { name, description, category_id, image_url, pure_ghee, shelf_life_days, is_active, ingredients, is_bestseller, is_featured, badge_label } = req.body;
-  if (name !== undefined) prod.name = name;
-  if (description !== undefined) prod.description = description;
-  if (category_id !== undefined) prod.category_id = category_id;
+  const updates: Record<string, any> = {};
+  if (name !== undefined) updates.name = String(name).trim();
+  if (description !== undefined) updates.description = String(description).trim();
+  if (category_id !== undefined) updates.category_id = category_id;
+  if (pure_ghee !== undefined) updates.is_pure_ghee = Boolean(pure_ghee);
+  if (shelf_life_days !== undefined) updates.shelf_life_days = Number(shelf_life_days);
+  if (is_active !== undefined) updates.is_active = Boolean(is_active);
+  if (ingredients !== undefined) updates.ingredients = String(ingredients).trim();
+  if (is_bestseller !== undefined) updates.is_bestseller = Boolean(is_bestseller);
+  if (is_featured !== undefined) updates.is_featured = Boolean(is_featured);
+  if (badge_label !== undefined) updates.badge_label = String(badge_label).trim();
+
+  const { error } = await supabaseServer!.from('products').update(updates).eq('id', id);
+  if (error) {
+    console.error('[Admin] Product update failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
+
+  // Handle image update separately in product_images table
   if (image_url !== undefined) {
-    prod.image_url = image_url;
-    // update primary image on its variants
+    await supabaseServer!.from('product_images')
+      .upsert({ product_id: id, image_url, is_primary: true, display_order: 0 }, { onConflict: 'product_id,is_primary' });
+
+    // Update image on all variants too
     Array.from(inMemoryStore.variants.values())
       .filter((v) => v.productId === id)
       .forEach((v) => {
         v.imageUrl = image_url;
-        inMemoryStore.variants.set(v.id, v);
+        Map.prototype.set.call(inMemoryStore.variants, v.id, v);
       });
   }
-  if (pure_ghee !== undefined) prod.pure_ghee = Boolean(pure_ghee);
-  if (shelf_life_days !== undefined) prod.shelf_life_days = Number(shelf_life_days);
-  if (is_active !== undefined) prod.is_active = Boolean(is_active);
-  if (ingredients !== undefined) prod.ingredients = ingredients;
-  if (is_bestseller !== undefined) prod.is_bestseller = Boolean(is_bestseller);
-  if (is_featured !== undefined) prod.is_featured = Boolean(is_featured);
-  if (badge_label !== undefined) prod.badge_label = badge_label;
 
-  inMemoryStore.products.set(id, prod);
-  logAuditEvent(req.user, 'PRODUCT_UPDATED', 'PRODUCT', id, req.body);
+  // Update cache
+  if (updates.name !== undefined) prod.name = updates.name;
+  if (updates.description !== undefined) prod.description = updates.description;
+  if (updates.category_id !== undefined) prod.category_id = updates.category_id;
+  if (image_url !== undefined) prod.image_url = image_url;
+  if (updates.is_pure_ghee !== undefined) prod.pure_ghee = updates.is_pure_ghee;
+  if (updates.shelf_life_days !== undefined) prod.shelf_life_days = updates.shelf_life_days;
+  if (updates.is_active !== undefined) prod.is_active = updates.is_active;
+  if (updates.ingredients !== undefined) prod.ingredients = updates.ingredients;
+  if (updates.is_bestseller !== undefined) prod.is_bestseller = updates.is_bestseller;
+  if (updates.is_featured !== undefined) prod.is_featured = updates.is_featured;
+  if (updates.badge_label !== undefined) prod.badge_label = updates.badge_label;
+  Map.prototype.set.call(inMemoryStore.products, id, prod);
 
-  if (isLiveSupabase && supabaseServer) {
-    try {
-      supabaseServer.from('products').update({
-        name: prod.name,
-        description: prod.description,
-        category_id: prod.category_id,
-        image_url: prod.image_url,
-        is_pure_ghee: prod.pure_ghee,
-        shelf_life_days: prod.shelf_life_days,
-        is_active: prod.is_active,
-        ingredients: prod.ingredients,
-        is_bestseller: prod.is_bestseller,
-        is_featured: prod.is_featured,
-        badge_label: prod.badge_label,
-      }).eq('id', id).then(() => {});
-    } catch (e) {
-      console.warn('Supabase product update failed:', e);
-    }
-  }
-
-  saveStoreState();
-
+  logAuditEvent(req.user, 'PRODUCT_UPDATED', 'PRODUCT', id, {
+    name: updates.name,
+    is_active: updates.is_active,
+    category_id: updates.category_id,
+  });
   res.json({ success: true, product: prod });
 });
 
-router.delete('/products/:id', requireRole(['ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+router.delete('/products/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
+
   const { id } = req.params;
   const prod = inMemoryStore.products.get(id);
-
   if (!prod) {
     res.status(404).json({ error: 'NOT_FOUND', message: 'Product not found.' });
     return;
   }
 
-  inMemoryStore.products.delete(id);
-  // Remove variants
+  // Delete variants first (FK), then product
+  const { error: varErr } = await supabaseServer!.from('product_variants').delete().eq('product_id', id);
+  if (varErr) {
+    console.error('[Admin] Variant delete failed:', varErr);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: varErr.message });
+    return;
+  }
+
+  const { error: prodErr } = await supabaseServer!.from('products').delete().eq('id', id);
+  if (prodErr) {
+    console.error('[Admin] Product delete failed:', prodErr);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: prodErr.message });
+    return;
+  }
+
+  // Update cache
+  Map.prototype.delete.call(inMemoryStore.products, id);
   for (const [vId, v] of inMemoryStore.variants.entries()) {
-    if (v.productId === id) inMemoryStore.variants.delete(vId);
+    if (v.productId === id) Map.prototype.delete.call(inMemoryStore.variants, vId);
   }
 
   logAuditEvent(req.user, 'PRODUCT_DELETED', 'PRODUCT', id, { name: prod.name });
-
-  if (isLiveSupabase && supabaseServer) {
-    try {
-      supabaseServer.from('product_variants').delete().eq('product_id', id).then(() => {
-        supabaseServer.from('products').delete().eq('id', id).then(() => {});
-      });
-    } catch (e) {
-      console.warn('Supabase product delete failed:', e);
-    }
-  }
-
-  saveStoreState();
-
   res.json({ success: true, message: `Product '${prod.name}' deleted.` });
 });
 
-// GET /api/admin/variants - Manage stock and prices per variant
+// GET /api/admin/variants
 router.get('/variants', (_req: AuthenticatedRequest, res: Response) => {
-  res.json({
-    variants: Array.from(inMemoryStore.variants.values()),
-  });
+  res.json({ variants: Array.from(inMemoryStore.variants.values()) });
 });
 
-// POST /api/admin/products/:id/variants - Add variant to product
-router.post('/products/:id/variants', requireRole(['ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+// POST /api/admin/products/:id/variants
+router.post('/products/:id/variants', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
+
   const { id } = req.params;
   const prod = inMemoryStore.products.get(id);
-
   if (!prod) {
     res.status(404).json({ error: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
     return;
@@ -503,52 +544,87 @@ router.post('/products/:id/variants', requireRole(['ADMIN']), (req: Authenticate
     return;
   }
 
-  const vId = `v-${id}-${Date.now().toString().slice(-4)}`;
+  const vId = randomUUID();
+  const variantRow = {
+    id: vId,
+    product_id: id,
+    label: String(label),
+    weight_grams: Number(weightGrams) || 500,
+    price: Number(price),
+    mrp: Number(mrp) || Math.round(Number(price) * 1.1),
+    stock_status: 'IN_STOCK',
+    stock_quantity: Number(stockQuantity) || 50,
+    display_order: 0,
+  };
+
+  const { error } = await supabaseServer!.from('product_variants').insert([variantRow]);
+  if (error) {
+    console.error('[Admin] Variant insert failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
+
   const newVar: MasterVariant = {
     id: vId,
     productId: id,
     productName: prod.name,
-    label,
-    weightGrams: Number(weightGrams) || 500,
-    price: Number(price),
-    mrp: Number(mrp) || Math.round(Number(price) * 1.1),
+    label: variantRow.label,
+    weightGrams: variantRow.weight_grams,
+    price: variantRow.price,
+    mrp: variantRow.mrp,
     imageUrl: prod.image_url,
     stockStatus: 'IN_STOCK',
-    stockQuantity: Number(stockQuantity) || 50,
+    stockQuantity: variantRow.stock_quantity,
   };
+  Map.prototype.set.call(inMemoryStore.variants, vId, newVar);
 
-  inMemoryStore.variants.set(vId, newVar);
-  logAuditEvent(req.user, 'VARIANT_ADDED', 'PRODUCT', vId, { productId: id, label, price });
-
+  logAuditEvent(req.user, 'VARIANT_ADDED', 'PRODUCT', vId, { productId: id, label, price: variantRow.price });
   res.status(201).json({ success: true, variant: newVar });
 });
 
-// PUT /api/admin/variants/:id - Update variant price / MRP / stock (ADMIN only)
-router.put('/variants/:id', requireRole(['ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+// PUT /api/admin/variants/:id
+router.put('/variants/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
+
   const { id } = req.params;
   const variant = inMemoryStore.variants.get(id);
-
   if (!variant) {
     res.status(404).json({ error: 'VARIANT_NOT_FOUND', message: 'Variant not found' });
     return;
   }
 
   const { label, price, mrp, weightGrams, stockQuantity, stockStatus } = req.body;
-  if (label !== undefined) variant.label = label;
-  if (price !== undefined) variant.price = Number(price);
-  if (mrp !== undefined) variant.mrp = Number(mrp);
-  if (weightGrams !== undefined) variant.weightGrams = Number(weightGrams);
-  if (stockQuantity !== undefined) variant.stockQuantity = Number(stockQuantity);
-  if (stockStatus !== undefined) variant.stockStatus = stockStatus;
+  const updates: Record<string, any> = {};
+  if (label !== undefined) updates.label = String(label);
+  if (price !== undefined) updates.price = Number(price);
+  if (mrp !== undefined) updates.mrp = Number(mrp);
+  if (weightGrams !== undefined) updates.weight_grams = Number(weightGrams);
+  if (stockQuantity !== undefined) updates.stock_quantity = Number(stockQuantity);
+  if (stockStatus !== undefined) updates.stock_status = stockStatus;
 
-  inMemoryStore.variants.set(id, variant);
-  logAuditEvent(req.user, 'VARIANT_UPDATED', 'PRODUCT', id, req.body);
+  const { error } = await supabaseServer!.from('product_variants').update(updates).eq('id', id);
+  if (error) {
+    console.error('[Admin] Variant update failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
 
+  if (updates.label !== undefined) variant.label = updates.label;
+  if (updates.price !== undefined) variant.price = updates.price;
+  if (updates.mrp !== undefined) variant.mrp = updates.mrp;
+  if (updates.weight_grams !== undefined) variant.weightGrams = updates.weight_grams;
+  if (updates.stock_quantity !== undefined) variant.stockQuantity = updates.stock_quantity;
+  if (updates.stock_status !== undefined) variant.stockStatus = updates.stock_status;
+  Map.prototype.set.call(inMemoryStore.variants, id, variant);
+
+  logAuditEvent(req.user, 'VARIANT_UPDATED', 'PRODUCT', id, { label: updates.label, price: updates.price });
   res.json({ success: true, variant });
 });
 
-// PATCH /api/admin/variants/:id/stock - Toggle stock status (ADMIN or STAFF)
-router.patch('/variants/:id/stock', (req: AuthenticatedRequest, res: Response) => {
+// PATCH /api/admin/variants/:id/stock
+router.patch('/variants/:id/stock', async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
+
   const { id } = req.params;
   const { stockStatus } = req.body;
 
@@ -558,27 +634,38 @@ router.patch('/variants/:id/stock', (req: AuthenticatedRequest, res: Response) =
     return;
   }
 
-  if (['IN_STOCK', 'LOW_STOCK', 'OUT_OF_STOCK'].includes(stockStatus)) {
-    variant.stockStatus = stockStatus;
-    inMemoryStore.variants.set(id, variant);
-    logAuditEvent(req.user, 'STOCK_STATUS_TOGGLED', 'PRODUCT', id, { newStatus: stockStatus, label: variant.label });
+  const validStatuses = ['IN_STOCK', 'LOW_STOCK', 'OUT_OF_STOCK'];
+  if (!validStatuses.includes(stockStatus)) {
+    res.status(400).json({ error: 'INVALID_STATUS', message: `stockStatus must be one of: ${validStatuses.join(', ')}` });
+    return;
   }
 
+  const { error } = await supabaseServer!.from('product_variants').update({ stock_status: stockStatus }).eq('id', id);
+  if (error) {
+    console.error('[Admin] Stock update failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
+
+  variant.stockStatus = stockStatus;
+  Map.prototype.set.call(inMemoryStore.variants, id, variant);
+
+  logAuditEvent(req.user, 'STOCK_STATUS_TOGGLED', 'PRODUCT', id, { newStatus: stockStatus, label: variant.label });
   res.json({ success: true, variant });
 });
 
 // ==========================================================
 // 5. ORDERS & DELIVERY ASSIGNMENT
 // ==========================================================
-// POST /api/admin/orders/:id/assign-delivery - Assign delivery partner
-router.post('/orders/:id/assign-delivery', (req: AuthenticatedRequest, res: Response) => {
+router.post('/orders/:id/assign-delivery', async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
+
   const { id } = req.params;
   const { partnerId } = req.body;
 
   const order =
     inMemoryStore.orders.get(id) ||
     Array.from(inMemoryStore.orders.values()).find((o) => o.order_number === id);
-
   if (!order) {
     res.status(404).json({ error: 'ORDER_NOT_FOUND', message: 'Order not found' });
     return;
@@ -591,31 +678,33 @@ router.post('/orders/:id/assign-delivery', (req: AuthenticatedRequest, res: Resp
   }
 
   const nowIso = new Date().toISOString();
+  const { error } = await supabaseServer!.from('orders').update({
+    delivery_partner_id: partner.id,
+    updated_at: nowIso,
+  }).eq('id', order.id);
+
+  if (error) {
+    console.error('[Admin] Delivery assign failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
+
   order.delivery_partner_id = partner.id;
   order.delivery_partner_name = partner.name;
   order.delivery_partner_phone = partner.phone;
   order.assigned_at = nowIso;
   order.updated_at = nowIso;
-
-  // Increment assigned count on partner
-  partner.current_assigned_orders = (partner.current_assigned_orders || 0) + 1;
-  inMemoryStore.deliveryPartners.set(partner.id, partner);
-  inMemoryStore.orders.set(order.id, order);
+  Map.prototype.set.call(inMemoryStore.orders, order.id, order);
 
   logAuditEvent(req.user, 'DELIVERY_ASSIGNED', 'ORDER', order.id, {
     orderNumber: order.order_number,
     partnerId: partner.id,
     partnerName: partner.name,
   });
-
-  res.json({
-    success: true,
-    message: `Delivery assigned to ${partner.name} (${partner.phone})`,
-    order,
-  });
+  res.json({ success: true, message: `Delivery assigned to ${partner.name}`, order });
 });
 
-// POST /api/admin/orders/:id/refund - Process Razorpay Refund (ADMIN only)
+// POST /api/admin/orders/:id/refund
 router.post('/orders/:id/refund', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const { reason = 'Store cancellation / customer return' } = req.body;
@@ -623,28 +712,23 @@ router.post('/orders/:id/refund', requireRole(['ADMIN']), async (req: Authentica
   const order =
     inMemoryStore.orders.get(id) ||
     Array.from(inMemoryStore.orders.values()).find((o) => o.order_number === id);
-
   if (!order) {
     res.status(404).json({ error: 'ORDER_NOT_FOUND', message: 'Order not found' });
     return;
   }
 
-  // 1. Guard against non-online or unpaid orders
   if (order.payment_method !== 'ONLINE' || order.payment_status !== 'COMPLETED' || !order.razorpay_payment_id) {
     res.status(400).json({
       error: 'ORDER_NOT_REFUNDABLE',
-      message: 'Only successfully paid online orders can be refunded via Razorpay.',
-      payment_method: order.payment_method,
-      payment_status: order.payment_status,
+      message: 'Only successfully paid online orders can be refunded.',
     });
     return;
   }
 
-  // 2. Guard against double refund
   if (order.status === 'REFUNDED' || order.razorpay_refund_id) {
     res.status(409).json({
       error: 'ALREADY_REFUNDED',
-      message: `Order #${order.order_number} has already been refunded (Refund ID: ${order.razorpay_refund_id}).`,
+      message: `Order #${order.order_number} has already been refunded.`,
     });
     return;
   }
@@ -658,24 +742,20 @@ router.post('/orders/:id/refund', requireRole(['ADMIN']), async (req: Authentica
     });
 
     const nowIso = new Date().toISOString();
+    if (isLiveSupabase && supabaseServer) {
+      await supabaseServer.from('orders').update({
+        status: 'REFUNDED',
+        payment_status: 'REFUNDED',
+        updated_at: nowIso,
+      }).eq('id', order.id);
+    }
+
     order.status = 'REFUNDED';
     order.payment_status = 'REFUNDED';
     order.razorpay_refund_id = refundResult.id;
     order.refund_reason = reason;
-    order.refunded_at = nowIso;
     order.updated_at = nowIso;
-
-    inMemoryStore.orders.set(order.id, order);
-
-    // Update payment record in inMemoryStore.payments
-    const payment = inMemoryStore.payments.get(order.razorpay_payment_id);
-    if (payment) {
-      payment.status = 'REFUNDED';
-      payment.refund_id = refundResult.id;
-      payment.refund_amount = amountInPaise;
-      payment.updated_at = nowIso;
-      inMemoryStore.payments.set(order.razorpay_payment_id, payment);
-    }
+    Map.prototype.set.call(inMemoryStore.orders, order.id, order);
 
     logAuditEvent(req.user, 'ORDER_REFUNDED', 'ORDER', order.id, {
       orderNumber: order.order_number,
@@ -684,17 +764,9 @@ router.post('/orders/:id/refund', requireRole(['ADMIN']), async (req: Authentica
       reason,
     });
 
-    res.json({
-      success: true,
-      message: `Refund of ₹${order.total} processed successfully for Order #${order.order_number}`,
-      refund: refundResult,
-      order,
-    });
+    res.json({ success: true, message: `Refund of ₹${order.total} processed for Order #${order.order_number}`, refund: refundResult, order });
   } catch (err: any) {
-    res.status(500).json({
-      error: 'REFUND_FAILED',
-      message: err.message || 'Razorpay refund API call failed',
-    });
+    res.status(500).json({ error: 'REFUND_FAILED', message: err.message || 'Razorpay refund API call failed' });
   }
 });
 
@@ -705,33 +777,20 @@ router.get('/customers', (_req: AuthenticatedRequest, res: Response) => {
   const allOrders = Array.from(inMemoryStore.orders.values());
   const allProfiles = Array.from(inMemoryStore.profiles.values());
 
-  // Deduplicate customer profiles by clean 10-digit phone or email or id
   const customerMap = new Map<string, ServerProfile>();
-
   for (const p of allProfiles) {
     if (p.role !== 'CUSTOMER') continue;
     const cleanPhone = p.phone ? p.phone.replace(/\D/g, '').slice(-10) : '';
     const key = cleanPhone ? `phone-${cleanPhone}` : (p.email ? `email-${p.email}` : p.id);
-
     const existing = customerMap.get(key);
     if (!existing) {
       customerMap.set(key, { ...p });
     } else {
-      // Prioritize the profile with a real patron name over generic 'Barabanki Patron'
-      const existingIsGeneric = !existing.full_name || existing.full_name === 'Barabanki Patron' || existing.full_name.startsWith('Patron ');
-      const currentIsReal = p.full_name && p.full_name !== 'Barabanki Patron' && !p.full_name.startsWith('Patron ');
-
-      if (existingIsGeneric && currentIsReal) {
-        customerMap.set(key, { ...p });
-      } else {
-        // Merge missing phone/email
-        if (!existing.phone && p.phone) existing.phone = p.phone;
-        if (!existing.email && p.email) existing.email = p.email;
-      }
+      if (!existing.phone && p.phone) existing.phone = p.phone;
+      if (!existing.email && p.email) existing.email = p.email;
     }
   }
 
-  // Also include customers who placed orders as guest or with recipient details
   for (const order of allOrders) {
     const rawPhone = order.address_snapshot?.recipient_phone || order.guest_phone;
     const clean = rawPhone ? rawPhone.replace(/\D/g, '').slice(-10) : '';
@@ -747,23 +806,15 @@ router.get('/customers', (_req: AuthenticatedRequest, res: Response) => {
           created_at: order.created_at,
           updated_at: order.created_at,
         });
-      } else {
-        const existing = customerMap.get(key)!;
-        if ((!existing.full_name || existing.full_name === 'Barabanki Patron') && order.address_snapshot?.recipient_name) {
-          existing.full_name = order.address_snapshot.recipient_name;
-        }
       }
     }
   }
 
   const customers = Array.from(customerMap.values()).map((cust) => {
     const cleanCustPhone = cust.phone ? cust.phone.replace(/\D/g, '').slice(-10) : '';
-
     const custOrders = allOrders.filter((o) => {
-      // Direct ID match
-      if (o.profile_id === cust.id || (o as any).user_id === cust.id) return true;
+      if (o.profile_id === cust.id) return true;
       if (cleanCustPhone) {
-        if (false || false) return true;
         const oGuest = (o.guest_phone || '').replace(/\D/g, '').slice(-10);
         const oRecip = (o.address_snapshot?.recipient_phone || '').replace(/\D/g, '').slice(-10);
         if (oGuest === cleanCustPhone || oRecip === cleanCustPhone) return true;
@@ -775,19 +826,13 @@ router.get('/customers', (_req: AuthenticatedRequest, res: Response) => {
       .filter((o) => o.status !== 'CANCELLED' && o.status !== 'PAYMENT_FAILED')
       .reduce((sum, o) => sum + o.total, 0);
 
-    const lastOrder = custOrders.sort(
+    const lastOrder = [...custOrders].sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     )[0];
 
-    return {
-      ...cust,
-      orderCount: custOrders.length,
-      totalSpent,
-      lastOrderDate: lastOrder ? lastOrder.created_at : null,
-    };
+    return { ...cust, orderCount: custOrders.length, totalSpent, lastOrderDate: lastOrder ? lastOrder.created_at : null };
   });
 
-  // Sort by recent order or recent registration
   customers.sort((a, b) => {
     const timeA = a.lastOrderDate ? new Date(a.lastOrderDate).getTime() : new Date(a.created_at).getTime();
     const timeB = b.lastOrderDate ? new Date(b.lastOrderDate).getTime() : new Date(b.created_at).getTime();
@@ -801,36 +846,44 @@ router.get('/customers', (_req: AuthenticatedRequest, res: Response) => {
 // 7. DELIVERY PARTNERS
 // ==========================================================
 router.get('/delivery-partners', (_req: AuthenticatedRequest, res: Response) => {
-  res.json({
-    partners: Array.from(inMemoryStore.deliveryPartners.values()),
-  });
+  res.json({ partners: Array.from(inMemoryStore.deliveryPartners.values()) });
 });
 
-router.post('/delivery-partners', requireRole(['ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+router.post('/delivery-partners', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
+
   const { name, phone, vehicle_number } = req.body;
   if (!name || !phone) {
     res.status(400).json({ error: 'MISSING_FIELDS', message: 'Partner name and phone are required.' });
     return;
   }
 
-  const id = `dp-${Date.now().toString().slice(-4)}`;
-  const partner: ServerDeliveryPartner = {
+  const id = randomUUID();
+  const row = {
     id,
-    name,
-    phone,
-    vehicle_number: vehicle_number || 'UP-32-TEMPORARY',
-    status: 'AVAILABLE',
-    current_assigned_orders: 0,
-    created_at: new Date().toISOString(),
+    name: String(name).trim(),
+    phone: String(phone).trim(),
+    vehicle_number: vehicle_number ? String(vehicle_number).trim() : 'UP-32-TEMPORARY',
+    is_active: true,
   };
 
-  inMemoryStore.deliveryPartners.set(id, partner);
-  logAuditEvent(req.user, 'DELIVERY_PARTNER_ADDED', 'DELIVERY', id, { name, phone });
+  const { error } = await supabaseServer!.from('delivery_partners').insert([row]);
+  if (error) {
+    console.error('[Admin] Delivery partner insert failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
 
+  const partner: ServerDeliveryPartner = { ...row, status: 'AVAILABLE', current_assigned_orders: 0, created_at: new Date().toISOString() };
+  Map.prototype.set.call(inMemoryStore.deliveryPartners, id, partner);
+
+  logAuditEvent(req.user, 'DELIVERY_PARTNER_ADDED', 'DELIVERY', id, { name: row.name, phone: row.phone });
   res.status(201).json({ success: true, partner });
 });
 
-router.patch('/delivery-partners/:id/status', (req: AuthenticatedRequest, res: Response) => {
+router.patch('/delivery-partners/:id/status', async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
+
   const { id } = req.params;
   const { status } = req.body;
 
@@ -840,11 +893,22 @@ router.patch('/delivery-partners/:id/status', (req: AuthenticatedRequest, res: R
     return;
   }
 
-  if (['AVAILABLE', 'ON_DELIVERY', 'OFF_DUTY'].includes(status)) {
-    partner.status = status;
-    inMemoryStore.deliveryPartners.set(id, partner);
+  const validStatuses = ['AVAILABLE', 'ON_DELIVERY', 'OFF_DUTY'];
+  if (!validStatuses.includes(status)) {
+    res.status(400).json({ error: 'INVALID_STATUS' });
+    return;
   }
 
+  // delivery_partners table has is_active but no status column — update is_active based on status
+  const { error } = await supabaseServer!.from('delivery_partners').update({ is_active: status !== 'OFF_DUTY' }).eq('id', id);
+  if (error) {
+    console.error('[Admin] Partner status update failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
+
+  partner.status = status;
+  Map.prototype.set.call(inMemoryStore.deliveryPartners, id, partner);
   res.json({ success: true, partner });
 });
 
@@ -859,20 +923,31 @@ router.get('/delivery-slots', (_req: AuthenticatedRequest, res: Response) => {
   res.json({ slots });
 });
 
-router.patch('/delivery-slots/:id', requireRole(['ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+router.patch('/delivery-slots/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
+
   const { id } = req.params;
   const slot = inMemoryStore.deliverySlots.get(id);
-
   if (!slot) {
     res.status(404).json({ error: 'NOT_FOUND', message: 'Delivery slot not found.' });
     return;
   }
 
   const { capacity, is_active } = req.body;
-  if (capacity !== undefined) slot.capacity = Number(capacity);
-  if (is_active !== undefined) slot.is_active = Boolean(is_active);
+  const updates: Record<string, any> = {};
+  if (capacity !== undefined) updates.capacity = Number(capacity);
+  if (is_active !== undefined) updates.is_active = Boolean(is_active);
 
-  inMemoryStore.deliverySlots.set(id, slot);
+  const { error } = await supabaseServer!.from('delivery_slots').update(updates).eq('id', id);
+  if (error) {
+    console.error('[Admin] Slot update failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
+
+  if (updates.capacity !== undefined) slot.capacity = updates.capacity;
+  if (updates.is_active !== undefined) slot.is_active = updates.is_active;
+  Map.prototype.set.call(inMemoryStore.deliverySlots, id, slot);
   res.json({ success: true, slot });
 });
 
@@ -883,34 +958,57 @@ router.get('/store/settings', (_req: AuthenticatedRequest, res: Response) => {
   res.json({ settings: inMemoryStore.storeSettings });
 });
 
-router.put('/store/settings', requireRole(['ADMIN']), (req: AuthenticatedRequest, res: Response) => {
-  const current = inMemoryStore.storeSettings;
-  const updated: ServerStoreSettings = {
-    ...current,
-    ...req.body,
-  };
+router.put('/store/settings', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
 
-  inMemoryStore.storeSettings = updated;
-  logAuditEvent(req.user, 'STORE_SETTINGS_UPDATED', 'STORE_SETTINGS', '1', req.body);
+  // Explicit whitelist — NEVER spread req.body directly
+  const {
+    store_name, tagline, phone, whatsapp, email, address,
+    delivery_charge, free_delivery_threshold, cod_max_limit,
+    tax_percent, opening_time, closing_time, is_store_open, allowed_pincodes,
+  } = req.body;
 
-  res.json({
-    success: true,
-    message: 'Store settings updated successfully.',
-    settings: updated,
+  const updates: Partial<ServerStoreSettings> = {};
+  if (store_name !== undefined) updates.store_name = String(store_name).trim();
+  if (tagline !== undefined) updates.tagline = String(tagline).trim();
+  if (phone !== undefined) updates.phone = String(phone).trim();
+  if (whatsapp !== undefined) updates.whatsapp = String(whatsapp).trim();
+  if (email !== undefined) updates.email = String(email).trim();
+  if (address !== undefined) updates.address = String(address).trim();
+  if (delivery_charge !== undefined) updates.delivery_charge = Number(delivery_charge);
+  if (free_delivery_threshold !== undefined) updates.free_delivery_threshold = Number(free_delivery_threshold);
+  if (cod_max_limit !== undefined) updates.cod_max_limit = Number(cod_max_limit);
+  if (tax_percent !== undefined) updates.tax_percent = Number(tax_percent);
+  if (opening_time !== undefined) updates.opening_time = String(opening_time);
+  if (closing_time !== undefined) updates.closing_time = String(closing_time);
+  if (is_store_open !== undefined) updates.is_store_open = Boolean(is_store_open);
+  if (allowed_pincodes !== undefined) updates.allowed_pincodes = Array.isArray(allowed_pincodes) ? allowed_pincodes : String(allowed_pincodes).split(',').map(p => p.trim());
+
+  const { error } = await supabaseServer!.from('store_settings').update(updates).eq('id', 1);
+  if (error) {
+    console.error('[Admin] Store settings update failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
+
+  inMemoryStore.storeSettings = { ...inMemoryStore.storeSettings, ...updates };
+
+  logAuditEvent(req.user, 'STORE_SETTINGS_UPDATED', 'STORE_SETTINGS', '1', {
+    fields_updated: Object.keys(updates),
+    is_store_open: updates.is_store_open,
+    delivery_charge: updates.delivery_charge,
   });
+
+  res.json({ success: true, message: 'Store settings updated successfully.', settings: inMemoryStore.storeSettings });
 });
 
 // ==========================================================
-// 10. COUPONS MANAGEMENT (ADMIN ONLY FOR MUTATIONS)
+// 10. COUPONS MANAGEMENT
 // ==========================================================
 router.get('/coupons', (_req: AuthenticatedRequest, res: Response) => {
   const coupons = Array.from(inMemoryStore.coupons.values()).map((c) => {
     const usages = inMemoryStore.couponUsage.filter((u) => u.coupon_code === c.code);
-    return {
-      ...c,
-      redemptionsCount: usages.length,
-      totalDiscountGranted: usages.reduce((sum, u) => sum + u.discount_amount, 0),
-    };
+    return { ...c, redemptionsCount: usages.length, totalDiscountGranted: usages.reduce((sum, u) => sum + u.discount_amount, 0) };
   });
   res.json({ coupons, totalUsagesRecorded: inMemoryStore.couponUsage.length });
 });
@@ -922,19 +1020,13 @@ router.get('/coupons/:code/usage', (req: AuthenticatedRequest, res: Response) =>
   res.json({ couponCode: cleanCode, usages });
 });
 
-router.post('/coupons', requireRole(['ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+router.post('/coupons', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
+
   const {
-    code,
-    description = '',
-    discount_type = 'FLAT',
-    discount_value = 50,
-    min_order_amount = 300,
-    max_discount_amount,
-    total_limit,
-    per_user_limit,
-    is_active = true,
-    start_date,
-    end_date,
+    code, description = '', discount_type = 'FLAT', discount_value = 50,
+    min_order_amount = 300, max_discount_amount, total_limit, per_user_limit,
+    is_active = true, start_date, end_date,
   } = req.body;
 
   if (!code || !discount_value) {
@@ -943,319 +1035,348 @@ router.post('/coupons', requireRole(['ADMIN']), (req: AuthenticatedRequest, res:
   }
 
   const cleanCode = String(code).toUpperCase().trim();
-  const id = `coup-${cleanCode.toLowerCase()}-${Date.now().toString().slice(-4)}`;
+  const id = randomUUID();
 
-  const newCoupon: ServerCoupon = {
+  const row = {
     id,
     code: cleanCode,
-    description,
+    description: String(description).trim(),
     discount_type: discount_type === 'PERCENTAGE' ? 'PERCENTAGE' : 'FLAT',
     discount_value: Number(discount_value),
     min_order_amount: Number(min_order_amount) || 0,
-    max_discount_amount: max_discount_amount ? Number(max_discount_amount) : undefined,
-    total_limit: total_limit ? Number(total_limit) : undefined,
-    per_user_limit: per_user_limit ? Number(per_user_limit) : undefined,
-    used_count: 0,
+    max_discount_amount: max_discount_amount ? Number(max_discount_amount) : null,
+    usage_limit: total_limit ? Number(total_limit) : null,
+    per_user_limit: per_user_limit ? Number(per_user_limit) : 1,
+    usage_count: 0,
     is_active: Boolean(is_active),
     start_date: start_date || new Date().toISOString(),
     end_date: end_date || new Date(Date.now() + 180 * 86400000).toISOString(),
   };
 
-  inMemoryStore.coupons.set(cleanCode, newCoupon);
-  logAuditEvent(req.user, 'COUPON_CREATED', 'COUPON', id, {
-    code: cleanCode,
-    discount_type: newCoupon.discount_type,
-    discount_value: newCoupon.discount_value,
-    min_order_amount: newCoupon.min_order_amount,
-    total_limit: newCoupon.total_limit,
-    per_user_limit: newCoupon.per_user_limit,
-  });
+  const { error } = await supabaseServer!.from('coupons').insert([row]);
+  if (error) {
+    console.error('[Admin] Coupon insert failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
 
+  const newCoupon: ServerCoupon = {
+    id, code: cleanCode, description: row.description, discount_type: row.discount_type as any,
+    discount_value: row.discount_value, min_order_amount: row.min_order_amount,
+    max_discount_amount: row.max_discount_amount ?? undefined, total_limit: row.usage_limit ?? undefined,
+    per_user_limit: row.per_user_limit ?? undefined, used_count: 0, is_active: row.is_active,
+    start_date: row.start_date, end_date: row.end_date,
+  };
+  Map.prototype.set.call(inMemoryStore.coupons, cleanCode, newCoupon);
+
+  logAuditEvent(req.user, 'COUPON_CREATED', 'COUPON', id, {
+    code: cleanCode, discount_type: row.discount_type, discount_value: row.discount_value, min_order_amount: row.min_order_amount,
+  });
   res.status(201).json({ success: true, coupon: newCoupon });
 });
 
-router.put('/coupons/:id', requireRole(['ADMIN']), (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params;
-  const coupon =
-    Array.from(inMemoryStore.coupons.values()).find((c) => c.id === id || c.code === id.toUpperCase());
+router.put('/coupons/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
 
+  const { id } = req.params;
+  const coupon = Array.from(inMemoryStore.coupons.values()).find((c) => c.id === id || c.code === id.toUpperCase());
   if (!coupon) {
     res.status(404).json({ error: 'NOT_FOUND', message: 'Coupon not found.' });
     return;
   }
 
-  const {
-    description,
-    discount_type,
-    discount_value,
-    min_order_amount,
-    max_discount_amount,
-    total_limit,
-    per_user_limit,
-    is_active,
-    end_date,
-  } = req.body;
+  const { description, discount_type, discount_value, min_order_amount, max_discount_amount, total_limit, per_user_limit, is_active, end_date } = req.body;
+  const updates: Record<string, any> = {};
+  if (description !== undefined) updates.description = String(description).trim();
+  if (discount_type !== undefined) updates.discount_type = discount_type;
+  if (discount_value !== undefined) updates.discount_value = Number(discount_value);
+  if (min_order_amount !== undefined) updates.min_order_amount = Number(min_order_amount);
+  if (max_discount_amount !== undefined) updates.max_discount_amount = max_discount_amount ? Number(max_discount_amount) : null;
+  if (total_limit !== undefined) updates.usage_limit = total_limit ? Number(total_limit) : null;
+  if (per_user_limit !== undefined) updates.per_user_limit = per_user_limit ? Number(per_user_limit) : null;
+  if (is_active !== undefined) updates.is_active = Boolean(is_active);
+  if (end_date !== undefined) updates.end_date = end_date;
 
-  if (description !== undefined) coupon.description = description;
-  if (discount_type !== undefined) coupon.discount_type = discount_type;
-  if (discount_value !== undefined) coupon.discount_value = Number(discount_value);
-  if (min_order_amount !== undefined) coupon.min_order_amount = Number(min_order_amount);
-  if (max_discount_amount !== undefined) coupon.max_discount_amount = Number(max_discount_amount);
-  if (total_limit !== undefined) coupon.total_limit = total_limit ? Number(total_limit) : undefined;
-  if (per_user_limit !== undefined) coupon.per_user_limit = per_user_limit ? Number(per_user_limit) : undefined;
-  if (is_active !== undefined) coupon.is_active = Boolean(is_active);
-  if (end_date !== undefined) coupon.end_date = end_date;
+  const { error } = await supabaseServer!.from('coupons').update(updates).eq('id', coupon.id);
+  if (error) {
+    console.error('[Admin] Coupon update failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
 
-  inMemoryStore.coupons.set(coupon.code, coupon);
-  logAuditEvent(req.user, 'COUPON_UPDATED', 'COUPON', coupon.id, req.body);
+  if (updates.description !== undefined) coupon.description = updates.description;
+  if (updates.discount_type !== undefined) coupon.discount_type = updates.discount_type;
+  if (updates.discount_value !== undefined) coupon.discount_value = updates.discount_value;
+  if (updates.min_order_amount !== undefined) coupon.min_order_amount = updates.min_order_amount;
+  if (updates.is_active !== undefined) coupon.is_active = updates.is_active;
+  if (updates.end_date !== undefined) coupon.end_date = updates.end_date;
+  Map.prototype.set.call(inMemoryStore.coupons, coupon.code, coupon);
 
+  logAuditEvent(req.user, 'COUPON_UPDATED', 'COUPON', coupon.id, { is_active: updates.is_active, discount_value: updates.discount_value });
   res.json({ success: true, coupon });
 });
 
-router.delete('/coupons/:id', requireRole(['ADMIN']), (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params;
-  const coupon =
-    Array.from(inMemoryStore.coupons.values()).find((c) => c.id === id || c.code === id.toUpperCase());
+router.delete('/coupons/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
 
+  const { id } = req.params;
+  const coupon = Array.from(inMemoryStore.coupons.values()).find((c) => c.id === id || c.code === id.toUpperCase());
   if (!coupon) {
     res.status(404).json({ error: 'NOT_FOUND', message: 'Coupon not found.' });
     return;
   }
 
-  inMemoryStore.coupons.delete(coupon.code);
-  logAuditEvent(req.user, 'COUPON_DELETED', 'COUPON', coupon.id, { code: coupon.code });
+  const { error } = await supabaseServer!.from('coupons').delete().eq('id', coupon.id);
+  if (error) {
+    console.error('[Admin] Coupon delete failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
 
+  Map.prototype.delete.call(inMemoryStore.coupons, coupon.code);
+  logAuditEvent(req.user, 'COUPON_DELETED', 'COUPON', coupon.id, { code: coupon.code });
   res.json({ success: true, message: `Coupon '${coupon.code}' deleted.` });
 });
 
 // ==========================================================
-// 12. OFFERS CRUD (ADMIN ONLY MUTATIONS)
+// 12. OFFERS CRUD
 // ==========================================================
 router.get('/offers', (_req: AuthenticatedRequest, res: Response) => {
-  const offers = Array.from(inMemoryStore.offers.values()).sort(
-    (a, b) => (a.display_order || 0) - (b.display_order || 0)
-  );
+  const offers = Array.from(inMemoryStore.offers.values()).sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
   res.json({ offers });
 });
 
-router.post('/offers', requireRole(['ADMIN']), (req: AuthenticatedRequest, res: Response) => {
-  const {
-    title,
-    tagline = '',
-    description = '',
-    coupon_code,
-    discount_text,
-    badge,
-    bg_color = '#8A1538',
-    image_url = 'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=600&q=80',
-    is_active = true,
-    display_order = 1,
-    valid_until,
-  } = req.body;
+router.post('/offers', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
 
+  const { title, tagline = '', description = '', coupon_code, discount_text, badge, bg_color = '#8A1538', image_url, is_active = true, display_order = 1, valid_until } = req.body;
   if (!title || !discount_text) {
     res.status(400).json({ error: 'MISSING_FIELDS', message: 'Offer title and discount text are required.' });
     return;
   }
 
-  const id = `off-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  const newOffer: ServerOffer = {
+  const id = randomUUID();
+  const row = {
     id,
     title: String(title).trim(),
     tagline: String(tagline).trim(),
     description: String(description).trim(),
-    coupon_code: coupon_code ? String(coupon_code).toUpperCase().trim() : undefined,
+    code: coupon_code ? String(coupon_code).toUpperCase().trim() : null,
     discount_text: String(discount_text).trim(),
-    badge: badge ? String(badge).trim() : undefined,
     bg_color,
-    image_url,
     is_active: Boolean(is_active),
     display_order: Number(display_order) || 1,
-    valid_until: valid_until || undefined,
-    created_at: new Date().toISOString(),
   };
 
-  inMemoryStore.offers.set(id, newOffer);
-  logAuditEvent(req.user, 'OFFER_CREATED', 'OFFER', id, { title: newOffer.title, code: newOffer.coupon_code });
+  const { error } = await supabaseServer!.from('offers').insert([row]);
+  if (error) {
+    console.error('[Admin] Offer insert failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
 
+  const newOffer: ServerOffer = {
+    id, title: row.title, tagline: row.tagline, description: row.description,
+    coupon_code: row.code ?? undefined, discount_text: row.discount_text,
+    badge: badge ? String(badge).trim() : undefined, bg_color: row.bg_color,
+    image_url: image_url || undefined, is_active: row.is_active,
+    display_order: row.display_order, valid_until: valid_until || undefined,
+    created_at: new Date().toISOString(),
+  };
+  Map.prototype.set.call(inMemoryStore.offers, id, newOffer);
+
+  logAuditEvent(req.user, 'OFFER_CREATED', 'OFFER', id, { title: row.title, code: row.code });
   res.status(201).json({ success: true, offer: newOffer });
 });
 
-router.put('/offers/:id', requireRole(['ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+router.put('/offers/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
+
   const { id } = req.params;
   const offer = inMemoryStore.offers.get(id);
-
   if (!offer) {
     res.status(404).json({ error: 'NOT_FOUND', message: 'Offer not found.' });
     return;
   }
 
   const { title, tagline, description, coupon_code, discount_text, badge, bg_color, image_url, is_active, display_order, valid_until } = req.body;
-  if (title !== undefined) offer.title = title;
-  if (tagline !== undefined) offer.tagline = tagline;
-  if (description !== undefined) offer.description = description;
-  if (coupon_code !== undefined) offer.coupon_code = coupon_code ? coupon_code.toUpperCase().trim() : undefined;
-  if (discount_text !== undefined) offer.discount_text = discount_text;
+  const updates: Record<string, any> = {};
+  if (title !== undefined) updates.title = String(title).trim();
+  if (tagline !== undefined) updates.tagline = String(tagline).trim();
+  if (description !== undefined) updates.description = String(description).trim();
+  if (coupon_code !== undefined) updates.code = coupon_code ? coupon_code.toUpperCase().trim() : null;
+  if (discount_text !== undefined) updates.discount_text = String(discount_text).trim();
+  if (bg_color !== undefined) updates.bg_color = bg_color;
+  if (is_active !== undefined) updates.is_active = Boolean(is_active);
+  if (display_order !== undefined) updates.display_order = Number(display_order);
+
+  const { error } = await supabaseServer!.from('offers').update(updates).eq('id', id);
+  if (error) {
+    console.error('[Admin] Offer update failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
+
+  if (updates.title !== undefined) offer.title = updates.title;
+  if (updates.tagline !== undefined) offer.tagline = updates.tagline;
+  if (updates.code !== undefined) offer.coupon_code = updates.code ?? undefined;
+  if (updates.discount_text !== undefined) offer.discount_text = updates.discount_text;
   if (badge !== undefined) offer.badge = badge;
-  if (bg_color !== undefined) offer.bg_color = bg_color;
   if (image_url !== undefined) offer.image_url = image_url;
-  if (is_active !== undefined) offer.is_active = Boolean(is_active);
-  if (display_order !== undefined) offer.display_order = Number(display_order);
+  if (updates.is_active !== undefined) offer.is_active = updates.is_active;
+  if (updates.display_order !== undefined) offer.display_order = updates.display_order;
   if (valid_until !== undefined) offer.valid_until = valid_until;
+  Map.prototype.set.call(inMemoryStore.offers, id, offer);
 
-  inMemoryStore.offers.set(id, offer);
-  logAuditEvent(req.user, 'OFFER_UPDATED', 'OFFER', id, req.body);
-
+  logAuditEvent(req.user, 'OFFER_UPDATED', 'OFFER', id, { title: updates.title, is_active: updates.is_active });
   res.json({ success: true, offer });
 });
 
-router.delete('/offers/:id', requireRole(['ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+router.delete('/offers/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
+
   const { id } = req.params;
   const offer = inMemoryStore.offers.get(id);
-
   if (!offer) {
     res.status(404).json({ error: 'NOT_FOUND', message: 'Offer not found.' });
     return;
   }
 
-  inMemoryStore.offers.delete(id);
-  logAuditEvent(req.user, 'OFFER_DELETED', 'OFFER', id, { title: offer.title });
+  const { error } = await supabaseServer!.from('offers').delete().eq('id', id);
+  if (error) {
+    console.error('[Admin] Offer delete failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
 
+  Map.prototype.delete.call(inMemoryStore.offers, id);
+  logAuditEvent(req.user, 'OFFER_DELETED', 'OFFER', id, { title: offer.title });
   res.json({ success: true, message: `Offer '${offer.title}' deleted.` });
 });
 
 // ==========================================================
-// 13. BANNERS CRUD (ADMIN ONLY MUTATIONS)
+// 13. BANNERS CRUD
 // ==========================================================
 router.get('/banners', (_req: AuthenticatedRequest, res: Response) => {
-  const banners = Array.from(inMemoryStore.banners.values()).sort(
-    (a, b) => (a.display_order || 0) - (b.display_order || 0)
-  );
+  const banners = Array.from(inMemoryStore.banners.values()).sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
   res.json({ banners });
 });
 
-router.post('/banners', requireRole(['ADMIN']), (req: AuthenticatedRequest, res: Response) => {
-  const {
-    title,
-    subtitle = '',
-    image_url,
-    cta_text = 'Shop Now',
-    cta_link = '/catalog',
-    badge,
-    display_order = 1,
-    is_active = true,
-  } = req.body;
+router.post('/banners', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
 
+  const { title, subtitle = '', image_url, cta_text = 'Shop Now', cta_link = '/catalog', badge, display_order = 1, is_active = true } = req.body;
   if (!title || !image_url) {
     res.status(400).json({ error: 'MISSING_FIELDS', message: 'Banner title and image URL are required.' });
     return;
   }
 
-  const id = `ban-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  const newBanner: ServerBanner = {
+  const id = randomUUID();
+  const row = {
     id,
     title: String(title).trim(),
     subtitle: String(subtitle).trim(),
     image_url,
     cta_text,
     cta_link,
-    badge: badge ? String(badge).trim() : undefined,
+    badge: badge ? String(badge).trim() : null,
     display_order: Number(display_order) || 1,
     is_active: Boolean(is_active),
-    created_at: new Date().toISOString(),
   };
 
-  inMemoryStore.banners.set(id, newBanner);
-  logAuditEvent(req.user, 'BANNER_CREATED', 'BANNER', id, { title: newBanner.title });
+  const { error } = await supabaseServer!.from('banners').insert([row]);
+  if (error) {
+    console.error('[Admin] Banner insert failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
 
+  const newBanner: ServerBanner = { ...row, badge: row.badge ?? undefined, created_at: new Date().toISOString() };
+  Map.prototype.set.call(inMemoryStore.banners, id, newBanner);
+
+  logAuditEvent(req.user, 'BANNER_CREATED', 'BANNER', id, { title: row.title });
   res.status(201).json({ success: true, banner: newBanner });
 });
 
-router.put('/banners/:id', requireRole(['ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+router.put('/banners/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
+
   const { id } = req.params;
   const banner = inMemoryStore.banners.get(id);
-
   if (!banner) {
     res.status(404).json({ error: 'NOT_FOUND', message: 'Banner not found.' });
     return;
   }
 
   const { title, subtitle, image_url, cta_text, cta_link, badge, display_order, is_active } = req.body;
-  if (title !== undefined) banner.title = title;
-  if (subtitle !== undefined) banner.subtitle = subtitle;
-  if (image_url !== undefined) banner.image_url = image_url;
-  if (cta_text !== undefined) banner.cta_text = cta_text;
-  if (cta_link !== undefined) banner.cta_link = cta_link;
-  if (badge !== undefined) banner.badge = badge;
-  if (display_order !== undefined) banner.display_order = Number(display_order);
-  if (is_active !== undefined) banner.is_active = Boolean(is_active);
+  const updates: Record<string, any> = {};
+  if (title !== undefined) updates.title = String(title).trim();
+  if (subtitle !== undefined) updates.subtitle = String(subtitle).trim();
+  if (image_url !== undefined) updates.image_url = image_url;
+  if (cta_text !== undefined) updates.cta_text = cta_text;
+  if (cta_link !== undefined) updates.cta_link = cta_link;
+  if (badge !== undefined) updates.badge = badge;
+  if (display_order !== undefined) updates.display_order = Number(display_order);
+  if (is_active !== undefined) updates.is_active = Boolean(is_active);
 
-  inMemoryStore.banners.set(id, banner);
-  logAuditEvent(req.user, 'BANNER_UPDATED', 'BANNER', id, req.body);
+  const { error } = await supabaseServer!.from('banners').update(updates).eq('id', id);
+  if (error) {
+    console.error('[Admin] Banner update failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
 
+  Object.assign(banner, updates);
+  Map.prototype.set.call(inMemoryStore.banners, id, banner);
+
+  logAuditEvent(req.user, 'BANNER_UPDATED', 'BANNER', id, { title: updates.title, is_active: updates.is_active });
   res.json({ success: true, banner });
 });
 
-router.delete('/banners/:id', requireRole(['ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+router.delete('/banners/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
+
   const { id } = req.params;
   const banner = inMemoryStore.banners.get(id);
-
   if (!banner) {
     res.status(404).json({ error: 'NOT_FOUND', message: 'Banner not found.' });
     return;
   }
 
-  inMemoryStore.banners.delete(id);
-  logAuditEvent(req.user, 'BANNER_DELETED', 'BANNER', id, { title: banner.title });
+  const { error } = await supabaseServer!.from('banners').delete().eq('id', id);
+  if (error) {
+    console.error('[Admin] Banner delete failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
 
+  Map.prototype.delete.call(inMemoryStore.banners, id);
+  logAuditEvent(req.user, 'BANNER_DELETED', 'BANNER', id, { title: banner.title });
   res.json({ success: true, message: `Banner '${banner.title}' deleted.` });
 });
 
 // ==========================================================
-// 14. GIFT HAMPERS COMPOSITION BUILDER (ADMIN ONLY MUTATIONS)
+// 14. GIFT HAMPERS
 // ==========================================================
 router.get('/hampers', (_req: AuthenticatedRequest, res: Response) => {
-  const hampers = Array.from(inMemoryStore.giftHampers.values()).sort(
-    (a, b) => (a.display_order || 0) - (b.display_order || 0)
-  );
+  const hampers = Array.from(inMemoryStore.giftHampers.values()).sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
   res.json({ hampers });
 });
 
-router.post('/hampers', requireRole(['ADMIN']), (req: AuthenticatedRequest, res: Response) => {
-  const {
-    name,
-    description = '',
-    image_url,
-    box_type = 'Royal Velvet Trunk',
-    price,
-    mrp,
-    is_featured = false,
-    is_active = true,
-    display_order = 1,
-    items_included = [],
-  } = req.body;
+router.post('/hampers', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
 
+  const { name, description = '', image_url, box_type = 'Royal Velvet Trunk', price, mrp, is_featured = false, is_active = true, display_order = 1, items_included = [] } = req.body;
   if (!name || !price || !image_url) {
     res.status(400).json({ error: 'MISSING_FIELDS', message: 'Hamper name, price, and image URL are required.' });
     return;
   }
 
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-  const id = `hamper-${slug || Date.now().toString()}`;
+  const id = randomUUID();
   const nowIso = new Date().toISOString();
 
-  // Validate and format composition items
-  const formattedItems = Array.isArray(items_included)
-    ? items_included.map((it: any, idx: number) => ({
-        id: `hi-${Date.now()}-${idx}`,
-        product_id: it.product_id || '',
-        product_name: it.product_name || 'Artisanal Mithai',
-        variant_label: it.variant_label || '250g',
-        quantity: Math.max(1, Number(it.quantity) || 1),
-      }))
-    : [];
-
-  const newHamper: ServerGiftHamper = {
+  const row = {
     id,
     name: String(name).trim(),
     slug,
@@ -1266,87 +1387,119 @@ router.post('/hampers', requireRole(['ADMIN']), (req: AuthenticatedRequest, res:
     mrp: Number(mrp) || Number(price),
     is_featured: Boolean(is_featured),
     is_active: Boolean(is_active),
-    display_order: Number(display_order) || 1,
-    items_included: formattedItems,
-    created_at: nowIso,
-    updated_at: nowIso,
   };
 
-  inMemoryStore.giftHampers.set(id, newHamper);
-  logAuditEvent(req.user, 'HAMPER_CREATED', 'GIFT_HAMPER', id, {
-    name: newHamper.name,
-    price: newHamper.price,
-    itemsCount: formattedItems.length,
-  });
+  const { error } = await supabaseServer!.from('gift_hampers').insert([row]);
+  if (error) {
+    console.error('[Admin] Hamper insert failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
 
+  const formattedItems = Array.isArray(items_included)
+    ? items_included.map((it: any, idx: number) => ({
+        id: randomUUID(),
+        product_id: it.product_id || '',
+        product_name: it.product_name || 'Artisanal Mithai',
+        variant_label: it.variant_label || '250g',
+        quantity: Math.max(1, Number(it.quantity) || 1),
+      }))
+    : [];
+
+  const newHamper: ServerGiftHamper = {
+    id, name: row.name, slug, description: row.description,
+    image_url, box_type: row.box_type, price: row.price, mrp: row.mrp,
+    is_featured: row.is_featured, is_active: row.is_active,
+    display_order: Number(display_order) || 1,
+    items_included: formattedItems, created_at: nowIso, updated_at: nowIso,
+  };
+  Map.prototype.set.call(inMemoryStore.giftHampers, id, newHamper);
+
+  logAuditEvent(req.user, 'HAMPER_CREATED', 'GIFT_HAMPER', id, { name: row.name, price: row.price, itemsCount: formattedItems.length });
   res.status(201).json({ success: true, hamper: newHamper });
 });
 
-router.put('/hampers/:id', requireRole(['ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+router.put('/hampers/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
+
   const { id } = req.params;
   const hamper = inMemoryStore.giftHampers.get(id);
-
   if (!hamper) {
     res.status(404).json({ error: 'NOT_FOUND', message: 'Gift hamper not found.' });
     return;
   }
 
   const { name, description, image_url, box_type, price, mrp, is_featured, is_active, display_order, items_included } = req.body;
-  if (name !== undefined) hamper.name = name;
-  if (description !== undefined) hamper.description = description;
-  if (image_url !== undefined) hamper.image_url = image_url;
-  if (box_type !== undefined) hamper.box_type = box_type;
-  if (price !== undefined) hamper.price = Number(price);
-  if (mrp !== undefined) hamper.mrp = Number(mrp);
-  if (is_featured !== undefined) hamper.is_featured = Boolean(is_featured);
-  if (is_active !== undefined) hamper.is_active = Boolean(is_active);
-  if (display_order !== undefined) hamper.display_order = Number(display_order);
+  const updates: Record<string, any> = {};
+  if (name !== undefined) updates.name = String(name).trim();
+  if (description !== undefined) updates.description = String(description).trim();
+  if (image_url !== undefined) updates.image_url = image_url;
+  if (box_type !== undefined) updates.box_type = String(box_type).trim();
+  if (price !== undefined) updates.price = Number(price);
+  if (mrp !== undefined) updates.mrp = Number(mrp);
+  if (is_featured !== undefined) updates.is_featured = Boolean(is_featured);
+  if (is_active !== undefined) updates.is_active = Boolean(is_active);
 
+  const { error } = await supabaseServer!.from('gift_hampers').update(updates).eq('id', id);
+  if (error) {
+    console.error('[Admin] Hamper update failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
+
+  Object.assign(hamper, updates);
+  if (display_order !== undefined) hamper.display_order = Number(display_order);
   if (Array.isArray(items_included)) {
     hamper.items_included = items_included.map((it: any, idx: number) => ({
-      id: it.id || `hi-${Date.now()}-${idx}`,
+      id: it.id || randomUUID(),
       product_id: it.product_id || '',
       product_name: it.product_name || 'Artisanal Mithai',
       variant_label: it.variant_label || '250g',
       quantity: Math.max(1, Number(it.quantity) || 1),
     }));
   }
-
   hamper.updated_at = new Date().toISOString();
-  inMemoryStore.giftHampers.set(id, hamper);
-  logAuditEvent(req.user, 'HAMPER_UPDATED', 'GIFT_HAMPER', id, req.body);
+  Map.prototype.set.call(inMemoryStore.giftHampers, id, hamper);
 
+  logAuditEvent(req.user, 'HAMPER_UPDATED', 'GIFT_HAMPER', id, { name: updates.name, price: updates.price, is_active: updates.is_active });
   res.json({ success: true, hamper });
 });
 
-router.delete('/hampers/:id', requireRole(['ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+router.delete('/hampers/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
+
   const { id } = req.params;
   const hamper = inMemoryStore.giftHampers.get(id);
-
   if (!hamper) {
     res.status(404).json({ error: 'NOT_FOUND', message: 'Gift hamper not found.' });
     return;
   }
 
-  inMemoryStore.giftHampers.delete(id);
-  logAuditEvent(req.user, 'HAMPER_DELETED', 'GIFT_HAMPER', id, { name: hamper.name });
+  const { error } = await supabaseServer!.from('gift_hampers').delete().eq('id', id);
+  if (error) {
+    console.error('[Admin] Hamper delete failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
 
+  Map.prototype.delete.call(inMemoryStore.giftHampers, id);
+  logAuditEvent(req.user, 'HAMPER_DELETED', 'GIFT_HAMPER', id, { name: hamper.name });
   res.json({ success: true, message: `Gift hamper '${hamper.name}' deleted.` });
 });
 
 // ==========================================================
-// 15. REVIEWS MODERATION (ADMIN APPROVAL REQUIRED FOR PUBLISHING)
+// 15. REVIEWS MODERATION
 // ==========================================================
 router.get('/reviews', (_req: AuthenticatedRequest, res: Response) => {
   const reviews = Array.from(inMemoryStore.reviews.values()).sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
-  const pendingCount = reviews.filter((r) => !r.is_approved).length;
-
-  res.json({ reviews, pendingCount });
+  res.json({ reviews, pendingCount: reviews.filter((r) => !r.is_approved).length });
 });
 
-router.patch('/reviews/:id/status', requireRole(['ADMIN', 'STAFF']), (req: AuthenticatedRequest, res: Response) => {
+router.patch('/reviews/:id/status', requireRole(['ADMIN', 'STAFF']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
+
   const { id } = req.params;
   const { is_approved } = req.body;
 
@@ -1356,58 +1509,64 @@ router.patch('/reviews/:id/status', requireRole(['ADMIN', 'STAFF']), (req: Authe
     return;
   }
 
-  review.is_approved = Boolean(is_approved);
-  if (review.is_approved) {
+  const approved = Boolean(is_approved);
+  const { error } = await supabaseServer!.from('reviews').update({ is_published: approved }).eq('id', id);
+  if (error) {
+    console.error('[Admin] Review update failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
+
+  review.is_approved = approved;
+  if (approved) {
     review.approved_at = new Date().toISOString();
     review.approved_by = req.user?.id || 'admin';
   }
+  Map.prototype.set.call(inMemoryStore.reviews, id, review);
 
-  inMemoryStore.reviews.set(id, review);
-  saveStoreState();
   logAuditEvent(req.user, 'REVIEW_STATUS_CHANGED', 'REVIEW', id, {
     is_approved: review.is_approved,
     product: review.product_name,
     customer: review.user_name,
   });
-
-  res.json({
-    success: true,
-    message: review.is_approved ? 'Review approved and published on storefront.' : 'Review unpublished / rejected.',
-    review,
-  });
+  res.json({ success: true, message: approved ? 'Review approved.' : 'Review unpublished.', review });
 });
 
-router.delete('/reviews/:id', requireRole(['ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+router.delete('/reviews/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
+
   const { id } = req.params;
   const review = inMemoryStore.reviews.get(id);
-
   if (!review) {
     res.status(404).json({ error: 'NOT_FOUND', message: 'Review not found.' });
     return;
   }
 
-  inMemoryStore.reviews.delete(id);
-  logAuditEvent(req.user, 'REVIEW_DELETED', 'REVIEW', id, {
-    customer: review.user_name,
-    product: review.product_name,
-  });
+  const { error } = await supabaseServer!.from('reviews').delete().eq('id', id);
+  if (error) {
+    console.error('[Admin] Review delete failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
 
+  Map.prototype.delete.call(inMemoryStore.reviews, id);
+  logAuditEvent(req.user, 'REVIEW_DELETED', 'REVIEW', id, { customer: review.user_name, product: review.product_name });
   res.json({ success: true, message: 'Review deleted permanently.' });
 });
 
 // ==========================================================
-// 16. BULK / CORPORATE / WEDDING ENQUIRIES (ADMIN STATUS FLOW & NOTES)
+// 16. BULK ENQUIRIES
 // ==========================================================
 router.get('/enquiries', (_req: AuthenticatedRequest, res: Response) => {
   const enquiries = Array.from(inMemoryStore.bulkEnquiries.values()).sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
-  const newCount = enquiries.filter((e) => e.status === 'NEW').length;
-
-  res.json({ enquiries, newCount });
+  res.json({ enquiries, newCount: enquiries.filter((e) => e.status === 'NEW').length });
 });
 
-router.patch('/enquiries/:id', requireRole(['ADMIN', 'STAFF']), (req: AuthenticatedRequest, res: Response) => {
+router.patch('/enquiries/:id', requireRole(['ADMIN', 'STAFF']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
+
   const { id } = req.params;
   const { status, admin_notes } = req.body;
 
@@ -1417,51 +1576,67 @@ router.patch('/enquiries/:id', requireRole(['ADMIN', 'STAFF']), (req: Authentica
     return;
   }
 
-  const prevStatus = enquiry.status;
-  if (status) enquiry.status = status;
-  if (admin_notes !== undefined) enquiry.admin_notes = admin_notes;
-  enquiry.updated_at = new Date().toISOString();
+  const validStatuses = ['NEW', 'CONTACTED', 'QUOTED', 'WON', 'LOST'];
+  const updates: Record<string, any> = { updated_at: new Date().toISOString() };
+  if (status) {
+    if (!validStatuses.includes(status)) {
+      res.status(400).json({ error: 'INVALID_STATUS', message: `status must be one of: ${validStatuses.join(', ')}` });
+      return;
+    }
+    updates.status = status;
+  }
+  if (admin_notes !== undefined) updates.admin_notes = String(admin_notes);
 
-  inMemoryStore.bulkEnquiries.set(id, enquiry);
+  const { error } = await supabaseServer!.from('bulk_order_enquiries').update(updates).eq('id', id);
+  if (error) {
+    console.error('[Admin] Enquiry update failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
+
+  const prevStatus = enquiry.status;
+  if (updates.status) enquiry.status = updates.status;
+  if (updates.admin_notes !== undefined) enquiry.admin_notes = updates.admin_notes;
+  enquiry.updated_at = updates.updated_at;
+  Map.prototype.set.call(inMemoryStore.bulkEnquiries, id, enquiry);
+
   logAuditEvent(req.user, 'ENQUIRY_UPDATED', 'BULK_ENQUIRY', id, {
     enquiryNumber: enquiry.enquiry_number,
     from: prevStatus,
     to: enquiry.status,
     adminNotesUpdated: admin_notes !== undefined,
   });
-
-  res.json({
-    success: true,
-    message: `Enquiry #${enquiry.enquiry_number} updated to ${enquiry.status}`,
-    enquiry,
-  });
+  res.json({ success: true, message: `Enquiry #${enquiry.enquiry_number} updated to ${enquiry.status}`, enquiry });
 });
 
-router.delete('/enquiries/:id', requireRole(['ADMIN']), (req: AuthenticatedRequest, res: Response) => {
+router.delete('/enquiries/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
+
   const { id } = req.params;
   const enquiry = inMemoryStore.bulkEnquiries.get(id);
-
   if (!enquiry) {
     res.status(404).json({ error: 'NOT_FOUND', message: 'Enquiry not found.' });
     return;
   }
 
-  inMemoryStore.bulkEnquiries.delete(id);
-  logAuditEvent(req.user, 'ENQUIRY_DELETED', 'BULK_ENQUIRY', id, {
-    enquiryNumber: enquiry.enquiry_number,
-    contact: enquiry.contact_name,
-  });
+  const { error } = await supabaseServer!.from('bulk_order_enquiries').delete().eq('id', id);
+  if (error) {
+    console.error('[Admin] Enquiry delete failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
 
+  Map.prototype.delete.call(inMemoryStore.bulkEnquiries, id);
+  logAuditEvent(req.user, 'ENQUIRY_DELETED', 'BULK_ENQUIRY', id, { enquiryNumber: enquiry.enquiry_number, contact: enquiry.contact_name });
   res.json({ success: true, message: `Enquiry #${enquiry.enquiry_number} deleted.` });
 });
 
 // ==========================================================
-// 17. NOTIFICATIONS & RESEND TEST DISPATCH
+// 17. NOTIFICATIONS
 // ==========================================================
 router.get('/notifications', (_req: AuthenticatedRequest, res: Response) => {
   const notifications = inMemoryStore.notifications.slice(0, 100);
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
-  res.json({ notifications, unreadCount });
+  res.json({ notifications, unreadCount: notifications.filter((n) => !n.is_read).length });
 });
 
 router.post('/notifications/test-email', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
@@ -1470,14 +1645,7 @@ router.post('/notifications/test-email', requireRole(['ADMIN']), async (req: Aut
   const result = await emailProvider.sendEmail({
     to,
     subject: `[TEST] ${subject}`,
-    html: `
-      <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #8A1538; border-radius: 8px;">
-        <h2 style="color: #8A1538;">Saraswati Sweets Email Test</h2>
-        <p>This is a verified test email sent via Resend transactional provider interface.</p>
-        <p><strong>Timestamp:</strong> ${new Date().toISOString()}</p>
-        <p><strong>Type:</strong> ${isPromotional ? 'PROMOTIONAL (Opt-out respected)' : 'TRANSACTIONAL (Never blocked)'}</p>
-      </div>
-    `,
+    html: `<div style="font-family: Arial, sans-serif; padding: 20px;"><h2 style="color: #8A1538;">Saraswati Sweets Email Test</h2><p>Test email via Resend transactional provider.</p><p><strong>Timestamp:</strong> ${new Date().toISOString()}</p></div>`,
     isPromotional: Boolean(isPromotional),
   });
 
@@ -1485,7 +1653,7 @@ router.post('/notifications/test-email', requireRole(['ADMIN']), async (req: Aut
 });
 
 // ==========================================================
-// 11. AUDIT LOGS (ADMIN ONLY)
+// 11. AUDIT LOGS
 // ==========================================================
 router.get('/audit-logs', requireRole(['ADMIN']), (_req: AuthenticatedRequest, res: Response) => {
   res.json({ auditLogs: inMemoryStore.auditLogs.slice(0, 100) });

@@ -851,126 +851,16 @@ export function toUUID(str: string): string {
   return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(12, 15)}-a${hash.slice(15, 18)}-${hash.slice(18, 30)}`;
 }
 
-class SyncMap<K, V> extends Map<K, V> {
-  constructor(private tableName: string, entries?: readonly (readonly [K, V])[] | null) {
-    super(entries);
-  }
-
-  get(key: K): V | undefined {
-    let res = super.get(key);
-    if (!res && typeof key === 'string') {
-      res = super.get(toUUID(key) as unknown as K);
-    }
-    return res;
-  }
-
-  has(key: K): boolean {
-    if (super.has(key)) return true;
-    if (typeof key === 'string') return super.has(toUUID(key) as unknown as K);
-    return false;
-  }
-
-  set(key: K, value: V) {
-    // If the value has an ID, and we are storing it, we can store it under its UUID key to normalize memory
-    let actualKey = key;
-    let actualValue = { ...value } as any;
-
-    if (typeof actualKey === 'string' && actualKey !== toUUID(actualKey)) {
-        actualKey = toUUID(actualKey) as unknown as K;
-    }
-
-    if (actualValue.id && typeof actualValue.id === 'string') actualValue.id = toUUID(actualValue.id);
-    if (actualValue.profile_id && typeof actualValue.profile_id === 'string') actualValue.profile_id = toUUID(actualValue.profile_id);
-    if (actualValue.category_id && typeof actualValue.category_id === 'string') actualValue.category_id = toUUID(actualValue.category_id);
-    if (actualValue.product_id && typeof actualValue.product_id === 'string') actualValue.product_id = toUUID(actualValue.product_id);
-    if (actualValue.order_id && typeof actualValue.order_id === 'string') actualValue.order_id = toUUID(actualValue.order_id);
-    if (actualValue.user_id && typeof actualValue.user_id === 'string') actualValue.user_id = toUUID(actualValue.user_id);
-    if (actualValue.variant_id && typeof actualValue.variant_id === 'string') actualValue.variant_id = toUUID(actualValue.variant_id);
-
-    super.set(actualKey, actualValue);
-
-    if (this.tableName === 'products') {
-        actualValue.is_pure_ghee = actualValue.pure_ghee;
-        delete actualValue.pure_ghee;
-        delete actualValue.image_url;
-    } else if (this.tableName === 'product_variants') {
-        actualValue.product_id = actualValue.productId;
-        actualValue.weight_grams = actualValue.weightGrams;
-        actualValue.stock_status = actualValue.stockStatus;
-        actualValue.stock_quantity = actualValue.stockQuantity;
-        delete actualValue.productId;
-        delete actualValue.productName;
-        delete actualValue.weightGrams;
-        delete actualValue.stockStatus;
-        delete actualValue.stockQuantity;
-        delete actualValue.imageUrl;
-    } else if (this.tableName === 'orders') {
-        delete actualValue.items;
-        delete actualValue.user_id;
-    } else if (this.tableName === 'gift_hampers') {
-        delete actualValue.items_included;
-    }
-
-    if (isLiveSupabase && supabaseServer) {
-      (async () => {
-        const { error } = await supabaseServer.from(this.tableName).upsert(actualValue);
-        if (error) console.error(`[SyncMap] Failed to upsert to ${this.tableName}:`, error);
-        
-        // Auxiliary Inserts
-        if (this.tableName === 'products' && (value as any).image_url) {
-           await supabaseServer.from('product_images').upsert({
-               id: toUUID('img-' + actualKey),
-               product_id: toUUID(actualKey as string),
-               image_url: (value as any).image_url,
-               is_primary: true
-           });
-        }
-        if (this.tableName === 'orders' && (value as any).items) {
-           for (const item of (value as any).items) {
-               await supabaseServer.from('order_items').upsert({
-                   id: toUUID(item.id),
-                   order_id: toUUID(item.order_id),
-                   product_id: toUUID(item.product_id),
-                   variant_id: toUUID(item.variant_id),
-                   product_name: item.product_name,
-                   variant_label: item.variant_label,
-                   unit_price: item.unit_price,
-                   quantity: item.quantity,
-                   total_price: item.total_price
-               });
-           }
-        }
-      })();
-    }
-    return this;
-  }
-
-  delete(key: K) {
-    let actualKey = key;
-    if (!super.has(key) && typeof key === 'string' && super.has(toUUID(key) as unknown as K)) {
-      actualKey = toUUID(key) as unknown as K;
-    }
-    const res = super.delete(actualKey);
-    if (isLiveSupabase && supabaseServer) {
-      (async () => {
-        const { error } = await supabaseServer.from(this.tableName).delete().eq('id', typeof key === 'string' ? toUUID(key) : key);
-        if (error) console.error(`[SyncMap] Failed to delete from ${this.tableName}:`, error);
-      })();
-    }
-    return res;
-  }
-}
-
 export const inMemoryStore = {
-  profiles: new SyncMap<string, ServerProfile>('profiles'),
-  addresses: new SyncMap<string, ServerAddress>('addresses'),
+  profiles: new Map<string, ServerProfile>(),
+  addresses: new Map<string, ServerAddress>(),
   userCarts: new Map<string, Map<string, number>>(), // profileId -> (variantId -> quantity)
   deliverySlots: generateInitialSlots(),
-  orders: new SyncMap<string, ServerOrder>('orders'),
+  orders: new Map<string, ServerOrder>(),
   ordersByIdempotency: new Map<string, ServerOrder>(),
-  payments: new SyncMap<string, ServerPayment>('payments'), // razorpay_payment_id or razorpay_order_id -> payment
+  payments: new Map<string, ServerPayment>(), // razorpay_payment_id or razorpay_order_id -> payment
   processedWebhookEvents: new Set<string>(), // event_id -> deduplication
-  categories: new SyncMap<string, ServerCategory>('categories', [
+  categories: new Map<string, ServerCategory>([
     [
       'cat-desi-ghee',
       {
@@ -1048,7 +938,7 @@ export const inMemoryStore = {
     ['cat-specialty-sweets', { id: 'cat-specialty-sweets', name: 'Specialty Sweets', slug: 'specialty-sweets', description: 'Specialty sweets.', image_url: '', display_order: 5, is_active: true }],
     ['cat-traditional-mithai', { id: 'cat-traditional-mithai', name: 'Traditional Mithai', slug: 'traditional-mithai', description: 'Traditional mithai.', image_url: '', display_order: 6, is_active: true }],
   ]),
-  products: new SyncMap<string, ServerProduct>('products', [
+  products: new Map<string, ServerProduct>([
     [
       'prod-kaju-katli',
       {
@@ -1242,45 +1132,8 @@ export const inMemoryStore = {
     ['prod-nariyal-barfi-coconut-barfi', { id: 'prod-nariyal-barfi-coconut-barfi', name: 'Nariyal Barfi (Coconut Barfi)', slug: 'nariyal-barfi-coconut-barfi', description: 'A delicious traditional sweet – nariyal barfi (coconut barfi).', category_id: 'cat-traditional-mithai', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
     ['prod-khoya-kalakand', { id: 'prod-khoya-kalakand', name: 'Khoya Kalakand', slug: 'khoya-kalakand', description: 'A delicious traditional sweet – khoya kalakand.', category_id: 'cat-traditional-mithai', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
   ]),
-  variants: new SyncMap<string, MasterVariant>('product_variants', MASTER_VARIANTS.map((v) => [v.id, v])),
-  deliveryPartners: new SyncMap<string, ServerDeliveryPartner>('delivery_partners', [
-    [
-      'dp-1',
-      {
-        id: 'dp-1',
-        name: 'Mohd. Arif',
-        phone: '+91 94500 55101',
-        vehicle_number: 'UP-32-AB-4021',
-        status: 'AVAILABLE',
-        current_assigned_orders: 0,
-        created_at: new Date().toISOString(),
-      },
-    ],
-    [
-      'dp-2',
-      {
-        id: 'dp-2',
-        name: 'Rakesh Yadav',
-        phone: '+91 94500 55102',
-        vehicle_number: 'UP-32-CD-8910',
-        status: 'AVAILABLE',
-        current_assigned_orders: 0,
-        created_at: new Date().toISOString(),
-      },
-    ],
-    [
-      'dp-3',
-      {
-        id: 'dp-3',
-        name: 'Sanjay Verma',
-        phone: '+91 94500 55103',
-        vehicle_number: 'UP-32-EF-3342',
-        status: 'AVAILABLE',
-        current_assigned_orders: 0,
-        created_at: new Date().toISOString(),
-      },
-    ],
-  ]),
+  variants: new Map<string, MasterVariant>(MASTER_VARIANTS.map((v) => [v.id, v])),
+  deliveryPartners: new Map<any, any>(),
   auditLogs: [] as ServerAuditLog[],
   storeSettings: {
     store_name: 'Saraswati Sweets',
@@ -1298,363 +1151,13 @@ export const inMemoryStore = {
     closing_time: '22:00',
     is_store_open: true,
   } as ServerStoreSettings,
-  coupons: new SyncMap<string, ServerCoupon>('coupons', [
-    [
-      'SWAD100',
-      {
-        id: 'coup-1',
-        code: 'SWAD100',
-        description: 'Flat ₹100 off on orders over ₹599',
-        discount_type: 'FLAT',
-        discount_value: 100,
-        min_order_amount: 599,
-        is_active: true,
-        start_date: new Date(Date.now() - 86400000).toISOString(),
-        end_date: new Date(Date.now() + 180 * 86400000).toISOString(),
-        total_limit: 500,
-        per_user_limit: 3,
-        used_count: 8,
-      },
-    ],
-    [
-      'FESTIVE10',
-      {
-        id: 'coup-2',
-        code: 'FESTIVE10',
-        description: '10% off up to ₹150 on orders over ₹799',
-        discount_type: 'PERCENTAGE',
-        discount_value: 10,
-        min_order_amount: 799,
-        max_discount_amount: 150,
-        is_active: true,
-        start_date: new Date(Date.now() - 86400000).toISOString(),
-        end_date: new Date(Date.now() + 90 * 86400000).toISOString(),
-        total_limit: 1000,
-        per_user_limit: 5,
-        used_count: 14,
-      },
-    ],
-    [
-      'BARABANKI50',
-      {
-        id: 'coup-3',
-        code: 'BARABANKI50',
-        description: 'Flat ₹50 off on orders over ₹350 for local delivery',
-        discount_type: 'FLAT',
-        discount_value: 50,
-        min_order_amount: 350,
-        is_active: true,
-        start_date: new Date(Date.now() - 86400000).toISOString(),
-        end_date: new Date(Date.now() + 365 * 86400000).toISOString(),
-        total_limit: 2000,
-        per_user_limit: 10,
-        used_count: 22,
-      },
-    ],
-  ]),
+  coupons: new Map<any, any>(),
   couponUsage: [] as ServerCouponUsage[],
-  offers: new SyncMap<string, ServerOffer>('offers', [
-    [
-      'off-1',
-      {
-        id: 'off-1',
-        title: 'Festival Delight Offer',
-        tagline: 'Pure Desi Ghee Celebrations',
-        description: 'Enjoy flat ₹100 instant discount on all orders over ₹599 using code SWAD100.',
-        coupon_code: 'SWAD100',
-        discount_text: 'FLAT ₹100 OFF',
-        badge: 'Limited Period',
-        bg_color: '#8A1538',
-        image_url: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=600&q=80',
-        is_active: true,
-        display_order: 1,
-        created_at: new Date().toISOString(),
-      },
-    ],
-    [
-      'off-2',
-      {
-        id: 'off-2',
-        title: 'Royal Gifting Special',
-        tagline: 'Festive Luxury Hampers',
-        description: 'Get 10% off up to ₹150 on grand sweet boxes and festive hampers over ₹799.',
-        coupon_code: 'FESTIVE10',
-        discount_text: '10% OFF UP TO ₹150',
-        badge: 'Festive Favorite',
-        bg_color: '#C9A227',
-        image_url: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=600&q=80',
-        is_active: true,
-        display_order: 2,
-        created_at: new Date().toISOString(),
-      },
-    ],
-    [
-      'off-3',
-      {
-        id: 'off-3',
-        title: 'Barabanki Local Privilege',
-        tagline: 'Neighborhood Love',
-        description: 'Flat ₹50 off on fresh morning and evening sweet deliveries over ₹350.',
-        coupon_code: 'BARABANKI50',
-        discount_text: 'FLAT ₹50 OFF',
-        badge: 'Everyday Saver',
-        bg_color: '#2E7D4F',
-        image_url: 'https://images.unsplash.com/photo-1505253758473-96b7015fcd40?auto=format&fit=crop&w=600&q=80',
-        is_active: true,
-        display_order: 3,
-        created_at: new Date().toISOString(),
-      },
-    ],
-  ]),
-  banners: new SyncMap<string, ServerBanner>('banners', [
-    [
-      'ban-1',
-      {
-        id: 'ban-1',
-        title: 'Awadhi Shahi Diwali & Wedding Gifting',
-        subtitle: 'Handcrafted in 100% pure cow desi ghee. Luxury velvet hampers with royal packaging.',
-        image_url: '/images/3.png',
-        cta_text: 'Order Royal Hampers',
-        cta_link: '/hampers',
-        badge: 'Heritage Since 1989',
-        display_order: 1,
-        is_active: true,
-        created_at: new Date().toISOString(),
-      },
-    ],
-    [
-      'ban-2',
-      {
-        id: 'ban-2',
-        title: 'Fresh Morning Motichoor & Besan Ladoo',
-        subtitle: 'Hot batches prepared at 6 AM daily in Barabanki. Free express doorstep delivery over ₹499.',
-        image_url: '/images/2.png',
-        cta_text: 'Explore Fresh Sweets',
-        cta_link: '/catalog',
-        badge: 'Pure Desi Ghee',
-        display_order: 2,
-        is_active: true,
-        created_at: new Date().toISOString(),
-      },
-    ],
-  ]),
-  reviews: new SyncMap<string, ServerReview>('reviews', [
-    [
-      'rev-1',
-      {
-        id: 'rev-1',
-        product_id: 'prod-kaju-katli',
-        product_name: 'Signature Silver Leaf Kaju Katli',
-        order_id: 'ord-seed-001',
-        user_id: 'cust-demo-1',
-        user_name: 'Pooja Srivastava',
-        rating: 5,
-        comment: 'The kaju katli was extraordinarily smooth and melt-in-mouth! Authentic silver vark and fresh aroma. Ordered for my daughter’s wedding in Barabanki.',
-        is_approved: true,
-        created_at: new Date(Date.now() - 4 * 86400000).toISOString(),
-        approved_at: new Date(Date.now() - 3 * 86400000).toISOString(),
-        approved_by: 'admin-default',
-      },
-    ],
-    [
-      'rev-2',
-      {
-        id: 'rev-2',
-        product_id: 'prod-motichoor-ladoo',
-        product_name: 'Pure Shuddh Ghee Motichoor Ladoo',
-        order_id: 'ord-seed-002',
-        user_id: 'cust-demo-2',
-        user_name: 'Amitabh Mishra',
-        rating: 5,
-        comment: 'Genuine cow desi ghee taste! Just like what my grandfather used to buy from Saraswati Sweets near Ghantaghar 30 years ago.',
-        is_approved: true,
-        created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
-        approved_at: new Date(Date.now() - 1 * 86400000).toISOString(),
-        approved_by: 'admin-default',
-      },
-    ],
-    [
-      'rev-3',
-      {
-        id: 'rev-3',
-        product_id: 'prod-mathura-peda',
-        product_name: 'Mathura Style Roasted Peda',
-        order_id: 'ord-seed-003',
-        user_id: 'cust-demo-3',
-        user_name: 'Rajendra Prasad',
-        rating: 5,
-        comment: 'Rich caramelized khoya flavor, perfect balance of sugar. Outstanding quality.',
-        is_approved: false, // Pending admin approval test
-        created_at: new Date(Date.now() - 3600000).toISOString(),
-      },
-    ],
-  ]),
-  giftHampers: new SyncMap<string, ServerGiftHamper>('gift_hampers', [
-    [
-      'hamper-shahi-nawabi',
-      {
-        id: 'hamper-shahi-nawabi',
-        name: 'The Shahi Nawabi Gifting Trunk',
-        slug: 'shahi-nawabi-gifting-trunk',
-        description: 'Velvet-lined royal gift box with brass clasp. Curated with our premier cashew diamond fudges, saffron pedas, and artisanal Awadhi dalmoth.',
-        image_url: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=800&q=80',
-        box_type: 'Royal Velvet Trunk',
-        price: 1850,
-        mrp: 2100,
-        is_featured: true,
-        is_active: true,
-        display_order: 1,
-        items_included: [
-          {
-            id: 'hi-1',
-            product_id: 'prod-kaju-katli',
-            product_name: 'Signature Silver Leaf Kaju Katli',
-            variant_label: '500g',
-            quantity: 1,
-          },
-          {
-            id: 'hi-2',
-            product_id: 'prod-malai-peda',
-            product_name: 'Kesar Malai Peda',
-            variant_label: '250g',
-            quantity: 1,
-          },
-          {
-            id: 'hi-3',
-            product_id: 'prod-dalmoth',
-            product_name: 'Awadhi Shahi Dalmoth Mixture',
-            variant_label: '250g',
-            quantity: 1,
-          },
-        ],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-    ],
-    [
-      'hamper-utsav-celebration',
-      {
-        id: 'hamper-utsav-celebration',
-        name: 'Utsav Celebration Sweet Box',
-        slug: 'utsav-celebration-sweet-box',
-        description: 'Embossed gold foil celebratory box featuring pure cow desi ghee motichoor ladoo, crispy ajwain mathri, and silver cashew delights.',
-        image_url: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=800&q=80',
-        box_type: 'Gold Embossed Box',
-        price: 1250,
-        mrp: 1400,
-        is_featured: true,
-        is_active: true,
-        display_order: 2,
-        items_included: [
-          {
-            id: 'hi-4',
-            product_id: 'prod-motichoor-ladoo',
-            product_name: 'Pure Shuddh Ghee Motichoor Ladoo',
-            variant_label: '500g',
-            quantity: 1,
-          },
-          {
-            id: 'hi-5',
-            product_id: 'prod-kaju-katli',
-            product_name: 'Signature Silver Leaf Kaju Katli',
-            variant_label: '250g',
-            quantity: 1,
-          },
-          {
-            id: 'hi-6',
-            product_id: 'prod-mathri',
-            product_name: 'Crispy Ajwain Khasta Mathri',
-            variant_label: '250g',
-            quantity: 1,
-          },
-        ],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-    ],
-    [
-      'hamper-anand-potli',
-      {
-        id: 'hamper-anand-potli',
-        name: 'Awadh Anand Raw Silk Potli',
-        slug: 'awadh-anand-raw-silk-potli',
-        description: 'Traditional Banarasi raw silk potli filled with roasted peda and roasted salted nuts.',
-        image_url: 'https://images.unsplash.com/photo-1505253758473-96b7015fcd40?auto=format&fit=crop&w=800&q=80',
-        box_type: 'Raw Silk Potli',
-        price: 850,
-        mrp: 950,
-        is_featured: false,
-        is_active: true,
-        display_order: 3,
-        items_included: [
-          {
-            id: 'hi-7',
-            product_id: 'prod-mathura-peda',
-            product_name: 'Mathura Style Roasted Peda',
-            variant_label: '250g',
-            quantity: 1,
-          },
-          {
-            id: 'hi-8',
-            product_id: 'prod-besan-ladoo',
-            product_name: 'Awadhi Desi Ghee Besan Ladoo',
-            variant_label: '250g',
-            quantity: 1,
-          },
-        ],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-    ],
-  ]),
-  bulkEnquiries: new SyncMap<string, ServerBulkEnquiry>('bulk_order_enquiries', [
-    [
-      'enq-101',
-      {
-        id: 'enq-101',
-        enquiry_number: 'ENQ-8821',
-        contact_name: 'Dr. Alok Srivastava',
-        organization_name: 'Srivastava Hospital Barabanki',
-        phone: '+91 94150 77881',
-        email: 'alok@srivastavahospital.in',
-        event_type: 'WEDDING',
-        event_date: new Date(Date.now() + 25 * 86400000).toISOString().split('T')[0],
-        estimated_guests: 450,
-        estimated_quantity_kg: 85,
-        budget_range: '₹50,000 - ₹80,000',
-        delivery_address: 'Civil Lines, Near DM Residence, Barabanki',
-        requested_sweets: 'Kaju Katli (30kg), Motichoor Ladoo (35kg), Shahi Dalmoth (20kg)',
-        notes: 'Wedding reception sweet distribution boxes. Need customized printed tags on 300 boxes.',
-        admin_notes: 'Spoke on 28th Sep. Sent sample tasting box to residence. Follow-up scheduled.',
-        status: 'QUOTED',
-        created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
-        updated_at: new Date(Date.now() - 86400000).toISOString(),
-      },
-    ],
-    [
-      'enq-102',
-      {
-        id: 'enq-102',
-        enquiry_number: 'ENQ-8822',
-        contact_name: 'Meera Rastogi',
-        organization_name: 'Awadh Agro Traders',
-        phone: '+91 94150 99223',
-        email: 'meera@awadhagro.com',
-        event_type: 'CORPORATE',
-        event_date: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
-        estimated_guests: 150,
-        estimated_quantity_kg: 40,
-        budget_range: '₹25,000 - ₹35,000',
-        delivery_address: 'Industrial Area Phase 2, Kursi Road, Barabanki',
-        requested_sweets: 'Festive Luxury Hampers (75 units)',
-        notes: 'Diwali staff gifting hampers.',
-        admin_notes: '',
-        status: 'NEW',
-        created_at: new Date(Date.now() - 3600000).toISOString(),
-        updated_at: new Date(Date.now() - 3600000).toISOString(),
-      },
-    ],
-  ]),
+  offers: new Map<any, any>(),
+  banners: new Map<any, any>(),
+  reviews: new Map<any, any>(),
+  giftHampers: new Map<any, any>(),
+  bulkEnquiries: new Map<any, any>(),
   notifications: [] as ServerNotification[],
 };
 
@@ -1795,7 +1298,7 @@ setInterval(() => {
 }, 30000);
 
 // Seed admin profile
-Map.prototype.set.call(inMemoryStore.profiles, 'admin-default', {
+inMemoryStore.profiles.set('admin-default', {
   id: 'admin-default',
   email: 'admin@saraswatisweets.in',
   phone: '+919161110030',
@@ -1805,7 +1308,7 @@ Map.prototype.set.call(inMemoryStore.profiles, 'admin-default', {
   updated_at: new Date().toISOString(),
 });
 
-Map.prototype.set.call(inMemoryStore.profiles, 'staff-default', {
+inMemoryStore.profiles.set('staff-default', {
   id: 'staff-default',
   email: 'staff@saraswatisweets.in',
   phone: '+919450012346',
@@ -1880,11 +1383,11 @@ export async function loadStoreState(): Promise<void> {
     ]);
 
     // Populate SyncMaps (bypassing the custom .set to avoid re-upserting)
-    if (cats.data) cats.data.forEach(x => Map.prototype.set.call(inMemoryStore.categories, x.id, x));
-    if (offs.data) offs.data.forEach(x => Map.prototype.set.call(inMemoryStore.offers, x.id, x));
-    if (bans.data) bans.data.forEach(x => Map.prototype.set.call(inMemoryStore.banners, x.id, x));
-    if (hampers.data) hampers.data.forEach(x => Map.prototype.set.call(inMemoryStore.giftHampers, x.id, x));
-    if (slots.data) slots.data.forEach(x => Map.prototype.set.call(inMemoryStore.deliverySlots, x.id, x));
+    if (cats.data) cats.data.forEach(x => inMemoryStore.categories.set(x.id, x));
+    if (offs.data) offs.data.forEach(x => inMemoryStore.offers.set(x.id, x));
+    if (bans.data) bans.data.forEach(x => inMemoryStore.banners.set(x.id, x));
+    if (hampers.data) hampers.data.forEach(x => inMemoryStore.giftHampers.set(x.id, x));
+    if (slots.data) slots.data.forEach(x => inMemoryStore.deliverySlots.set(x.id, x));
 
     if (typeof prodImgs !== 'undefined' && prodImgs.data) {
       const imgMap = new Map();
@@ -1894,10 +1397,10 @@ export async function loadStoreState(): Promise<void> {
       if (prods.data) prods.data.forEach((x: any) => {
           x.pure_ghee = x.is_pure_ghee;
           x.image_url = imgMap.get(x.id) || x.image_url;
-          Map.prototype.set.call(inMemoryStore.products, x.id, x);
+          inMemoryStore.products.set(x.id, x);
       });
     } else if (prods.data) {
-      prods.data.forEach(x => { x.pure_ghee = x.is_pure_ghee; Map.prototype.set.call(inMemoryStore.products, x.id, x); });
+      prods.data.forEach(x => { x.pure_ghee = x.is_pure_ghee; inMemoryStore.products.set(x.id, x); });
     }
 
     if (typeof ordItems !== 'undefined' && ordItems.data && ords.data) {
@@ -1908,10 +1411,10 @@ export async function loadStoreState(): Promise<void> {
        });
        ords.data.forEach((x: any) => {
            x.items = ordMap.get(x.id) || [];
-           Map.prototype.set.call(inMemoryStore.orders, x.id, x);
+           inMemoryStore.orders.set(x.id, x);
        });
     } else if (ords.data) {
-       ords.data.forEach((x: any) => Map.prototype.set.call(inMemoryStore.orders, x.id, x));
+       ords.data.forEach((x: any) => inMemoryStore.orders.set(x.id, x));
     }
 
     if (vars.data) vars.data.forEach((x: any) => {
@@ -1919,14 +1422,14 @@ export async function loadStoreState(): Promise<void> {
         x.weightGrams = x.weight_grams;
         x.stockStatus = x.stock_status;
         x.stockQuantity = x.stock_quantity;
-        Map.prototype.set.call(inMemoryStore.variants, x.id, x);
+        inMemoryStore.variants.set(x.id, x);
     });
-    if (profs.data) profs.data.forEach(x => Map.prototype.set.call(inMemoryStore.profiles, x.id, x));
-    if (addrs.data) addrs.data.forEach(x => Map.prototype.set.call(inMemoryStore.addresses, x.id, x));
-    if (pays.data) pays.data.forEach(x => Map.prototype.set.call(inMemoryStore.payments, x.id, x));
-    if (revs.data) revs.data.forEach(x => Map.prototype.set.call(inMemoryStore.reviews, x.id, x));
-    if (coups.data) coups.data.forEach(x => Map.prototype.set.call(inMemoryStore.coupons, x.code, x));
-    if (bulks.data) bulks.data.forEach(x => Map.prototype.set.call(inMemoryStore.bulkEnquiries, x.id, x));
+    if (profs.data) profs.data.forEach(x => inMemoryStore.profiles.set(x.id, x));
+    if (addrs.data) addrs.data.forEach(x => inMemoryStore.addresses.set(x.id, x));
+    if (pays.data) pays.data.forEach(x => inMemoryStore.payments.set(x.id, x));
+    if (revs.data) revs.data.forEach(x => inMemoryStore.reviews.set(x.id, x));
+    if (coups.data) coups.data.forEach(x => inMemoryStore.coupons.set(x.code, x));
+    if (bulks.data) bulks.data.forEach(x => inMemoryStore.bulkEnquiries.set(x.id, x));
 
     console.log(`[Store] Loaded persistent state from Postgres (${inMemoryStore.products.size} products, ${inMemoryStore.orders.size} orders).`);
   } catch (err) {

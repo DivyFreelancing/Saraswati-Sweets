@@ -94,7 +94,7 @@ export async function authenticateToken(
           full_name: isStaffOrAdmin
             ? (token.includes('admin') ? 'Shop Owner (Admin)' : 'Store Staff')
             : (cleanPhone ? `Patron ${cleanPhone.slice(-4)}` : 'Valued Patron'),
-          role: token.includes('admin') ? 'ADMIN' : token.includes('staff') ? 'STAFF' : 'CUSTOMER',
+          role: (token.includes('admin') ? 'ADMIN' : token.includes('staff') ? 'STAFF' : 'CUSTOMER') as 'ADMIN' | 'STAFF' | 'CUSTOMER',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
