@@ -314,7 +314,7 @@ router.post('/products', requireRole(['ADMIN']), async (req: AuthenticatedReques
   const {
     name, description, category_id, image_url,
     pure_ghee = true, shelf_life_days = 7, ingredients = '',
-    variants = [], is_bestseller = false, is_featured = false, badge_label = '',
+    variants = [], is_bestseller = false, is_featured = false,
   } = req.body;
 
   if (!name || !category_id) {
@@ -339,7 +339,7 @@ router.post('/products', requireRole(['ADMIN']), async (req: AuthenticatedReques
     ingredients: String(ingredients || '').trim(),
     is_bestseller: Boolean(is_bestseller),
     is_featured: Boolean(is_featured),
-    badge_label: String(badge_label || '').trim(),
+    
   };
 
   const { error: prodErr } = await supabaseServer!.from('products').insert([productRow]);
@@ -412,7 +412,7 @@ router.post('/products', requireRole(['ADMIN']), async (req: AuthenticatedReques
     ingredients: productRow.ingredients,
     is_bestseller: productRow.is_bestseller,
     is_featured: productRow.is_featured,
-    badge_label: productRow.badge_label,
+    
   };
   Map.prototype.set.call(inMemoryStore.products, id, newProd);
 
@@ -431,7 +431,7 @@ router.put('/products/:id', requireRole(['ADMIN']), async (req: AuthenticatedReq
   }
 
   // Explicit whitelist
-  const { name, description, category_id, image_url, pure_ghee, shelf_life_days, is_active, ingredients, is_bestseller, is_featured, badge_label } = req.body;
+  const { name, description, category_id, image_url, pure_ghee, shelf_life_days, is_active, ingredients, is_bestseller, is_featured } = req.body;
   const updates: Record<string, any> = {};
   if (name !== undefined) updates.name = String(name).trim();
   if (description !== undefined) updates.description = String(description).trim();
@@ -442,7 +442,7 @@ router.put('/products/:id', requireRole(['ADMIN']), async (req: AuthenticatedReq
   if (ingredients !== undefined) updates.ingredients = String(ingredients).trim();
   if (is_bestseller !== undefined) updates.is_bestseller = Boolean(is_bestseller);
   if (is_featured !== undefined) updates.is_featured = Boolean(is_featured);
-  if (badge_label !== undefined) updates.badge_label = String(badge_label).trim();
+  
 
   const { error } = await supabaseServer!.from('products').update(updates).eq('id', id);
   if (error) {
@@ -476,7 +476,7 @@ router.put('/products/:id', requireRole(['ADMIN']), async (req: AuthenticatedReq
   if (updates.ingredients !== undefined) prod.ingredients = updates.ingredients;
   if (updates.is_bestseller !== undefined) prod.is_bestseller = updates.is_bestseller;
   if (updates.is_featured !== undefined) prod.is_featured = updates.is_featured;
-  if (updates.badge_label !== undefined) prod.badge_label = updates.badge_label;
+  
   Map.prototype.set.call(inMemoryStore.products, id, prod);
 
   logAuditEvent(req.user, 'PRODUCT_UPDATED', 'PRODUCT', id, {

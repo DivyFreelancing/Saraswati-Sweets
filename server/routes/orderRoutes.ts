@@ -477,6 +477,7 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
     slot_snapshot: newOrder.slot_snapshot,
     subtotal: newOrder.subtotal,
     discount: newOrder.discount,
+    coupon_code: newOrder.coupon_code,
     delivery_charge: newOrder.delivery_charge,
     tax: newOrder.tax,
     total: newOrder.total,
@@ -671,7 +672,36 @@ router.patch('/orders/:id/status', async (req: AuthenticatedRequest, res: Respon
     }
   }
 
+  
+  if (!isLiveSupabase || !supabaseServer) {
+    res.status(503).json({ error: 'DB_UNAVAILABLE', message: 'Database not available' });
+    return;
+  }
+
+  const updates: any = {
+    status: nextStatus,
+    updated_at: nowIso,
+  };
+  if (nextStatus === 'CONFIRMED') updates.confirmed_at = nowIso;
+  else if (nextStatus === 'PREPARING') updates.preparing_at = nowIso;
+  else if (nextStatus === 'READY_FOR_PICKUP') updates.ready_at = nowIso;
+  else if (nextStatus === 'OUT_FOR_DELIVERY') updates.out_for_delivery_at = nowIso;
+  else if (nextStatus === 'DELIVERED') {
+    updates.delivered_at = nowIso;
+    updates.payment_status = 'COMPLETED';
+  } else if (nextStatus === 'CANCELLED') {
+    updates.cancelled_at = nowIso;
+  }
+
+  const { error } = await supabaseServer.from('orders').update(updates).eq('id', order.id);
+  if (error) {
+    console.error('Order status update failed:', error);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+    return;
+  }
+
   inMemoryStore.orders.set(order.id, order);
+
 
   logAuditEvent(req.user, 'ORDER_STATUS_CHANGED', 'ORDER', order.id, {
     orderNumber: order.order_number,
