@@ -852,8 +852,8 @@ export function toUUID(str: string): string {
 }
 
 class SyncMap<K, V> extends Map<K, V> {
-  constructor(private tableName: string) {
-    super();
+  constructor(private tableName: string, entries?: readonly (readonly [K, V])[] | null) {
+    super(entries);
   }
 
   get(key: K): V | undefined {
@@ -889,10 +889,57 @@ class SyncMap<K, V> extends Map<K, V> {
 
     super.set(actualKey, actualValue);
 
+    if (this.tableName === 'products') {
+        actualValue.is_pure_ghee = actualValue.pure_ghee;
+        delete actualValue.pure_ghee;
+        delete actualValue.image_url;
+    } else if (this.tableName === 'product_variants') {
+        actualValue.product_id = actualValue.productId;
+        actualValue.weight_grams = actualValue.weightGrams;
+        actualValue.stock_status = actualValue.stockStatus;
+        actualValue.stock_quantity = actualValue.stockQuantity;
+        delete actualValue.productId;
+        delete actualValue.productName;
+        delete actualValue.weightGrams;
+        delete actualValue.stockStatus;
+        delete actualValue.stockQuantity;
+        delete actualValue.imageUrl;
+    } else if (this.tableName === 'orders') {
+        delete actualValue.items;
+        delete actualValue.user_id;
+    } else if (this.tableName === 'gift_hampers') {
+        delete actualValue.items_included;
+    }
+
     if (isLiveSupabase && supabaseServer) {
       (async () => {
         const { error } = await supabaseServer.from(this.tableName).upsert(actualValue);
         if (error) console.error(`[SyncMap] Failed to upsert to ${this.tableName}:`, error);
+        
+        // Auxiliary Inserts
+        if (this.tableName === 'products' && (value as any).image_url) {
+           await supabaseServer.from('product_images').upsert({
+               id: toUUID('img-' + actualKey),
+               product_id: toUUID(actualKey as string),
+               image_url: (value as any).image_url,
+               is_primary: true
+           });
+        }
+        if (this.tableName === 'orders' && (value as any).items) {
+           for (const item of (value as any).items) {
+               await supabaseServer.from('order_items').upsert({
+                   id: toUUID(item.id),
+                   order_id: toUUID(item.order_id),
+                   product_id: toUUID(item.product_id),
+                   variant_id: toUUID(item.variant_id),
+                   product_name: item.product_name,
+                   variant_label: item.variant_label,
+                   unit_price: item.unit_price,
+                   quantity: item.quantity,
+                   total_price: item.total_price
+               });
+           }
+        }
       })();
     }
     return this;
@@ -923,7 +970,7 @@ export const inMemoryStore = {
   ordersByIdempotency: new Map<string, ServerOrder>(),
   payments: new SyncMap<string, ServerPayment>('payments'), // razorpay_payment_id or razorpay_order_id -> payment
   processedWebhookEvents: new Set<string>(), // event_id -> deduplication
-  categories: new Map<string, ServerCategory>([
+  categories: new SyncMap<string, ServerCategory>('categories', [
     [
       'cat-desi-ghee',
       {
@@ -1001,7 +1048,7 @@ export const inMemoryStore = {
     ['cat-specialty-sweets', { id: 'cat-specialty-sweets', name: 'Specialty Sweets', slug: 'specialty-sweets', description: 'Specialty sweets.', image_url: '', display_order: 5, is_active: true }],
     ['cat-traditional-mithai', { id: 'cat-traditional-mithai', name: 'Traditional Mithai', slug: 'traditional-mithai', description: 'Traditional mithai.', image_url: '', display_order: 6, is_active: true }],
   ]),
-  products: new Map<string, ServerProduct>([
+  products: new SyncMap<string, ServerProduct>('products', [
     [
       'prod-kaju-katli',
       {
@@ -1195,8 +1242,8 @@ export const inMemoryStore = {
     ['prod-nariyal-barfi-coconut-barfi', { id: 'prod-nariyal-barfi-coconut-barfi', name: 'Nariyal Barfi (Coconut Barfi)', slug: 'nariyal-barfi-coconut-barfi', description: 'A delicious traditional sweet – nariyal barfi (coconut barfi).', category_id: 'cat-traditional-mithai', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
     ['prod-khoya-kalakand', { id: 'prod-khoya-kalakand', name: 'Khoya Kalakand', slug: 'khoya-kalakand', description: 'A delicious traditional sweet – khoya kalakand.', category_id: 'cat-traditional-mithai', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
   ]),
-  variants: new Map<string, MasterVariant>(MASTER_VARIANTS.map((v) => [v.id, v])),
-  deliveryPartners: new Map<string, ServerDeliveryPartner>([
+  variants: new SyncMap<string, MasterVariant>('product_variants', MASTER_VARIANTS.map((v) => [v.id, v])),
+  deliveryPartners: new SyncMap<string, ServerDeliveryPartner>('delivery_partners', [
     [
       'dp-1',
       {
@@ -1251,7 +1298,7 @@ export const inMemoryStore = {
     closing_time: '22:00',
     is_store_open: true,
   } as ServerStoreSettings,
-  coupons: new Map<string, ServerCoupon>([
+  coupons: new SyncMap<string, ServerCoupon>('coupons', [
     [
       'SWAD100',
       {
@@ -1306,7 +1353,7 @@ export const inMemoryStore = {
     ],
   ]),
   couponUsage: [] as ServerCouponUsage[],
-  offers: new Map<string, ServerOffer>([
+  offers: new SyncMap<string, ServerOffer>('offers', [
     [
       'off-1',
       {
@@ -1359,7 +1406,7 @@ export const inMemoryStore = {
       },
     ],
   ]),
-  banners: new Map<string, ServerBanner>([
+  banners: new SyncMap<string, ServerBanner>('banners', [
     [
       'ban-1',
       {
@@ -1391,7 +1438,7 @@ export const inMemoryStore = {
       },
     ],
   ]),
-  reviews: new Map<string, ServerReview>([
+  reviews: new SyncMap<string, ServerReview>('reviews', [
     [
       'rev-1',
       {
@@ -1442,7 +1489,7 @@ export const inMemoryStore = {
       },
     ],
   ]),
-  giftHampers: new Map<string, ServerGiftHamper>([
+  giftHampers: new SyncMap<string, ServerGiftHamper>('gift_hampers', [
     [
       'hamper-shahi-nawabi',
       {
@@ -1560,7 +1607,7 @@ export const inMemoryStore = {
       },
     ],
   ]),
-  bulkEnquiries: new Map<string, ServerBulkEnquiry>([
+  bulkEnquiries: new SyncMap<string, ServerBulkEnquiry>('bulk_order_enquiries', [
     [
       'enq-101',
       {
@@ -1812,7 +1859,7 @@ export async function loadStoreState(): Promise<void> {
     const [
       cats, prods, vars, offs, bans, hampers, 
       slots, ords, profs, addrs, pays, revs, 
-      coups, bulks
+      coups, bulks, prodImgs, ordItems
     ] = await Promise.all([
       supabaseServer.from('categories').select('*'),
       supabaseServer.from('products').select('*'),
@@ -1827,18 +1874,53 @@ export async function loadStoreState(): Promise<void> {
       supabaseServer.from('payments').select('*'),
       supabaseServer.from('reviews').select('*'),
       supabaseServer.from('coupons').select('*'),
-      supabaseServer.from('bulk_enquiries').select('*')
+      supabaseServer.from('bulk_enquiries').select('*'),
+        supabaseServer.from('product_images').select('*'),
+        supabaseServer.from('order_items').select('*')
     ]);
 
     // Populate SyncMaps (bypassing the custom .set to avoid re-upserting)
     if (cats.data) cats.data.forEach(x => Map.prototype.set.call(inMemoryStore.categories, x.id, x));
-    if (prods.data) prods.data.forEach(x => Map.prototype.set.call(inMemoryStore.products, x.id, x));
-    if (vars.data) vars.data.forEach(x => Map.prototype.set.call(inMemoryStore.variants, x.id, x));
     if (offs.data) offs.data.forEach(x => Map.prototype.set.call(inMemoryStore.offers, x.id, x));
     if (bans.data) bans.data.forEach(x => Map.prototype.set.call(inMemoryStore.banners, x.id, x));
     if (hampers.data) hampers.data.forEach(x => Map.prototype.set.call(inMemoryStore.giftHampers, x.id, x));
     if (slots.data) slots.data.forEach(x => Map.prototype.set.call(inMemoryStore.deliverySlots, x.id, x));
-    if (ords.data) ords.data.forEach(x => Map.prototype.set.call(inMemoryStore.orders, x.id, x));
+
+    if (typeof prodImgs !== 'undefined' && prodImgs.data) {
+      const imgMap = new Map();
+      prodImgs.data.forEach((img: any) => {
+          if (img.is_primary) imgMap.set(img.product_id, img.image_url);
+      });
+      if (prods.data) prods.data.forEach((x: any) => {
+          x.pure_ghee = x.is_pure_ghee;
+          x.image_url = imgMap.get(x.id) || x.image_url;
+          Map.prototype.set.call(inMemoryStore.products, x.id, x);
+      });
+    } else if (prods.data) {
+      prods.data.forEach(x => { x.pure_ghee = x.is_pure_ghee; Map.prototype.set.call(inMemoryStore.products, x.id, x); });
+    }
+
+    if (typeof ordItems !== 'undefined' && ordItems.data && ords.data) {
+       const ordMap = new Map();
+       ordItems.data.forEach((it: any) => {
+           if (!ordMap.has(it.order_id)) ordMap.set(it.order_id, []);
+           ordMap.get(it.order_id).push(it);
+       });
+       ords.data.forEach((x: any) => {
+           x.items = ordMap.get(x.id) || [];
+           Map.prototype.set.call(inMemoryStore.orders, x.id, x);
+       });
+    } else if (ords.data) {
+       ords.data.forEach((x: any) => Map.prototype.set.call(inMemoryStore.orders, x.id, x));
+    }
+
+    if (vars.data) vars.data.forEach((x: any) => {
+        x.productId = x.product_id;
+        x.weightGrams = x.weight_grams;
+        x.stockStatus = x.stock_status;
+        x.stockQuantity = x.stock_quantity;
+        Map.prototype.set.call(inMemoryStore.variants, x.id, x);
+    });
     if (profs.data) profs.data.forEach(x => Map.prototype.set.call(inMemoryStore.profiles, x.id, x));
     if (addrs.data) addrs.data.forEach(x => Map.prototype.set.call(inMemoryStore.addresses, x.id, x));
     if (pays.data) pays.data.forEach(x => Map.prototype.set.call(inMemoryStore.payments, x.id, x));
