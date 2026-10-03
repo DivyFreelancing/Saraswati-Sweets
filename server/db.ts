@@ -1441,7 +1441,6 @@ export function saveStoreState(): void {
   // The local store_state.json file has been eliminated.
 }
 
-import { supabaseServer } from './authMiddleware';
 export async function syncDatabaseToMemory() {
   console.log('[Sync] Fetching live DB categories, products, variants...');
   if (!supabaseServer) return;
