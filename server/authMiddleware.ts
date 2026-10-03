@@ -42,7 +42,7 @@ export async function authenticateToken(
             id: user.id,
             email: user.email,
             phone: user.phone,
-            full_name: (user.user_metadata?.full_name as string) || (user.phone ? `Customer ${user.phone.slice(-4)}` : 'Valued Customer'),
+            full_name: (user.user_metadata?.full_name as string) || (user.phone ? \`Customer \${user.phone.slice(-4)}\` : 'Valued Customer'),
             role: (user.user_metadata?.role as any) || (user.email?.includes('admin') ? 'ADMIN' : user.email?.includes('staff') ? 'STAFF' : 'CUSTOMER'),
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -65,10 +65,9 @@ export async function authenticateToken(
     if (token.startsWith('dev-user-') || token.startsWith('demo-')) {
       const isStaffOrAdmin = token.includes('admin') || token.includes('staff');
       let cleanPhone = '';
-      let cleanPhone = '';
 
       if (token.startsWith('dev-user-')) {
-        cleanPhone = token.replace('dev-user-', '').replace(/\D/g, '').slice(-10);
+        cleanPhone = token.replace('dev-user-', '').replace(/\\D/g, '').slice(-10);
       }
 
       let existing = null;
@@ -77,7 +76,7 @@ export async function authenticateToken(
       } else if (token === 'demo-staff-token') {
         existing = inMemoryStore.profiles.get('staff-default');
       } else if (cleanPhone) {
-        const formattedPhone = `+91 ${cleanPhone.slice(0, 5)} ${cleanPhone.slice(5)}`;
+        const formattedPhone = \`+91 \${cleanPhone.slice(0, 5)} \${cleanPhone.slice(5)}\`;
         existing = Array.from(inMemoryStore.profiles.values()).find(p => p.phone === formattedPhone || p.phone === cleanPhone);
       } else {
         existing = inMemoryStore.profiles.get(token);
@@ -85,7 +84,7 @@ export async function authenticateToken(
 
       if (!existing) {
         const formattedPhone = cleanPhone
-          ? `+91 ${cleanPhone.slice(0, 5)} ${cleanPhone.slice(5)}`
+          ? \`+91 \${cleanPhone.slice(0, 5)} \${cleanPhone.slice(5)}\`
           : (token.includes('phone') ? '+91 91611 10030' : undefined);
 
         existing = {
@@ -94,7 +93,7 @@ export async function authenticateToken(
           email: token.includes('admin') ? 'admin@saraswatisweets.in' : token.includes('staff') ? 'staff@saraswatisweets.in' : undefined,
           full_name: isStaffOrAdmin
             ? (token.includes('admin') ? 'Shop Owner (Admin)' : 'Store Staff')
-            : (cleanPhone ? `Patron ${cleanPhone.slice(-4)}` : 'Valued Patron'),
+            : (cleanPhone ? \`Patron \${cleanPhone.slice(-4)}\` : 'Valued Patron'),
           role: token.includes('admin') ? 'ADMIN' : token.includes('staff') ? 'STAFF' : 'CUSTOMER',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -103,7 +102,6 @@ export async function authenticateToken(
       }
 
       Map.prototype.set.call(inMemoryStore.profiles, token, existing);
-      }
 
       req.user = existing;
       return next();
@@ -186,7 +184,7 @@ export function requireRole(allowedRoles: Array<'CUSTOMER' | 'STAFF' | 'ADMIN'>)
     if (!allowedRoles.includes(req.user.role)) {
       res.status(403).json({
         error: 'FORBIDDEN',
-        message: `Access denied. Requires one of [${allowedRoles.join(', ')}] permissions. Current role is ${req.user.role}.`,
+        message: \`Access denied. Requires one of [\${allowedRoles.join(', ')}] permissions. Current role is \${req.user.role}.\`,
       });
       return;
     }
