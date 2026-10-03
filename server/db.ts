@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
@@ -841,16 +842,56 @@ export interface ServerStoreSettings {
 // ==========================================================
 // SUPABASE SYNC MAP (Write-Through Cache)
 // ==========================================================
+export function toUUID(str: string): string {
+  if (!str || typeof str !== 'string') return str;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)) {
+    return str; 
+  }
+  const hash = crypto.createHash('md5').update(str).digest('hex');
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(12, 15)}-a${hash.slice(15, 18)}-${hash.slice(18, 30)}`;
+}
+
 class SyncMap<K, V> extends Map<K, V> {
   constructor(private tableName: string) {
     super();
   }
 
+  get(key: K): V | undefined {
+    let res = super.get(key);
+    if (!res && typeof key === 'string') {
+      res = super.get(toUUID(key) as unknown as K);
+    }
+    return res;
+  }
+
+  has(key: K): boolean {
+    if (super.has(key)) return true;
+    if (typeof key === 'string') return super.has(toUUID(key) as unknown as K);
+    return false;
+  }
+
   set(key: K, value: V) {
-    super.set(key, value);
+    // If the value has an ID, and we are storing it, we can store it under its UUID key to normalize memory
+    let actualKey = key;
+    let actualValue = { ...value } as any;
+
+    if (typeof actualKey === 'string' && actualKey !== toUUID(actualKey)) {
+        actualKey = toUUID(actualKey) as unknown as K;
+    }
+
+    if (actualValue.id && typeof actualValue.id === 'string') actualValue.id = toUUID(actualValue.id);
+    if (actualValue.profile_id && typeof actualValue.profile_id === 'string') actualValue.profile_id = toUUID(actualValue.profile_id);
+    if (actualValue.category_id && typeof actualValue.category_id === 'string') actualValue.category_id = toUUID(actualValue.category_id);
+    if (actualValue.product_id && typeof actualValue.product_id === 'string') actualValue.product_id = toUUID(actualValue.product_id);
+    if (actualValue.order_id && typeof actualValue.order_id === 'string') actualValue.order_id = toUUID(actualValue.order_id);
+    if (actualValue.user_id && typeof actualValue.user_id === 'string') actualValue.user_id = toUUID(actualValue.user_id);
+    if (actualValue.variant_id && typeof actualValue.variant_id === 'string') actualValue.variant_id = toUUID(actualValue.variant_id);
+
+    super.set(actualKey, actualValue);
+
     if (isLiveSupabase && supabaseServer) {
       (async () => {
-        const { error } = await supabaseServer.from(this.tableName).upsert(value as any);
+        const { error } = await supabaseServer.from(this.tableName).upsert(actualValue);
         if (error) console.error(`[SyncMap] Failed to upsert to ${this.tableName}:`, error);
       })();
     }
@@ -858,10 +899,14 @@ class SyncMap<K, V> extends Map<K, V> {
   }
 
   delete(key: K) {
-    const res = super.delete(key);
+    let actualKey = key;
+    if (!super.has(key) && typeof key === 'string' && super.has(toUUID(key) as unknown as K)) {
+      actualKey = toUUID(key) as unknown as K;
+    }
+    const res = super.delete(actualKey);
     if (isLiveSupabase && supabaseServer) {
       (async () => {
-        const { error } = await supabaseServer.from(this.tableName).delete().eq('id', key);
+        const { error } = await supabaseServer.from(this.tableName).delete().eq('id', typeof key === 'string' ? toUUID(key) : key);
         if (error) console.error(`[SyncMap] Failed to delete from ${this.tableName}:`, error);
       })();
     }
@@ -1703,7 +1748,7 @@ setInterval(() => {
 }, 30000);
 
 // Seed admin profile
-inMemoryStore.profiles.set('admin-default', {
+Map.prototype.set.call(inMemoryStore.profiles, 'admin-default', {
   id: 'admin-default',
   email: 'admin@saraswatisweets.in',
   phone: '+919161110030',
@@ -1713,7 +1758,7 @@ inMemoryStore.profiles.set('admin-default', {
   updated_at: new Date().toISOString(),
 });
 
-inMemoryStore.profiles.set('staff-default', {
+Map.prototype.set.call(inMemoryStore.profiles, 'staff-default', {
   id: 'staff-default',
   email: 'staff@saraswatisweets.in',
   phone: '+919450012346',

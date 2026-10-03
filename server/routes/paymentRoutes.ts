@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Router, Request, Response } from 'express';
 import {
   inMemoryStore,
@@ -97,7 +98,7 @@ router.post('/verify', async (req: Request, res: Response) => {
 
   // 5. Record Payment Snapshot in payments store
   const paymentRecord: ServerPayment = {
-    id: razorpay_payment_id,
+    id: randomUUID(),
     order_id: order.id,
     order_number: order.order_number,
     razorpay_order_id,
@@ -109,7 +110,7 @@ router.post('/verify', async (req: Request, res: Response) => {
     created_at: nowIso,
     updated_at: nowIso,
   };
-  inMemoryStore.payments.set(razorpay_payment_id, paymentRecord);
+  inMemoryStore.payments.set(paymentRecord.id, paymentRecord);
 
   res.status(200).json({
     success: true,
@@ -199,11 +200,11 @@ router.post('/webhook/razorpay', async (req: Request, res: Response) => {
       // Record / Update payment
       if (paymentId) {
         const paymentRecord: ServerPayment = {
-          id: paymentId,
+          id: randomUUID(),
           order_id: order.id,
           order_number: order.order_number,
           razorpay_order_id: razorpayOrderId || order.razorpay_order_id || '',
-          razorpay_payment_id: paymentId,
+          razorpay_payment_id: randomUUID(),
           amount: paymentEntity?.amount || Math.round(order.total * 100),
           currency: paymentEntity?.currency || 'INR',
           status: 'CAPTURED',
@@ -211,7 +212,7 @@ router.post('/webhook/razorpay', async (req: Request, res: Response) => {
           created_at: nowIso,
           updated_at: nowIso,
         };
-        inMemoryStore.payments.set(paymentId, paymentRecord);
+        inMemoryStore.payments.set(paymentRecord.id, paymentRecord);
       }
     }
   } else if (event === 'payment.failed') {
@@ -250,11 +251,11 @@ router.post('/webhook/razorpay', async (req: Request, res: Response) => {
 
       if (paymentId) {
         const paymentRecord: ServerPayment = {
-          id: paymentId,
+          id: randomUUID(),
           order_id: order.id,
           order_number: order.order_number,
           razorpay_order_id: razorpayOrderId || '',
-          razorpay_payment_id: paymentId,
+          razorpay_payment_id: randomUUID(),
           amount: paymentEntity?.amount || Math.round(order.total * 100),
           currency: paymentEntity?.currency || 'INR',
           status: 'FAILED',
@@ -263,7 +264,7 @@ router.post('/webhook/razorpay', async (req: Request, res: Response) => {
           created_at: nowIso,
           updated_at: nowIso,
         };
-        inMemoryStore.payments.set(paymentId, paymentRecord);
+        inMemoryStore.payments.set(paymentRecord.id, paymentRecord);
       }
     }
   } else if (event === 'refund.processed') {

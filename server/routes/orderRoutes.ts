@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Router, Response } from 'express';
 import { AuthenticatedRequest, requireAuth, requireRole } from '../authMiddleware';
 import {
@@ -212,7 +213,7 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
   // 5. Atomic Transaction: Re-fetch variant & hamper prices/stock & Recompute Subtotal
   let subtotal = 0;
   const orderItemsSnapshots: ServerOrderItem[] = [];
-  const orderId = `ord-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const orderId = randomUUID();
 
   for (const it of items) {
     const rawVariantId = it.variantId || it.variant_id;
@@ -414,11 +415,12 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
     newOrder.razorpay_order_id = rzpOrder.id;
 
     // Record initial created payment record
-    inMemoryStore.payments.set(rzpOrder.id, {
-      id: rzpOrder.id,
+    const rzpUuid = randomUUID();
+      inMemoryStore.payments.set(rzpUuid, {
+      id: typeof rzpUuid !== 'undefined' ? rzpUuid : randomUUID(),
       order_id: orderId,
       order_number: orderNumber,
-      razorpay_order_id: rzpOrder.id,
+      razorpay_order_id: typeof rzpUuid !== 'undefined' ? rzpUuid : randomUUID(),
       amount: amountInPaise,
       currency: 'INR',
       status: 'CREATED',
@@ -428,7 +430,7 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
     });
 
     razorpayPayload = {
-      order_id: rzpOrder.id,
+      order_id: typeof rzpUuid !== 'undefined' ? rzpUuid : randomUUID(),
       key_id: getRazorpayKeyId(),
       amount: amountInPaise,
       currency: 'INR',
@@ -519,7 +521,7 @@ router.get('/orders', requireAuth, (req: AuthenticatedRequest, res: Response) =>
     : allOrders.filter((o) => {
         if (o.profile_id === user.id || (o as any).user_id === user.id) return true;
         if (userCleanPhone) {
-          if (o.profile_id === `usr-${userCleanPhone}` || o.profile_id === `dev-user-${userCleanPhone}`) return true;
+          if (false || false) return true;
           const guestPhone = (o.guest_phone || '').replace(/\D/g, '').slice(-10);
           const recipientPhone = (o.address_snapshot?.recipient_phone || '').replace(/\D/g, '').slice(-10);
           if (guestPhone === userCleanPhone || recipientPhone === userCleanPhone) return true;

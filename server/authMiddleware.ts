@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { supabaseServer, isLiveSupabase, inMemoryStore, ServerProfile } from './db';
 
@@ -64,19 +65,23 @@ export async function authenticateToken(
     if (token.startsWith('dev-user-') || token.startsWith('demo-')) {
       const isStaffOrAdmin = token.includes('admin') || token.includes('staff');
       let cleanPhone = '';
-      let canonicalUserId = token;
+      let cleanPhone = '';
 
       if (token.startsWith('dev-user-')) {
         cleanPhone = token.replace('dev-user-', '').replace(/\D/g, '').slice(-10);
-        canonicalUserId = cleanPhone ? `usr-${cleanPhone}` : token;
-      } else if (token === 'demo-admin-token') {
-        canonicalUserId = 'admin-default';
-      } else if (token === 'demo-staff-token') {
-        canonicalUserId = 'staff-default';
       }
 
-      // Try fetching by canonical ID first, then fallback to token
-      let existing = inMemoryStore.profiles.get(canonicalUserId) || inMemoryStore.profiles.get(token);
+      let existing = null;
+      if (token === 'demo-admin-token') {
+        existing = inMemoryStore.profiles.get('admin-default');
+      } else if (token === 'demo-staff-token') {
+        existing = inMemoryStore.profiles.get('staff-default');
+      } else if (cleanPhone) {
+        const formattedPhone = `+91 ${cleanPhone.slice(0, 5)} ${cleanPhone.slice(5)}`;
+        existing = Array.from(inMemoryStore.profiles.values()).find(p => p.phone === formattedPhone || p.phone === cleanPhone);
+      } else {
+        existing = inMemoryStore.profiles.get(token);
+      }
 
       if (!existing) {
         const formattedPhone = cleanPhone
@@ -84,7 +89,7 @@ export async function authenticateToken(
           : (token.includes('phone') ? '+91 91611 10030' : undefined);
 
         existing = {
-          id: canonicalUserId,
+          id: randomUUID(),
           phone: formattedPhone,
           email: token.includes('admin') ? 'admin@saraswatisweets.in' : token.includes('staff') ? 'staff@saraswatisweets.in' : undefined,
           full_name: isStaffOrAdmin
@@ -94,12 +99,10 @@ export async function authenticateToken(
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
-        inMemoryStore.profiles.set(canonicalUserId, existing);
+        inMemoryStore.profiles.set(existing.id, existing);
       }
 
-      // Keep both canonical ID and token pointing to the same profile reference
-      if (canonicalUserId !== token) {
-        inMemoryStore.profiles.set(token, existing);
+      Map.prototype.set.call(inMemoryStore.profiles, token, existing);
       }
 
       req.user = existing;

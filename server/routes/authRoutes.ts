@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Router, Response } from 'express';
 import { AuthenticatedRequest, requireAuth } from '../authMiddleware';
 import { supabaseServer, isLiveSupabase, inMemoryStore, ServerProfile } from '../db';
@@ -37,8 +38,7 @@ router.put('/profile', requireAuth, async (req: AuthenticatedRequest, res: Respo
   inMemoryStore.profiles.set(req.user.id, req.user);
   if (req.user.phone) {
     const rawClean = req.user.phone.replace(/\D/g, '').slice(-10);
-    inMemoryStore.profiles.set(`usr-${rawClean}`, req.user);
-    inMemoryStore.profiles.set(`dev-user-${rawClean}`, req.user);
+    
   }
 
   // Also sync to Supabase if live
@@ -98,8 +98,7 @@ router.post('/sync', async (req: AuthenticatedRequest, res: Response) => {
   // Sync to in-memory store
   inMemoryStore.profiles.set(id, profileData);
   if (cleanPhone) {
-    inMemoryStore.profiles.set(`usr-${cleanPhone}`, profileData);
-    inMemoryStore.profiles.set(`dev-user-${cleanPhone}`, profileData);
+    
   }
   res.json({ success: true, profile: profileData });
 });
@@ -142,7 +141,11 @@ router.post('/demo-login', async (req, res) => {
       return;
     }
 
-    const userId = `usr-${cleanPhone}`;
+    
+    const formattedPhoneToSearch = `+91 ${cleanPhone.slice(0, 5)} ${cleanPhone.slice(5)}`;
+    const existingUser = Array.from(inMemoryStore.profiles.values()).find(p => p.phone === formattedPhoneToSearch || p.phone === cleanPhone);
+    const userId = existingUser ? existingUser.id : randomUUID();
+
     const token = `dev-user-${cleanPhone}`;
     const formattedPhone = `+91 ${cleanPhone.slice(0, 5)} ${cleanPhone.slice(5)}`;
     const providedName = (req.body.full_name && typeof req.body.full_name === 'string' && req.body.full_name.trim()) || '';

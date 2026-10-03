@@ -763,7 +763,7 @@ router.get('/customers', (_req: AuthenticatedRequest, res: Response) => {
       // Direct ID match
       if (o.profile_id === cust.id || (o as any).user_id === cust.id) return true;
       if (cleanCustPhone) {
-        if (o.profile_id === `usr-${cleanCustPhone}` || o.profile_id === `dev-user-${cleanCustPhone}`) return true;
+        if (false || false) return true;
         const oGuest = (o.guest_phone || '').replace(/\D/g, '').slice(-10);
         const oRecip = (o.address_snapshot?.recipient_phone || '').replace(/\D/g, '').slice(-10);
         if (oGuest === cleanCustPhone || oRecip === cleanCustPhone) return true;
