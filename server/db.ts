@@ -1377,58 +1377,64 @@ export async function loadStoreState(): Promise<void> {
       supabaseServer.from('reviews').select('*'),
       supabaseServer.from('coupons').select('*'),
       supabaseServer.from('bulk_enquiries').select('*'),
-        supabaseServer.from('product_images').select('*'),
-        supabaseServer.from('order_items').select('*')
+      supabaseServer.from('product_images').select('*'),
+      supabaseServer.from('order_items').select('*')
     ]);
 
     // Populate SyncMaps (bypassing the custom .set to avoid re-upserting)
-    if (cats.data) cats.data.forEach(x => inMemoryStore.categories.set(x.id, x));
-    if (offs.data) offs.data.forEach(x => inMemoryStore.offers.set(x.id, x));
-    if (bans.data) bans.data.forEach(x => inMemoryStore.banners.set(x.id, x));
-    if (hampers.data) hampers.data.forEach(x => inMemoryStore.giftHampers.set(x.id, x));
-    if (slots.data) slots.data.forEach(x => inMemoryStore.deliverySlots.set(x.id, x));
+    if (cats.data) { inMemoryStore.categories.clear(); cats.data.forEach(x => inMemoryStore.categories.set(x.id, x)); }
+    if (offs.data) { inMemoryStore.offers.clear(); offs.data.forEach(x => inMemoryStore.offers.set(x.id, x)); }
+    if (bans.data) { inMemoryStore.banners.clear(); bans.data.forEach(x => inMemoryStore.banners.set(x.id, x)); }
+    if (hampers.data) { inMemoryStore.giftHampers.clear(); hampers.data.forEach(x => inMemoryStore.giftHampers.set(x.id, x)); }
+    if (slots.data) { inMemoryStore.deliverySlots.clear(); slots.data.forEach(x => inMemoryStore.deliverySlots.set(x.id, x)); }
 
-    if (typeof prodImgs !== 'undefined' && prodImgs.data) {
+    if (prods.data) {
+      inMemoryStore.products.clear();
       const imgMap = new Map();
-      prodImgs.data.forEach((img: any) => {
-          if (img.is_primary) imgMap.set(img.product_id, img.image_url);
-      });
-      if (prods.data) prods.data.forEach((x: any) => {
+      if (typeof prodImgs !== 'undefined' && prodImgs.data) {
+        prodImgs.data.forEach((img: any) => {
+            if (img.is_primary) imgMap.set(img.product_id, img.image_url);
+        });
+      }
+      prods.data.forEach((x: any) => {
           x.pure_ghee = x.is_pure_ghee;
           x.image_url = imgMap.get(x.id) || x.image_url;
           inMemoryStore.products.set(x.id, x);
       });
-    } else if (prods.data) {
-      prods.data.forEach(x => { x.pure_ghee = x.is_pure_ghee; inMemoryStore.products.set(x.id, x); });
     }
 
-    if (typeof ordItems !== 'undefined' && ordItems.data && ords.data) {
+    if (ords.data) {
+       inMemoryStore.orders.clear();
        const ordMap = new Map();
-       ordItems.data.forEach((it: any) => {
-           if (!ordMap.has(it.order_id)) ordMap.set(it.order_id, []);
-           ordMap.get(it.order_id).push(it);
-       });
+       if (typeof ordItems !== 'undefined' && ordItems.data) {
+         ordItems.data.forEach((it: any) => {
+             if (!ordMap.has(it.order_id)) ordMap.set(it.order_id, []);
+             ordMap.get(it.order_id).push(it);
+         });
+       }
        ords.data.forEach((x: any) => {
            x.items = ordMap.get(x.id) || [];
            inMemoryStore.orders.set(x.id, x);
        });
-    } else if (ords.data) {
-       ords.data.forEach((x: any) => inMemoryStore.orders.set(x.id, x));
     }
 
-    if (vars.data) vars.data.forEach((x: any) => {
+    if (vars.data) {
+      inMemoryStore.variants.clear();
+      vars.data.forEach((x: any) => {
         x.productId = x.product_id;
         x.weightGrams = x.weight_grams;
         x.stockStatus = x.stock_status;
         x.stockQuantity = x.stock_quantity;
         inMemoryStore.variants.set(x.id, x);
-    });
-    if (profs.data) profs.data.forEach(x => inMemoryStore.profiles.set(x.id, x));
-    if (addrs.data) addrs.data.forEach(x => inMemoryStore.addresses.set(x.id, x));
-    if (pays.data) pays.data.forEach(x => inMemoryStore.payments.set(x.id, x));
-    if (revs.data) revs.data.forEach(x => inMemoryStore.reviews.set(x.id, x));
-    if (coups.data) coups.data.forEach(x => inMemoryStore.coupons.set(x.code, x));
-    if (bulks.data) bulks.data.forEach(x => inMemoryStore.bulkEnquiries.set(x.id, x));
+      });
+    }
+    
+    if (profs.data) { inMemoryStore.profiles.clear(); profs.data.forEach(x => inMemoryStore.profiles.set(x.id, x)); }
+    if (addrs.data) { inMemoryStore.addresses.clear(); addrs.data.forEach(x => inMemoryStore.addresses.set(x.id, x)); }
+    if (pays.data) { inMemoryStore.payments.clear(); pays.data.forEach(x => inMemoryStore.payments.set(x.id, x)); }
+    if (revs.data) { inMemoryStore.reviews.clear(); revs.data.forEach(x => inMemoryStore.reviews.set(x.id, x)); }
+    if (coups.data) { inMemoryStore.coupons.clear(); coups.data.forEach(x => inMemoryStore.coupons.set(x.code, x)); }
+    if (bulks.data) { inMemoryStore.bulkEnquiries.clear(); bulks.data.forEach(x => inMemoryStore.bulkEnquiries.set(x.id, x)); }
 
     console.log(`[Store] Loaded persistent state from Postgres (${inMemoryStore.products.size} products, ${inMemoryStore.orders.size} orders).`);
   } catch (err) {
@@ -1439,57 +1445,4 @@ export async function loadStoreState(): Promise<void> {
 export function saveStoreState(): void {
   // No-op. SyncMap automatically writes to Supabase on every mutation.
   // The local store_state.json file has been eliminated.
-}
-
-export async function syncDatabaseToMemory() {
-  console.log('[Sync] Fetching live DB categories, products, variants...');
-  if (!supabaseServer) return;
-  const { data: cats } = await supabaseServer.from('categories').select('*');
-  const { data: prods } = await supabaseServer.from('products').select('*');
-  const { data: vars } = await supabaseServer.from('product_variants').select('*');
-  const { data: imgs } = await supabaseServer.from('product_images').select('*');
-  
-  if (cats) {
-    inMemoryStore.categories.clear();
-    cats.forEach(c => inMemoryStore.categories.set(c.id, c));
-  }
-  
-  if (prods) {
-    inMemoryStore.products.clear();
-    prods.forEach(p => {
-      inMemoryStore.products.set(p.id, {
-        id: p.id,
-        name: p.name,
-        slug: p.slug,
-        description: p.description,
-        category_id: p.category_id,
-        image_url: imgs?.find(img => img.product_id === p.id && img.is_primary)?.url || '',
-        pure_ghee: p.is_pure_ghee,
-        shelf_life_days: p.shelf_life_days,
-        is_active: p.is_active,
-        ingredients: p.ingredients,
-        is_featured: false,
-        is_bestseller: p.is_bestseller
-      });
-    });
-  }
-  
-  if (vars) {
-    inMemoryStore.variants.clear();
-    vars.forEach(v => {
-      inMemoryStore.variants.set(v.id, {
-        id: v.id,
-        productId: v.product_id,
-        label: v.label,
-        weightGrams: v.weight_grams,
-        price: v.price,
-        mrp: v.mrp,
-        stockStatus: v.stock_status,
-        stockQuantity: v.stock_quantity,
-        imageUrl: '',
-        productName: prods?.find(p => p.id === v.product_id)?.name || ''
-      });
-    });
-  }
-  console.log('[Sync] Complete: loaded live Supabase data into memory as Source of Truth.');
 }

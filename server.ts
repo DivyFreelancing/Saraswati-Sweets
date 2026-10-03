@@ -112,10 +112,8 @@ async function startServer() {
     });
   }
 
-  syncDatabaseToMemory().then(() => {
     app.listen(PORT, '0.0.0.0', () => {
-      console.log(`[Saraswati Sweets Server] Running at http://0.0.0.0:${PORT} (${isDev ? 'development' : 'production'})`);
-    });
+    console.log(`[Saraswati Sweets Server] Running at http://0.0.0.0:${PORT} (${isDev ? 'development' : 'production'})`);
   });
 }
 
