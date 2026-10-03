@@ -446,15 +446,15 @@ export const SERVICEABLE_PINCODES = ['225001', '225002', '225003', '225122'];
 export const STORE_SETTINGS = {
   store_name: 'Saraswati Sweets',
   tagline: 'Pure Desi Ghee Mithai & Artisanal Namkeen Since 1978',
-  phone: '+91 91611 10030',
+  store_phone: '+91 91611 10030',
   whatsapp: '+91 91611 10030',
-  email: 'order@saraswatisweets.in',
-  address: 'Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001, Uttar Pradesh 225001',
+  store_email: 'order@saraswatisweets.in',
+  address_text: 'Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001, Uttar Pradesh 225001',
   delivery_charge: 40,
-  free_delivery_threshold: 499,
-  cod_max_limit: 2000,
-  tax_percent: 5,
-  allowed_pincodes: SERVICEABLE_PINCODES,
+  free_delivery_above: 499,
+  cod_limit_amount: 2000,
+  tax_rate_percent: 5,
+  serviceable_pincodes: SERVICEABLE_PINCODES,
 };
 
 // In-Memory store for fast fallback & local development sync
@@ -500,13 +500,13 @@ export interface ServerCoupon {
   id: string;
   code: string;
   description: string;
-  discount_type: 'PERCENTAGE' | 'FLAT';
-  discount_value: number;
-  min_order_amount: number;
+  type: 'PERCENTAGE' | 'FLAT';
+  value: number;
+  min_order_value: number;
   max_discount_amount?: number;
   is_active: boolean;
   start_date: string;
-  end_date: string;
+  valid_until: string;
   total_limit?: number; // Total redemptions across store
   per_user_limit?: number; // Redemptions per user/phone
   used_count: number;
@@ -517,7 +517,7 @@ export interface ServerCouponUsage {
   coupon_id: string;
   coupon_code: string;
   order_id: string;
-  profile_id?: string;
+  user_id?: string;
   phone?: string;
   discount_amount: number;
   created_at: string;
@@ -678,7 +678,6 @@ export type OrderStatus =
 export interface ServerOrder {
   id: string;
   order_number: string;
-  profile_id?: string;
   user_id?: string;
   guest_phone?: string;
   guest_email?: string;
@@ -690,11 +689,11 @@ export interface ServerOrder {
     end_time: string;
   };
   subtotal: number;
-  discount: number;
+  discount_amount: number;
   coupon_code?: string;
-  delivery_charge: number;
-  tax: number;
-  total: number;
+  delivery_charge_flat: number;
+  tax_amount: number;
+  total_amount: number;
   status: OrderStatus;
   payment_method: 'COD' | 'ONLINE';
   payment_status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED';
@@ -824,18 +823,18 @@ export interface ServerAuditLog {
 export interface ServerStoreSettings {
   store_name: string;
   tagline: string;
-  phone: string;
+  store_phone: string;
   whatsapp: string;
-  email: string;
-  address: string;
-  delivery_charge: number;
-  free_delivery_threshold: number;
-  cod_max_limit: number;
-  tax_percent: number;
+  store_email: string;
+  address_text: string;
+  delivery_charge_flat: number;
+  free_delivery_above: number;
+  cod_limit_amount: number;
+  tax_rate_percent: number;
   opening_time: string;
   closing_time: string;
   is_store_open: boolean;
-  allowed_pincodes: string[];
+  serviceable_pincodes: string[];
 }
 
 
@@ -1142,7 +1141,7 @@ export const inMemoryStore = {
     whatsapp: '+91 91611 10030',
     email: 'order@saraswatisweets.in',
     address: 'Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001, Uttar Pradesh 225001',
-    allowed_pincodes: ['225001', '225002', '225003', '225122'],
+    serviceable_pincodes: ['225001', '225002', '225003', '225122'],
     delivery_charge: 40,
     free_delivery_threshold: 499,
     cod_max_limit: 2000,
@@ -1173,38 +1172,38 @@ export function validateCouponServer(
 ): {
   valid: boolean;
   coupon?: ServerCoupon;
-  discount: number;
+  discount_amount: number;
   error?: string;
   errorCode?: string;
 } {
   if (!couponCode) {
-    return { valid: false, discount: 0, error: 'Coupon code required', errorCode: 'COUPON_REQUIRED' };
+    return { valid: false, discount_amount: 0, error: 'Coupon code required', errorCode: 'COUPON_REQUIRED' };
   }
 
   const cleanCode = couponCode.trim().toUpperCase();
   const coupon = inMemoryStore.coupons.get(cleanCode);
 
   if (!coupon) {
-    return { valid: false, discount: 0, error: `Coupon code '${cleanCode}' is invalid`, errorCode: 'COUPON_NOT_FOUND' };
+    return { valid: false, discount_amount: 0, error: `Coupon code '${cleanCode}' is invalid`, errorCode: 'COUPON_NOT_FOUND' };
   }
 
   if (!coupon.is_active) {
-    return { valid: false, discount: 0, error: `Coupon '${cleanCode}' is currently inactive`, errorCode: 'COUPON_INACTIVE' };
+    return { valid: false, discount_amount: 0, error: `Coupon '${cleanCode}' is currently inactive`, errorCode: 'COUPON_INACTIVE' };
   }
 
   const now = new Date().getTime();
   if (coupon.start_date && now < new Date(coupon.start_date).getTime()) {
-    return { valid: false, discount: 0, error: `Coupon '${cleanCode}' has not started yet`, errorCode: 'COUPON_NOT_STARTED' };
+    return { valid: false, discount_amount: 0, error: `Coupon '${cleanCode}' has not started yet`, errorCode: 'COUPON_NOT_STARTED' };
   }
 
   if (coupon.end_date && now > new Date(coupon.end_date).getTime()) {
-    return { valid: false, discount: 0, error: `Coupon '${cleanCode}' has expired`, errorCode: 'COUPON_EXPIRED' };
+    return { valid: false, discount_amount: 0, error: `Coupon '${cleanCode}' has expired`, errorCode: 'COUPON_EXPIRED' };
   }
 
   if (subtotal < coupon.min_order_amount) {
     return {
       valid: false,
-      discount: 0,
+      discount_amount: 0,
       error: `Minimum order amount of ₹${coupon.min_order_amount} required to use coupon '${cleanCode}' (current subtotal ₹${subtotal})`,
       errorCode: 'MIN_ORDER_NOT_MET',
     };
@@ -1214,7 +1213,7 @@ export function validateCouponServer(
   if (coupon.total_limit && (coupon.used_count || 0) >= coupon.total_limit) {
     return {
       valid: false,
-      discount: 0,
+      discount_amount: 0,
       error: `Coupon '${cleanCode}' has reached maximum total redemptions`,
       errorCode: 'TOTAL_LIMIT_REACHED',
     };
@@ -1232,7 +1231,7 @@ export function validateCouponServer(
     if (userUsageCount >= coupon.per_user_limit) {
       return {
         valid: false,
-        discount: 0,
+        discount_amount: 0,
         error: `You have reached the maximum allowed uses (${coupon.per_user_limit}) for coupon '${cleanCode}'`,
         errorCode: 'PER_USER_LIMIT_REACHED',
       };
@@ -1251,7 +1250,7 @@ export function validateCouponServer(
   return {
     valid: true,
     coupon,
-    discount: Math.round(discount),
+    discount_amount: Math.round(discount),
   };
 }
 

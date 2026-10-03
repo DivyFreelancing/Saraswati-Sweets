@@ -339,7 +339,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                   <div className="text-left sm:text-right">
                     <span className="text-[11px] text-[#6E6259] block">Total Amount</span>
                     <span className="text-sm font-bold text-[#7A1129]">
-                      ₹{order.total?.toLocaleString('en-IN') || 0}
+                      ₹{order.total_amount?.toLocaleString('en-IN') || 0}
                     </span>
                   </div>
 

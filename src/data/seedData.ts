@@ -4,7 +4,7 @@ export const SEED_STORE_SETTINGS: StoreSettings = {
   id: 1,
   store_name: 'Saraswati Sweets',
   tagline: 'Pure Desi Ghee Mithai & Artisanal Namkeen Since 1989',
-  phone: '+91 91611 10030',
+  store_phone: '+91 91611 10030',
   whatsapp: '+91 91611 10030',
   email: 'order@saraswatisweets.in',
   address: 'Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001, Uttar Pradesh 225001',
@@ -540,7 +540,7 @@ export const SEED_PRODUCTS: Product[] = [
     variants: [
       { id: 'v-kaju-kalash-250', product_id: 'prod-kaju-kalash', label: '250g', weight_grams: 250, price: 375, mrp: 375, sku: 'KAJU-KALASH-250', stock_status: 'IN_STOCK', stock_quantity: 50, display_order: 1 },
       { id: 'v-kaju-kalash-500', product_id: 'prod-kaju-kalash', label: '500g', weight_grams: 500, price: 750, mrp: 750, sku: 'KAJU-KALASH-500', stock_status: 'IN_STOCK', stock_quantity: 50, display_order: 2 },
-      { id: 'v-kaju-kalash-1kg', product_id: 'prod-kaju-kalash', label: '1kg', weight_grams: 1000, price: 1500, mrp: 1500, sku: 'KAJU-KALASH-1KG', stock_status: 'IN_STOCK', stock_quantity: 50, display_order: 3 },
+      { id: 'v-kaju-kalash-1kg', product_id: 'prod-kaju-kalash', label: '1kg', weight_grams: 1000, hamper_price: 1500, mrp: 1500, sku: 'KAJU-KALASH-1KG', stock_status: 'IN_STOCK', stock_quantity: 50, display_order: 3 },
     ],
     images: [],
   },
@@ -561,7 +561,7 @@ export const SEED_PRODUCTS: Product[] = [
     variants: [
       { id: 'v-kaju-kesar-250', product_id: 'prod-kaju-kesar', label: '250g', weight_grams: 250, price: 375, mrp: 375, sku: 'KAJU-KESAR-250', stock_status: 'IN_STOCK', stock_quantity: 50, display_order: 1 },
       { id: 'v-kaju-kesar-500', product_id: 'prod-kaju-kesar', label: '500g', weight_grams: 500, price: 750, mrp: 750, sku: 'KAJU-KESAR-500', stock_status: 'IN_STOCK', stock_quantity: 50, display_order: 2 },
-      { id: 'v-kaju-kesar-1kg', product_id: 'prod-kaju-kesar', label: '1kg', weight_grams: 1000, price: 1500, mrp: 1500, sku: 'KAJU-KESAR-1KG', stock_status: 'IN_STOCK', stock_quantity: 50, display_order: 3 },
+      { id: 'v-kaju-kesar-1kg', product_id: 'prod-kaju-kesar', label: '1kg', weight_grams: 1000, hamper_price: 1500, mrp: 1500, sku: 'KAJU-KESAR-1KG', stock_status: 'IN_STOCK', stock_quantity: 50, display_order: 3 },
     ],
     images: [],
   },
@@ -603,7 +603,7 @@ export const SEED_PRODUCTS: Product[] = [
     variants: [
       { id: 'v-dry-fruit-laddoo-250', product_id: 'prod-dry-fruit-laddoo', label: '250g', weight_grams: 250, price: 375, mrp: 375, sku: 'DRY-FRUIT-LADDOO-250', stock_status: 'IN_STOCK', stock_quantity: 50, display_order: 1 },
       { id: 'v-dry-fruit-laddoo-500', product_id: 'prod-dry-fruit-laddoo', label: '500g', weight_grams: 500, price: 750, mrp: 750, sku: 'DRY-FRUIT-LADDOO-500', stock_status: 'IN_STOCK', stock_quantity: 50, display_order: 2 },
-      { id: 'v-dry-fruit-laddoo-1kg', product_id: 'prod-dry-fruit-laddoo', label: '1kg', weight_grams: 1000, price: 1500, mrp: 1500, sku: 'DRY-FRUIT-LADDOO-1KG', stock_status: 'IN_STOCK', stock_quantity: 50, display_order: 3 },
+      { id: 'v-dry-fruit-laddoo-1kg', product_id: 'prod-dry-fruit-laddoo', label: '1kg', weight_grams: 1000, hamper_price: 1500, mrp: 1500, sku: 'DRY-FRUIT-LADDOO-1KG', stock_status: 'IN_STOCK', stock_quantity: 50, display_order: 3 },
     ],
     images: [],
   },
@@ -624,7 +624,7 @@ export const SEED_PRODUCTS: Product[] = [
     variants: [
       { id: 'v-badam-sugarfree-250', product_id: 'prod-badam-sugarfree', label: '250g', weight_grams: 250, price: 375, mrp: 375, sku: 'BADAM-SUGARFREE-250', stock_status: 'IN_STOCK', stock_quantity: 50, display_order: 1 },
       { id: 'v-badam-sugarfree-500', product_id: 'prod-badam-sugarfree', label: '500g', weight_grams: 500, price: 750, mrp: 750, sku: 'BADAM-SUGARFREE-500', stock_status: 'IN_STOCK', stock_quantity: 50, display_order: 2 },
-      { id: 'v-badam-sugarfree-1kg', product_id: 'prod-badam-sugarfree', label: '1kg', weight_grams: 1000, price: 1500, mrp: 1500, sku: 'BADAM-SUGARFREE-1KG', stock_status: 'IN_STOCK', stock_quantity: 50, display_order: 3 },
+      { id: 'v-badam-sugarfree-1kg', product_id: 'prod-badam-sugarfree', label: '1kg', weight_grams: 1000, hamper_price: 1500, mrp: 1500, sku: 'BADAM-SUGARFREE-1KG', stock_status: 'IN_STOCK', stock_quantity: 50, display_order: 3 },
     ],
     images: [],
   },
@@ -708,7 +708,7 @@ export const SEED_PRODUCTS: Product[] = [
     variants: [
       { id: 'v-kaju-gujiya-250', product_id: 'prod-kaju-gujiya', label: '250g', weight_grams: 250, price: 375, mrp: 375, sku: 'KAJU-GUJIYA-250', stock_status: 'IN_STOCK', stock_quantity: 50, display_order: 1 },
       { id: 'v-kaju-gujiya-500', product_id: 'prod-kaju-gujiya', label: '500g', weight_grams: 500, price: 750, mrp: 750, sku: 'KAJU-GUJIYA-500', stock_status: 'IN_STOCK', stock_quantity: 50, display_order: 2 },
-      { id: 'v-kaju-gujiya-1kg', product_id: 'prod-kaju-gujiya', label: '1kg', weight_grams: 1000, price: 1500, mrp: 1500, sku: 'KAJU-GUJIYA-1KG', stock_status: 'IN_STOCK', stock_quantity: 50, display_order: 3 },
+      { id: 'v-kaju-gujiya-1kg', product_id: 'prod-kaju-gujiya', label: '1kg', weight_grams: 1000, hamper_price: 1500, mrp: 1500, sku: 'KAJU-GUJIYA-1KG', stock_status: 'IN_STOCK', stock_quantity: 50, display_order: 3 },
     ],
     images: [],
   },

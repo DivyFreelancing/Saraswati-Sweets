@@ -22,7 +22,7 @@ export const HamperCard: React.FC<HamperCardProps> = ({ hamper, onViewDetails })
         variantId: `hamper-var-${hamper.id}`,
         variantLabel: hamper.box_type || 'Festive Hamper Box',
         weightGrams: 1000,
-        price: hamper.price,
+        price: hamper.hamper_price,
         mrp: hamper.mrp,
         imageUrl: hamper.image_url,
         item_type: 'HAMPER',
@@ -82,7 +82,7 @@ export const HamperCard: React.FC<HamperCardProps> = ({ hamper, onViewDetails })
         )}
 
         <div className="mt-auto pt-5 border-t border-[#E8DCC8] flex items-center justify-between gap-3">
-          <PriceDisplay price={hamper.price} mrp={hamper.mrp} size="lg" />
+          <PriceDisplay price={hamper.hamper_price} mrp={hamper.mrp} size="lg" />
           <button
             type="button"
             onClick={handleAddToCart}

@@ -212,7 +212,7 @@ export const OrderHistoryPage: React.FC<OrderHistoryPageProps> = ({
                       <span>{order.slot_snapshot?.slot_date} ({order.slot_snapshot?.start_time} - {order.slot_snapshot?.end_time})</span>
                     </span>
                     <span>•</span>
-                    <span>Total: <strong className="text-[#1F1B16] tabular-nums">{formatINR(order.total)}</strong> (COD)</span>
+                    <span>Total: <strong className="text-[#1F1B16] tabular-nums">{formatINR(order.total_amount)}</strong> (COD)</span>
                   </div>
                 </div>
 

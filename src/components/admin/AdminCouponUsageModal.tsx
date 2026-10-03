@@ -66,16 +66,16 @@ export const AdminCouponUsageModal: React.FC<AdminCouponUsageModalProps> = ({
               {usages.length} {coupon.total_limit ? `/ ${coupon.total_limit}` : ''}
             </span>
             <span className="text-[10px] text-[#6B6258]">
-              {coupon.per_user_limit ? `Max ${coupon.per_user_limit}/user` : 'No user cap'}
+              {coupon.usage_limit_per_user ? `Max ${coupon.usage_limit_per_user}/user` : 'No user cap'}
             </span>
           </div>
 
           <div className="p-3 rounded-xl bg-[#FBF7F1] border border-[#E8DFD2]">
             <span className="text-[#6B6258] block">Discount Value</span>
             <span className="font-display font-bold text-base text-[#8A1538] mt-0.5 block">
-              {coupon.discount_type === 'FLAT' ? `₹${coupon.discount_value}` : `${coupon.discount_value}%`}
+              {coupon.type === 'FLAT' ? `₹${coupon.value}` : `${coupon.value}%`}
             </span>
-            <span className="text-[10px] text-[#6B6258]">Min Order ₹{coupon.min_order_amount}</span>
+            <span className="text-[10px] text-[#6B6258]">Min Order ₹{coupon.min_order_value}</span>
           </div>
 
           <div className="p-3 rounded-xl bg-[#FBF7F1] border border-[#E8DFD2]">

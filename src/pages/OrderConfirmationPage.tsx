@@ -115,10 +115,10 @@ export const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
               <span className="text-[#1F1B16] font-medium tabular-nums">{formatINR(order.subtotal)}</span>
             </div>
 
-            {order.discount > 0 && (
+            {order.discount_amount > 0 && (
               <div className="flex justify-between text-[#2E7D4F]">
                 <span>Coupon Discount ({order.coupon_code})</span>
-                <span className="font-medium tabular-nums">- {formatINR(order.discount)}</span>
+                <span className="font-medium tabular-nums">- {formatINR(order.discount_amount)}</span>
               </div>
             )}
 
@@ -132,7 +132,7 @@ export const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
             <div className="pt-2 border-t border-[#E8DFD2] flex justify-between items-baseline text-base font-bold text-[#1F1B16]">
               <span>Cash on Delivery Total</span>
               <span className="text-xl font-display text-[#8A1538] tabular-nums">
-                {formatINR(order.total)}
+                {formatINR(order.total_amount)}
               </span>
             </div>
           </div>

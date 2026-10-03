@@ -57,7 +57,7 @@ router.get('/overview', (req: AuthenticatedRequest, res: Response) => {
       o.status !== 'PAYMENT_FAILED'
   );
 
-  const todayRevenue = todayOrders.reduce((sum, o) => sum + o.total, 0);
+  const todayRevenue = todayOrders.reduce((sum, o) => sum + o.total_amount, 0);
 
   const pendingOrders = allOrders.filter(
     (o) => o.status === 'PLACED' || o.status === 'PENDING_PAYMENT'
@@ -84,7 +84,7 @@ router.get('/overview', (req: AuthenticatedRequest, res: Response) => {
     trend7Days.push({
       date: dateStr,
       label: d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }),
-      revenue: dayOrders.reduce((acc, o) => acc + o.total, 0),
+      revenue: dayOrders.reduce((acc, o) => acc + o.total_amount, 0),
       orders: dayOrders.length,
     });
   }
@@ -96,7 +96,7 @@ router.get('/overview', (req: AuthenticatedRequest, res: Response) => {
       o.status !== 'CANCELLED' &&
       o.status !== 'PAYMENT_FAILED'
   );
-  const revenue30Days = ordersLast30Days.reduce((acc, o) => acc + o.total, 0);
+  const revenue30Days = ordersLast30Days.reduce((acc, o) => acc + o.total_amount, 0);
 
   const uniqueCustomerKeys = new Set<string>();
   Array.from(inMemoryStore.profiles.values()).forEach((p) => {
@@ -538,7 +538,7 @@ router.post('/products/:id/variants', requireRole(['ADMIN']), async (req: Authen
     return;
   }
 
-  const { label, weightGrams, price, mrp, stockQuantity = 50 } = req.body;
+  const { label, weightGrams, hamper_price, mrp, stockQuantity = 50 } = req.body;
   if (!label || !price) {
     res.status(400).json({ error: 'MISSING_FIELDS', message: 'Variant label and price are required.' });
     return;
@@ -550,8 +550,8 @@ router.post('/products/:id/variants', requireRole(['ADMIN']), async (req: Authen
     product_id: id,
     label: String(label),
     weight_grams: Number(weightGrams) || 500,
-    price: Number(price),
-    mrp: Number(mrp) || Math.round(Number(price) * 1.1),
+    price: Number(hamper_price),
+    mrp: Number(mrp) || Math.round(Number(hamper_price) * 1.1),
     stock_status: 'IN_STOCK',
     stock_quantity: Number(stockQuantity) || 50,
     display_order: 0,
@@ -593,10 +593,10 @@ router.put('/variants/:id', requireRole(['ADMIN']), async (req: AuthenticatedReq
     return;
   }
 
-  const { label, price, mrp, weightGrams, stockQuantity, stockStatus } = req.body;
+  const { label, hamper_price, mrp, weightGrams, stockQuantity, stockStatus } = req.body;
   const updates: Record<string, any> = {};
   if (label !== undefined) updates.label = String(label);
-  if (price !== undefined) updates.price = Number(price);
+  if (hamper_price !== undefined) updates.hamper_price = Number(hamper_price);
   if (mrp !== undefined) updates.mrp = Number(mrp);
   if (weightGrams !== undefined) updates.weight_grams = Number(weightGrams);
   if (stockQuantity !== undefined) updates.stock_quantity = Number(stockQuantity);
@@ -610,14 +610,14 @@ router.put('/variants/:id', requireRole(['ADMIN']), async (req: AuthenticatedReq
   }
 
   if (updates.label !== undefined) variant.label = updates.label;
-  if (updates.price !== undefined) variant.price = updates.price;
+  if (updates.hamper_price !== undefined) variant.price = updates.hamper_price;
   if (updates.mrp !== undefined) variant.mrp = updates.mrp;
   if (updates.weight_grams !== undefined) variant.weightGrams = updates.weight_grams;
   if (updates.stock_quantity !== undefined) variant.stockQuantity = updates.stock_quantity;
   if (updates.stock_status !== undefined) variant.stockStatus = updates.stock_status;
   Map.prototype.set.call(inMemoryStore.variants, id, variant);
 
-  logAuditEvent(req.user, 'VARIANT_UPDATED', 'PRODUCT', id, { label: updates.label, price: updates.price });
+  logAuditEvent(req.user, 'VARIANT_UPDATED', 'PRODUCT', id, { label: updates.label, price: updates.hamper_price });
   res.json({ success: true, variant });
 });
 
@@ -734,7 +734,7 @@ router.post('/orders/:id/refund', requireRole(['ADMIN']), async (req: Authentica
   }
 
   try {
-    const amountInPaise = Math.round(order.total * 100);
+    const amountInPaise = Math.round(order.total_amount * 100);
     const refundResult = await createRazorpayRefund(order.razorpay_payment_id, amountInPaise, {
       orderId: order.id,
       orderNumber: order.order_number,
@@ -759,12 +759,12 @@ router.post('/orders/:id/refund', requireRole(['ADMIN']), async (req: Authentica
 
     logAuditEvent(req.user, 'ORDER_REFUNDED', 'ORDER', order.id, {
       orderNumber: order.order_number,
-      amount: order.total,
+      amount: order.total_amount,
       refundId: refundResult.id,
       reason,
     });
 
-    res.json({ success: true, message: `Refund of ₹${order.total} processed for Order #${order.order_number}`, refund: refundResult, order });
+    res.json({ success: true, message: `Refund of ₹${order.total_amount} processed for Order #${order.order_number}`, refund: refundResult, order });
   } catch (err: any) {
     res.status(500).json({ error: 'REFUND_FAILED', message: err.message || 'Razorpay refund API call failed' });
   }
@@ -798,7 +798,7 @@ router.get('/customers', (_req: AuthenticatedRequest, res: Response) => {
       const key = `phone-${clean}`;
       if (!customerMap.has(key)) {
         customerMap.set(key, {
-          id: order.profile_id || `cust-${clean}`,
+          id: order.user_id || `cust-${clean}`,
           phone: `+91 ${clean.slice(0, 5)} ${clean.slice(5)}`,
           full_name: order.address_snapshot?.recipient_name || `Patron ${clean.slice(-4)}`,
           email: order.guest_email,
@@ -813,7 +813,7 @@ router.get('/customers', (_req: AuthenticatedRequest, res: Response) => {
   const customers = Array.from(customerMap.values()).map((cust) => {
     const cleanCustPhone = cust.phone ? cust.phone.replace(/\D/g, '').slice(-10) : '';
     const custOrders = allOrders.filter((o) => {
-      if (o.profile_id === cust.id) return true;
+      if (o.user_id === cust.id) return true;
       if (cleanCustPhone) {
         const oGuest = (o.guest_phone || '').replace(/\D/g, '').slice(-10);
         const oRecip = (o.address_snapshot?.recipient_phone || '').replace(/\D/g, '').slice(-10);
@@ -824,7 +824,7 @@ router.get('/customers', (_req: AuthenticatedRequest, res: Response) => {
 
     const totalSpent = custOrders
       .filter((o) => o.status !== 'CANCELLED' && o.status !== 'PAYMENT_FAILED')
-      .reduce((sum, o) => sum + o.total, 0);
+      .reduce((sum, o) => sum + o.total_amount, 0);
 
     const lastOrder = [...custOrders].sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -852,7 +852,7 @@ router.get('/delivery-partners', (_req: AuthenticatedRequest, res: Response) => 
 router.post('/delivery-partners', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
   if (!assertSupabase(res)) return;
 
-  const { name, phone, vehicle_number } = req.body;
+  const { name, store_phone, vehicle_number } = req.body;
   if (!name || !phone) {
     res.status(400).json({ error: 'MISSING_FIELDS', message: 'Partner name and phone are required.' });
     return;
@@ -862,7 +862,7 @@ router.post('/delivery-partners', requireRole(['ADMIN']), async (req: Authentica
   const row = {
     id,
     name: String(name).trim(),
-    phone: String(phone).trim(),
+    phone: String(store_phone).trim(),
     vehicle_number: vehicle_number ? String(vehicle_number).trim() : 'UP-32-TEMPORARY',
     is_active: true,
   };
@@ -963,26 +963,26 @@ router.put('/store/settings', requireRole(['ADMIN']), async (req: AuthenticatedR
 
   // Explicit whitelist — NEVER spread req.body directly
   const {
-    store_name, tagline, phone, whatsapp, email, address,
-    delivery_charge, free_delivery_threshold, cod_max_limit,
-    tax_percent, opening_time, closing_time, is_store_open, allowed_pincodes,
+    store_name, tagline, store_phone, whatsapp, store_email, address_text,
+    delivery_charge_flat, free_delivery_above, cod_limit_amount,
+    tax_rate_percent, opening_time, closing_time, is_store_open, serviceable_pincodes,
   } = req.body;
 
   const updates: Partial<ServerStoreSettings> = {};
   if (store_name !== undefined) updates.store_name = String(store_name).trim();
   if (tagline !== undefined) updates.tagline = String(tagline).trim();
-  if (phone !== undefined) updates.phone = String(phone).trim();
+  if (store_phone !== undefined) updates.store_phone = String(store_phone).trim();
   if (whatsapp !== undefined) updates.whatsapp = String(whatsapp).trim();
-  if (email !== undefined) updates.email = String(email).trim();
-  if (address !== undefined) updates.address = String(address).trim();
-  if (delivery_charge !== undefined) updates.delivery_charge = Number(delivery_charge);
-  if (free_delivery_threshold !== undefined) updates.free_delivery_threshold = Number(free_delivery_threshold);
-  if (cod_max_limit !== undefined) updates.cod_max_limit = Number(cod_max_limit);
-  if (tax_percent !== undefined) updates.tax_percent = Number(tax_percent);
+  if (store_email !== undefined) updates.store_email = String(store_email).trim();
+  if (address_text !== undefined) updates.address_text = String(address_text).trim();
+  if (delivery_charge_flat !== undefined) updates.delivery_charge_flat = Number(delivery_charge_flat);
+  if (free_delivery_above !== undefined) updates.free_delivery_above = Number(free_delivery_above);
+  if (cod_limit_amount !== undefined) updates.cod_limit_amount = Number(cod_limit_amount);
+  if (tax_rate_percent !== undefined) updates.tax_rate_percent = Number(tax_rate_percent);
   if (opening_time !== undefined) updates.opening_time = String(opening_time);
   if (closing_time !== undefined) updates.closing_time = String(closing_time);
   if (is_store_open !== undefined) updates.is_store_open = Boolean(is_store_open);
-  if (allowed_pincodes !== undefined) updates.allowed_pincodes = Array.isArray(allowed_pincodes) ? allowed_pincodes : String(allowed_pincodes).split(',').map(p => p.trim());
+  if (serviceable_pincodes !== undefined) updates.serviceable_pincodes = Array.isArray(allowed_pincodes) ? allowed_pincodes : String(serviceable_pincodes).split(',').map(p => p.trim());
 
   const { error } = await supabaseServer!.from('store_settings').update(updates).eq('id', 1);
   if (error) {
@@ -996,7 +996,7 @@ router.put('/store/settings', requireRole(['ADMIN']), async (req: AuthenticatedR
   logAuditEvent(req.user, 'STORE_SETTINGS_UPDATED', 'STORE_SETTINGS', '1', {
     fields_updated: Object.keys(updates),
     is_store_open: updates.is_store_open,
-    delivery_charge: updates.delivery_charge,
+    delivery_charge: updates.delivery_charge_flat,
   });
 
   res.json({ success: true, message: 'Store settings updated successfully.', settings: inMemoryStore.storeSettings });
@@ -1024,9 +1024,9 @@ router.post('/coupons', requireRole(['ADMIN']), async (req: AuthenticatedRequest
   if (!assertSupabase(res)) return;
 
   const {
-    code, description = '', discount_type = 'FLAT', discount_value = 50,
-    min_order_amount = 300, max_discount_amount, total_limit, per_user_limit,
-    is_active = true, start_date, end_date,
+    code, description = '', type = 'FLAT', value = 50,
+    min_order_value = 300, max_discount_amount, total_limit, usage_limit_per_user,
+    is_active = true, start_date, valid_until,
   } = req.body;
 
   if (!code || !discount_value) {
@@ -1041,16 +1041,16 @@ router.post('/coupons', requireRole(['ADMIN']), async (req: AuthenticatedRequest
     id,
     code: cleanCode,
     description: String(description).trim(),
-    discount_type: discount_type === 'PERCENTAGE' ? 'PERCENTAGE' : 'FLAT',
-    discount_value: Number(discount_value),
-    min_order_amount: Number(min_order_amount) || 0,
+    type: discount_type === 'PERCENTAGE' ? 'PERCENTAGE' : 'FLAT',
+    value: Number(discount_value),
+    min_order_value: Number(min_order_amount) || 0,
     max_discount_amount: max_discount_amount ? Number(max_discount_amount) : null,
-    usage_limit: total_limit ? Number(total_limit) : null,
-    per_user_limit: per_user_limit ? Number(per_user_limit) : 1,
+    usage_limit_total: total_limit ? Number(total_limit) : null,
+    usage_limit_per_user: per_user_limit ? Number(per_user_limit) : 1,
     usage_count: 0,
     is_active: Boolean(is_active),
     start_date: start_date || new Date().toISOString(),
-    end_date: end_date || new Date(Date.now() + 180 * 86400000).toISOString(),
+    valid_until: end_date || new Date(Date.now() + 180 * 86400000).toISOString(),
   };
 
   const { error } = await supabaseServer!.from('coupons').insert([row]);
@@ -1061,16 +1061,16 @@ router.post('/coupons', requireRole(['ADMIN']), async (req: AuthenticatedRequest
   }
 
   const newCoupon: ServerCoupon = {
-    id, code: cleanCode, description: row.description, discount_type: row.discount_type as any,
-    discount_value: row.discount_value, min_order_amount: row.min_order_amount,
+    id, code: cleanCode, description: row.description, type: row.discount_type as any,
+    value: row.discount_value, min_order_value: row.min_order_amount,
     max_discount_amount: row.max_discount_amount ?? undefined, total_limit: row.usage_limit ?? undefined,
-    per_user_limit: row.per_user_limit ?? undefined, used_count: 0, is_active: row.is_active,
-    start_date: row.start_date, end_date: row.end_date,
+    usage_limit_per_user: row.per_user_limit ?? undefined, used_count: 0, is_active: row.is_active,
+    start_date: row.start_date, valid_until: row.end_date,
   };
   Map.prototype.set.call(inMemoryStore.coupons, cleanCode, newCoupon);
 
   logAuditEvent(req.user, 'COUPON_CREATED', 'COUPON', id, {
-    code: cleanCode, discount_type: row.discount_type, discount_value: row.discount_value, min_order_amount: row.min_order_amount,
+    code: cleanCode, type: row.discount_type, value: row.discount_value, min_order_value: row.min_order_amount,
   });
   res.status(201).json({ success: true, coupon: newCoupon });
 });
@@ -1085,17 +1085,17 @@ router.put('/coupons/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequ
     return;
   }
 
-  const { description, discount_type, discount_value, min_order_amount, max_discount_amount, total_limit, per_user_limit, is_active, end_date } = req.body;
+  const { description, type, value, min_order_value, max_discount_amount, total_limit, usage_limit_per_user, is_active, valid_until } = req.body;
   const updates: Record<string, any> = {};
   if (description !== undefined) updates.description = String(description).trim();
-  if (discount_type !== undefined) updates.discount_type = discount_type;
-  if (discount_value !== undefined) updates.discount_value = Number(discount_value);
-  if (min_order_amount !== undefined) updates.min_order_amount = Number(min_order_amount);
+  if (discount_type !== undefined) updates.type = discount_type;
+  if (discount_value !== undefined) updates.value = Number(discount_value);
+  if (min_order_amount !== undefined) updates.min_order_value = Number(min_order_amount);
   if (max_discount_amount !== undefined) updates.max_discount_amount = max_discount_amount ? Number(max_discount_amount) : null;
-  if (total_limit !== undefined) updates.usage_limit = total_limit ? Number(total_limit) : null;
-  if (per_user_limit !== undefined) updates.per_user_limit = per_user_limit ? Number(per_user_limit) : null;
+  if (total_limit !== undefined) updates.usage_limit_total = total_limit ? Number(total_limit) : null;
+  if (per_user_limit !== undefined) updates.usage_limit_per_user = per_user_limit ? Number(per_user_limit) : null;
   if (is_active !== undefined) updates.is_active = Boolean(is_active);
-  if (end_date !== undefined) updates.end_date = end_date;
+  if (end_date !== undefined) updates.valid_until = end_date;
 
   const { error } = await supabaseServer!.from('coupons').update(updates).eq('id', coupon.id);
   if (error) {
@@ -1105,14 +1105,14 @@ router.put('/coupons/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequ
   }
 
   if (updates.description !== undefined) coupon.description = updates.description;
-  if (updates.discount_type !== undefined) coupon.discount_type = updates.discount_type;
-  if (updates.discount_value !== undefined) coupon.discount_value = updates.discount_value;
-  if (updates.min_order_amount !== undefined) coupon.min_order_amount = updates.min_order_amount;
+  if (updates.type !== undefined) coupon.type = updates.type;
+  if (updates.value !== undefined) coupon.value = updates.value;
+  if (updates.min_order_value !== undefined) coupon.min_order_value = updates.min_order_value;
   if (updates.is_active !== undefined) coupon.is_active = updates.is_active;
-  if (updates.end_date !== undefined) coupon.end_date = updates.end_date;
+  if (updates.valid_until !== undefined) coupon.valid_until = updates.valid_until;
   Map.prototype.set.call(inMemoryStore.coupons, coupon.code, coupon);
 
-  logAuditEvent(req.user, 'COUPON_UPDATED', 'COUPON', coupon.id, { is_active: updates.is_active, discount_value: updates.discount_value });
+  logAuditEvent(req.user, 'COUPON_UPDATED', 'COUPON', coupon.id, { is_active: updates.is_active, value: updates.value });
   res.json({ success: true, coupon });
 });
 
@@ -1366,7 +1366,7 @@ router.get('/hampers', (_req: AuthenticatedRequest, res: Response) => {
 router.post('/hampers', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
   if (!assertSupabase(res)) return;
 
-  const { name, description = '', image_url, box_type = 'Royal Velvet Trunk', price, mrp, is_featured = false, is_active = true, display_order = 1, items_included = [] } = req.body;
+  const { name, description = '', image_url, box_type = 'Royal Velvet Trunk', hamper_price, mrp, is_featured = false, is_active = true, display_order = 1, items_included = [] } = req.body;
   if (!name || !price || !image_url) {
     res.status(400).json({ error: 'MISSING_FIELDS', message: 'Hamper name, price, and image URL are required.' });
     return;
@@ -1383,8 +1383,8 @@ router.post('/hampers', requireRole(['ADMIN']), async (req: AuthenticatedRequest
     description: String(description).trim(),
     image_url,
     box_type: String(box_type).trim(),
-    price: Number(price),
-    mrp: Number(mrp) || Number(price),
+    price: Number(hamper_price),
+    mrp: Number(mrp) || Number(hamper_price),
     is_featured: Boolean(is_featured),
     is_active: Boolean(is_active),
   };
@@ -1429,13 +1429,13 @@ router.put('/hampers/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequ
     return;
   }
 
-  const { name, description, image_url, box_type, price, mrp, is_featured, is_active, display_order, items_included } = req.body;
+  const { name, description, image_url, box_type, hamper_price, mrp, is_featured, is_active, display_order, items_included } = req.body;
   const updates: Record<string, any> = {};
   if (name !== undefined) updates.name = String(name).trim();
   if (description !== undefined) updates.description = String(description).trim();
   if (image_url !== undefined) updates.image_url = image_url;
   if (box_type !== undefined) updates.box_type = String(box_type).trim();
-  if (price !== undefined) updates.price = Number(price);
+  if (hamper_price !== undefined) updates.hamper_price = Number(hamper_price);
   if (mrp !== undefined) updates.mrp = Number(mrp);
   if (is_featured !== undefined) updates.is_featured = Boolean(is_featured);
   if (is_active !== undefined) updates.is_active = Boolean(is_active);
@@ -1461,7 +1461,7 @@ router.put('/hampers/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequ
   hamper.updated_at = new Date().toISOString();
   Map.prototype.set.call(inMemoryStore.giftHampers, id, hamper);
 
-  logAuditEvent(req.user, 'HAMPER_UPDATED', 'GIFT_HAMPER', id, { name: updates.name, price: updates.price, is_active: updates.is_active });
+  logAuditEvent(req.user, 'HAMPER_UPDATED', 'GIFT_HAMPER', id, { name: updates.name, price: updates.hamper_price, is_active: updates.is_active });
   res.json({ success: true, hamper });
 });
 

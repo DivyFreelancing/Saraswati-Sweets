@@ -358,7 +358,7 @@ export const catalogService = {
             id: 1,
             store_name: data.store_name || 'Saraswati Sweets',
             tagline: data.tagline || 'Pure Desi Ghee Mithai Since 1989',
-            phone: data.phone || '+91 91611 10030',
+            store_phone: data.phone || '+91 91611 10030',
             whatsapp: data.whatsapp || '+91 91611 10030',
             email: data.email || 'order@saraswatisweets.in',
             address: data.address || 'Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001',
