@@ -29,7 +29,7 @@ export const SEED_CATEGORIES: Category[] = [
     is_active: true,
   },
   {
-    id: 'f8d700d4-a734-432b-9460-23bd9da45aad',
+    id: 'c1000000-0000-0000-0000-000000000002',
     name: 'Kaju & Dry Fruit Specials',
     slug: 'kaju-dry-fruits',
     description: 'Finest Mangalore cashews and dry-fruit confections adorned with silver foil.',
@@ -38,7 +38,7 @@ export const SEED_CATEGORIES: Category[] = [
     is_active: true,
   },
   {
-    id: '1eb3de3a-b888-40c7-89d1-c2d1e6806ed2',
+    id: 'c1000000-0000-0000-0000-000000000003',
     name: 'Chhena & Syrupy Delights',
     slug: 'chhena-syrupy',
     description: 'Fresh cow milk chhena sweets steeped in fragrant rose and saffron nectars.',
@@ -56,7 +56,7 @@ export const SEED_CATEGORIES: Category[] = [
     is_active: true,
   },
   {
-    id: '85bc9adc-ab45-4f25-9010-3b0da60cf597',
+    id: 'c1000000-0000-0000-0000-000000000005',
     name: 'Artisanal Namkeen & Savories',
     slug: 'namkeen-savories',
     description: 'Crunchy traditional Awadhi snacks, dalmoth, and ajwain mathri.',
@@ -74,7 +74,7 @@ export const SEED_CATEGORIES: Category[] = [
     is_active: true,
   },
   {
-    id: '38853e89-ea25-45d5-a7f6-313486781bfc',
+    id: 'c1000000-0000-0000-0000-000000000005',
     name: 'Namkeen & Snacks',
     slug: 'namkeen-snacks',
     description: 'A crisp, savory selection of traditional namkeen and snacks.',
@@ -102,7 +102,7 @@ export const SEED_CATEGORIES: Category[] = [
     is_active: true,
   },
   {
-    id: '1d40a1b0-1630-41e5-932b-0c1423ec3dba',
+    id: 'c1000000-0000-0000-0000-000000000001',
     name: 'Traditional Mithai',
     slug: 'traditional-mithai',
     description: 'Traditional mithai.',
@@ -115,7 +115,7 @@ export const SEED_CATEGORIES: Category[] = [
 export const SEED_PRODUCTS: Product[] = [
   {
     id: 'prod-kaju-katli',
-    category_id: 'f8d700d4-a734-432b-9460-23bd9da45aad',
+    category_id: 'c1000000-0000-0000-0000-000000000002',
     name: 'Signature Silver Leaf Kaju Katli',
     slug: 'kaju-katli',
     description: 'Our crowned jewel since 1989. Melt-in-mouth diamond cuts crafted from premium grade W320 Mangalore cashews and pure cane sugar, finished with certified vegetarian silver foil (chandi ka varq). Delicate, silky, and unbeatably fresh.',
@@ -162,7 +162,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-gulab-jamun',
-    category_id: '1eb3de3a-b888-40c7-89d1-c2d1e6806ed2',
+    category_id: 'c1000000-0000-0000-0000-000000000003',
     name: 'Royal Saffron Gulab Jamun',
     slug: 'royal-saffron-gulab-jamun',
     description: 'Rich buffalo khoya and soft chhena dumplings fried gently to an amber mahogany finish in pure ghee, then slowly steeped in warm rosewater and Kashmiri saffron cardamom syrup.',
@@ -229,7 +229,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-rasgulla',
-    category_id: '1eb3de3a-b888-40c7-89d1-c2d1e6806ed2',
+    category_id: 'c1000000-0000-0000-0000-000000000003',
     name: 'Kolkata Style Spongy Rasgulla',
     slug: 'spongy-rasgulla',
     description: 'Feather-light globes of fresh farm milk chhena cooked in light, crystal-clear sugar syrup. Juicy, clean, and mildly sweet. Prepared fresh every 24 hours.',
@@ -251,7 +251,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-dalmoth',
-    category_id: '85bc9adc-ab45-4f25-9010-3b0da60cf597',
+    category_id: 'c1000000-0000-0000-0000-000000000005',
     name: 'Awadhi Shahi Dalmoth Mixture',
     slug: 'shahi-dalmoth-mixture',
     description: 'Crisp fried whole brown lentils (sabut masoor), tender sev, and crunchy cashew splits tossed in black salt, roasted cumin, and dry mango amchur. The quintessential companion for evening tea in Barabanki.',
@@ -273,7 +273,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-mathri',
-    category_id: '85bc9adc-ab45-4f25-9010-3b0da60cf597',
+    category_id: 'c1000000-0000-0000-0000-000000000005',
     name: 'Crispy Ajwain Khasta Mathri',
     slug: 'khasta-mathri',
     description: 'Flaky, layered savory crackers spiced with pungent carom seeds (ajwain) and cracked black peppercorns. Crispy, golden, and deeply comforting with spicy mango pickle.',
@@ -294,7 +294,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-mini-samosa',
-    category_id: '38853e89-ea25-45d5-a7f6-313486781bfc',
+    category_id: 'c1000000-0000-0000-0000-000000000005',
     name: 'Mini Samosa',
     slug: 'mini-samosa',
     description: 'A crispy savory snack – mini samosa.',
@@ -315,7 +315,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-mini-khasta',
-    category_id: '38853e89-ea25-45d5-a7f6-313486781bfc',
+    category_id: 'c1000000-0000-0000-0000-000000000005',
     name: 'Mini Khasta',
     slug: 'mini-khasta',
     description: 'A crispy savory snack – mini khasta.',
@@ -336,7 +336,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-plain-mathri',
-    category_id: '38853e89-ea25-45d5-a7f6-313486781bfc',
+    category_id: 'c1000000-0000-0000-0000-000000000005',
     name: 'Plain Mathri',
     slug: 'plain-mathri',
     description: 'A crispy savory snack – plain mathri.',
@@ -357,7 +357,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-achari-mathri',
-    category_id: '38853e89-ea25-45d5-a7f6-313486781bfc',
+    category_id: 'c1000000-0000-0000-0000-000000000005',
     name: 'Achari Mathri',
     slug: 'achari-mathri',
     description: 'A crispy savory snack – achari mathri.',
@@ -378,7 +378,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-achari-samosa',
-    category_id: '38853e89-ea25-45d5-a7f6-313486781bfc',
+    category_id: 'c1000000-0000-0000-0000-000000000005',
     name: 'Achari Samosa',
     slug: 'achari-samosa',
     description: 'A crispy savory snack – achari samosa.',
@@ -399,7 +399,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-mewa-samosa',
-    category_id: '38853e89-ea25-45d5-a7f6-313486781bfc',
+    category_id: 'c1000000-0000-0000-0000-000000000005',
     name: 'Mewa Samosa',
     slug: 'mewa-samosa',
     description: 'A crispy savory snack – mewa samosa.',
@@ -420,7 +420,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-masoor-dalmoth',
-    category_id: '38853e89-ea25-45d5-a7f6-313486781bfc',
+    category_id: 'c1000000-0000-0000-0000-000000000005',
     name: 'Masoor Dalmoth',
     slug: 'masoor-dalmoth',
     description: 'A crispy savory snack – masoor dalmoth.',
@@ -441,7 +441,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-pudina-mixture',
-    category_id: '38853e89-ea25-45d5-a7f6-313486781bfc',
+    category_id: 'c1000000-0000-0000-0000-000000000005',
     name: 'Pudina Mixture',
     slug: 'pudina-mixture',
     description: 'A crispy savory snack – pudina mixture.',
@@ -462,7 +462,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-kaju-dalmoth',
-    category_id: '38853e89-ea25-45d5-a7f6-313486781bfc',
+    category_id: 'c1000000-0000-0000-0000-000000000005',
     name: 'Kaju Dalmoth',
     slug: 'kaju-dalmoth',
     description: 'A crispy savory snack – kaju dalmoth.',
@@ -483,7 +483,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-sev-besan',
-    category_id: '38853e89-ea25-45d5-a7f6-313486781bfc',
+    category_id: 'c1000000-0000-0000-0000-000000000005',
     name: 'Sev (Besan)',
     slug: 'sev-besan',
     description: 'A crispy savory snack – sev (besan).',
@@ -504,7 +504,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-ganthe',
-    category_id: '38853e89-ea25-45d5-a7f6-313486781bfc',
+    category_id: 'c1000000-0000-0000-0000-000000000005',
     name: 'Ganthe',
     slug: 'ganthe',
     description: 'A crispy savory snack – ganthe.',
@@ -819,7 +819,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-chandrakala',
-    category_id: '1d40a1b0-1630-41e5-932b-0c1423ec3dba',
+    category_id: 'c1000000-0000-0000-0000-000000000001',
     name: 'Chandrakala',
     slug: 'chandrakala',
     description: 'A delicious traditional sweet – chandrakala.',
@@ -840,7 +840,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-batisa-barfi',
-    category_id: '1d40a1b0-1630-41e5-932b-0c1423ec3dba',
+    category_id: 'c1000000-0000-0000-0000-000000000001',
     name: 'Batisa Barfi',
     slug: 'batisa-barfi',
     description: 'A delicious traditional sweet – batisa barfi.',
@@ -861,7 +861,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-gol-batisa',
-    category_id: '1d40a1b0-1630-41e5-932b-0c1423ec3dba',
+    category_id: 'c1000000-0000-0000-0000-000000000001',
     name: 'Gol Batisa',
     slug: 'gol-batisa',
     description: 'A delicious traditional sweet – gol batisa.',
@@ -882,7 +882,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-lal-peda',
-    category_id: '1d40a1b0-1630-41e5-932b-0c1423ec3dba',
+    category_id: 'c1000000-0000-0000-0000-000000000001',
     name: 'Lal Peda',
     slug: 'lal-peda',
     description: 'A delicious traditional sweet – lal peda.',
@@ -903,7 +903,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-kesariya-peda',
-    category_id: '1d40a1b0-1630-41e5-932b-0c1423ec3dba',
+    category_id: 'c1000000-0000-0000-0000-000000000001',
     name: 'Kesariya Peda',
     slug: 'kesariya-peda',
     description: 'A delicious traditional sweet – kesariya peda.',
@@ -924,7 +924,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-khoya-katli',
-    category_id: '1d40a1b0-1630-41e5-932b-0c1423ec3dba',
+    category_id: 'c1000000-0000-0000-0000-000000000001',
     name: 'Khoya Katli',
     slug: 'khoya-katli',
     description: 'A delicious traditional sweet – khoya katli.',
@@ -945,7 +945,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-mini-balushahi',
-    category_id: '1d40a1b0-1630-41e5-932b-0c1423ec3dba',
+    category_id: 'c1000000-0000-0000-0000-000000000001',
     name: 'Mini Balushahi',
     slug: 'mini-balushahi',
     description: 'A delicious traditional sweet – mini balushahi.',
@@ -966,7 +966,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-mewa-laddu',
-    category_id: '1d40a1b0-1630-41e5-932b-0c1423ec3dba',
+    category_id: 'c1000000-0000-0000-0000-000000000001',
     name: 'Mewa Laddu',
     slug: 'mewa-laddu',
     description: 'A delicious traditional sweet – mewa laddu.',
@@ -987,7 +987,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-khoya-gilori',
-    category_id: '1d40a1b0-1630-41e5-932b-0c1423ec3dba',
+    category_id: 'c1000000-0000-0000-0000-000000000001',
     name: 'Khoya Gilori',
     slug: 'khoya-gilori',
     description: 'A delicious traditional sweet – khoya gilori.',
@@ -1008,7 +1008,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-doda-barfi',
-    category_id: '1d40a1b0-1630-41e5-932b-0c1423ec3dba',
+    category_id: 'c1000000-0000-0000-0000-000000000001',
     name: 'Doda Barfi',
     slug: 'doda-barfi',
     description: 'A delicious traditional sweet – doda barfi.',
@@ -1029,7 +1029,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-magdal',
-    category_id: '1d40a1b0-1630-41e5-932b-0c1423ec3dba',
+    category_id: 'c1000000-0000-0000-0000-000000000001',
     name: 'Magdal',
     slug: 'magdal',
     description: 'A delicious traditional sweet – magdal.',
@@ -1050,7 +1050,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-milk-barfi',
-    category_id: '1d40a1b0-1630-41e5-932b-0c1423ec3dba',
+    category_id: 'c1000000-0000-0000-0000-000000000001',
     name: 'Milk Barfi',
     slug: 'milk-barfi',
     description: 'A delicious traditional sweet – milk barfi.',
@@ -1071,7 +1071,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-mewa-motichur-laddu',
-    category_id: '1d40a1b0-1630-41e5-932b-0c1423ec3dba',
+    category_id: 'c1000000-0000-0000-0000-000000000001',
     name: 'Mewa Motichur Laddu',
     slug: 'mewa-motichur-laddu',
     description: 'A delicious traditional sweet – mewa motichur laddu.',
@@ -1092,7 +1092,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-soonth-laddu',
-    category_id: '1d40a1b0-1630-41e5-932b-0c1423ec3dba',
+    category_id: 'c1000000-0000-0000-0000-000000000001',
     name: 'Soonth Laddu',
     slug: 'soonth-laddu',
     description: 'A delicious traditional sweet – soonth laddu.',
@@ -1113,7 +1113,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-churma-laddu',
-    category_id: '1d40a1b0-1630-41e5-932b-0c1423ec3dba',
+    category_id: 'c1000000-0000-0000-0000-000000000001',
     name: 'Churma Laddu',
     slug: 'churma-laddu',
     description: 'A delicious traditional sweet – churma laddu.',
@@ -1134,7 +1134,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-chocolate-biscuit',
-    category_id: '1d40a1b0-1630-41e5-932b-0c1423ec3dba',
+    category_id: 'c1000000-0000-0000-0000-000000000001',
     name: 'Chocolate Biscuit',
     slug: 'chocolate-biscuit',
     description: 'A delicious traditional sweet – chocolate biscuit.',
@@ -1155,7 +1155,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-batisa-laddu',
-    category_id: '1d40a1b0-1630-41e5-932b-0c1423ec3dba',
+    category_id: 'c1000000-0000-0000-0000-000000000001',
     name: 'Batisa Laddu',
     slug: 'batisa-laddu',
     description: 'A delicious traditional sweet – batisa laddu.',
@@ -1176,7 +1176,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-karachi-halwa',
-    category_id: '1d40a1b0-1630-41e5-932b-0c1423ec3dba',
+    category_id: 'c1000000-0000-0000-0000-000000000001',
     name: 'Karachi Halwa',
     slug: 'karachi-halwa',
     description: 'A delicious traditional sweet – karachi halwa.',
@@ -1197,7 +1197,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-pinni',
-    category_id: '1d40a1b0-1630-41e5-932b-0c1423ec3dba',
+    category_id: 'c1000000-0000-0000-0000-000000000001',
     name: 'Pinni',
     slug: 'pinni',
     description: 'A delicious traditional sweet – pinni.',
@@ -1218,7 +1218,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-kala-jam',
-    category_id: '1d40a1b0-1630-41e5-932b-0c1423ec3dba',
+    category_id: 'c1000000-0000-0000-0000-000000000001',
     name: 'Kala Jam',
     slug: 'kala-jam',
     description: 'A delicious traditional sweet – kala jam.',
@@ -1239,7 +1239,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-milk-cake',
-    category_id: '1d40a1b0-1630-41e5-932b-0c1423ec3dba',
+    category_id: 'c1000000-0000-0000-0000-000000000001',
     name: 'Milk Cake',
     slug: 'milk-cake',
     description: 'A delicious traditional sweet – milk cake.',
@@ -1260,7 +1260,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-nariyal-barfi-coconut-barfi',
-    category_id: '1d40a1b0-1630-41e5-932b-0c1423ec3dba',
+    category_id: 'c1000000-0000-0000-0000-000000000001',
     name: 'Nariyal Barfi (Coconut Barfi)',
     slug: 'nariyal-barfi-coconut-barfi',
     description: 'A delicious traditional sweet – nariyal barfi (coconut barfi).',
@@ -1281,7 +1281,7 @@ export const SEED_PRODUCTS: Product[] = [
   },
   {
     id: 'prod-khoya-kalakand',
-    category_id: '1d40a1b0-1630-41e5-932b-0c1423ec3dba',
+    category_id: 'c1000000-0000-0000-0000-000000000001',
     name: 'Khoya Kalakand',
     slug: 'khoya-kalakand',
     description: 'A delicious traditional sweet – khoya kalakand.',
