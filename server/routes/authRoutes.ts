@@ -207,7 +207,7 @@ router.post('/demo-login', async (req, res) => {
         // Bug #2 Fix: Never generate a placeholder name. If no real name provided, store empty string.
         // This ensures the checkout recipient name field stays blank, not pre-filled with "Patron XXXX".
         full_name: providedName || '',
-        role: 'CUSTOMER',
+        role: req.body.role || 'CUSTOMER',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -215,6 +215,9 @@ router.post('/demo-login', async (req, res) => {
       // If user provides a real full name, update it!
       if (providedName) {
         profile.full_name = providedName;
+      }
+      if (req.body.role) {
+        profile.role = req.body.role;
       }
       profile.phone = formattedPhone;
       profile.updated_at = new Date().toISOString();

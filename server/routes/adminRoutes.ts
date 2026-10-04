@@ -639,10 +639,10 @@ router.put('/variants/:id', requireRole(['ADMIN']), async (req: AuthenticatedReq
     return;
   }
 
-  const { label, hamper_price, mrp, weightGrams, stockQuantity, stockStatus } = req.body;
+  const { label, price, mrp, weightGrams, stockQuantity, stockStatus } = req.body;
   const updates: Record<string, any> = {};
   if (label !== undefined) updates.label = String(label);
-  if (hamper_price !== undefined) updates.hamper_price = Number(hamper_price);
+  if (price !== undefined) updates.price = Number(price);
   if (mrp !== undefined) updates.mrp = Number(mrp);
   if (weightGrams !== undefined) updates.weight_grams = Number(weightGrams);
   if (stockQuantity !== undefined) updates.stock_quantity = Number(stockQuantity);
@@ -656,14 +656,14 @@ router.put('/variants/:id', requireRole(['ADMIN']), async (req: AuthenticatedReq
   }
 
   if (updates.label !== undefined) variant.label = updates.label;
-  if (updates.hamper_price !== undefined) variant.price = updates.hamper_price;
+  if (updates.price !== undefined) variant.price = updates.price;
   if (updates.mrp !== undefined) variant.mrp = updates.mrp;
   if (updates.weight_grams !== undefined) variant.weightGrams = updates.weight_grams;
   if (updates.stock_quantity !== undefined) variant.stockQuantity = updates.stock_quantity;
   if (updates.stock_status !== undefined) variant.stockStatus = updates.stock_status;
   Map.prototype.set.call(inMemoryStore.variants, id, variant);
 
-  logAuditEvent(req.user, 'VARIANT_UPDATED', 'PRODUCT', id, { label: updates.label, price: updates.hamper_price });
+  logAuditEvent(req.user, 'VARIANT_UPDATED', 'PRODUCT', id, { label: updates.label, price: updates.price });
   res.json({ success: true, variant });
 });
 
