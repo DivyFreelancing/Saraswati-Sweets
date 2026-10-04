@@ -248,7 +248,10 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
           await clearCart();
           showToast('Payment verified successfully! Fresh sweets are being prepared.', 'success');
           onOrderSuccess(data.order?.order_number || order_id);
-          window.history.replaceState({}, '', '/');
+        } else if (data.pending) {
+          setErrorMessage('Payment verification is pending. Please check your order history in a few minutes.');
+          setIsPlacingOrder(false);
+          window.history.replaceState({}, '', '/checkout');
         } else {
           setErrorMessage(data.message || 'Payment verification failed.');
           setIsPlacingOrder(false);

@@ -74,14 +74,38 @@ export async function createCashfreeOrder(
   };
 }
 
-export function verifyPaymentSignature(
-  orderId: string,
-  paymentSessionId: string
-): boolean {
-  if (!orderId) {
-    return false;
+export async function verifyCashfreeOrderStatus(orderId: string): Promise<string> {
+  if (!orderId) return 'FAILED';
+  
+  // Local testing / simulation mode
+  if (CASHFREE_APP_ID.includes('placeholder') || CASHFREE_APP_ID.includes('test_app')) {
+    console.log(`[Cashfree API - Sandbox Sim] Auto-verifying order ${orderId} as PAID`);
+    return 'PAID';
   }
-  return true;
+
+  try {
+    const response = await fetch(`${API_BASE}/orders/${orderId}`, {
+      method: 'GET',
+      headers: {
+        'x-client-id': CASHFREE_APP_ID,
+        'x-client-secret': CASHFREE_SECRET_KEY,
+        'x-api-version': '2023-08-01',
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      console.error(`[Cashfree API] Failed to fetch order status. HTTP ${response.status}`);
+      return 'FAILED';
+    }
+
+    const data = await response.json();
+    // order_status can be ACTIVE, PAID, UNPAID, EXPIRED
+    return data.order_status || 'FAILED';
+  } catch (err: any) {
+    console.error('[Cashfree API] Error verifying order:', err.message);
+    return 'FAILED';
+  }
 }
 
 export function verifyWebhookSignature(

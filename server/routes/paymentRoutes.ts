@@ -7,7 +7,7 @@ import {
   expireUnpaidOrders,
 } from '../db';
 import {
-  verifyPaymentSignature,
+  verifyCashfreeOrderStatus,
   verifyWebhookSignature,
 } from '../services/cashfreeService';
 import {
@@ -36,15 +36,22 @@ router.post('/verify', async (req: Request, res: Response) => {
     return;
   }
 
-  const isValid = verifyPaymentSignature(
-    cashfree_order_id,
-    cashfree_payment_session_id
-  );
+  // Check Cashfree API directly for true status
+  const cashfreeStatus = await verifyCashfreeOrderStatus(cashfree_order_id);
 
-  if (!isValid) {
+  if (cashfreeStatus === 'ACTIVE' || cashfreeStatus === 'PENDING') {
+    res.status(200).json({
+      success: false,
+      pending: true,
+      message: 'Payment verification pending. We are waiting for Cashfree to confirm.',
+    });
+    return;
+  }
+
+  if (cashfreeStatus !== 'PAID') {
     res.status(400).json({
-      error: 'INVALID_PAYMENT_SIGNATURE',
-      message: 'Payment verification failed.',
+      error: 'PAYMENT_NOT_PAID',
+      message: 'Payment was not successful or has failed.',
     });
     return;
   }
