@@ -696,7 +696,7 @@ export interface ServerOrder {
   total_amount: number;
   status: OrderStatus;
   payment_method: 'COD' | 'ONLINE';
-  payment_status: 'PENDING' | 'CAPTURED' | 'FAILED' | 'REFUNDED';
+  payment_status: 'PENDING' | 'CAPTURED' | 'FAILED' | 'REFUNDED' | 'REFUND_PENDING' | 'REFUND_FAILED';
   provider_order_id?: string;
   provider_payment_id?: string;
   provider_refund_id?: string;
@@ -806,6 +806,22 @@ export interface ServerDeliveryPartner {
   status: 'AVAILABLE' | 'ON_DELIVERY' | 'OFF_DUTY';
   current_assigned_orders: number;
   created_at: string;
+}
+
+export interface ServerRefund {
+  id: string;
+  order_id: string;
+  payment_id?: string;
+  refund_id: string;
+  cf_refund_id?: string;
+  refund_amount: number;
+  refund_status: 'PENDING' | 'SUCCESS' | 'FAILED';
+  refund_note?: string;
+  refund_arn?: string;
+  raw_response?: any;
+  processed_at?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ServerAuditLog {

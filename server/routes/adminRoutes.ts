@@ -781,38 +781,141 @@ router.post('/orders/:id/refund', requireRole(['ADMIN']), async (req: Authentica
 
   try {
     const amountInPaise = Math.round(order.total_amount * 100);
-    const refundResult = await createCashfreeRefund(order.provider_payment_id, amountInPaise, {
+    
+    // Check if a pending/successful refund already exists in our DB to prevent duplicates
+    const existingRefunds = Array.from(inMemoryStore.refunds.values()).filter(r => r.order_id === order.id);
+    if (existingRefunds.some(r => r.refund_status === 'SUCCESS' || r.refund_status === 'PENDING')) {
+      return res.status(409).json({ error: 'ALREADY_REFUNDED', message: 'A refund has already been initiated or completed for this order.' });
+    }
+
+    // Call Cashfree Refund API
+    const refundResult = await createCashfreeRefund(order.provider_order_id, amountInPaise, {
       orderId: order.id,
       orderNumber: order.order_number,
       reason,
     });
 
     const nowIso = new Date().toISOString();
+    
+    const cfRefundStatus = refundResult.refund_status || 'PENDING';
+    const localPaymentStatus = cfRefundStatus === 'SUCCESS' ? 'REFUNDED' 
+                             : cfRefundStatus === 'FAILED' ? 'REFUND_FAILED'
+                             : 'REFUND_PENDING';
+                             
+    const localOrderStatus = cfRefundStatus === 'SUCCESS' ? 'REFUNDED' : order.status;
+
+    // Create a local refund record
+    const internalRefundId = crypto.randomUUID();
+    const newRefundRecord = {
+      id: internalRefundId,
+      order_id: order.id,
+      refund_id: refundResult.refund_id,
+      cf_refund_id: refundResult.cf_refund_id?.toString() || '',
+      refund_amount: order.total_amount,
+      refund_status: cfRefundStatus === 'SUCCESS' ? 'SUCCESS' : cfRefundStatus === 'FAILED' ? 'FAILED' : 'PENDING',
+      refund_note: reason,
+      raw_response: refundResult,
+      created_at: nowIso,
+      updated_at: nowIso
+    };
+
     if (isLiveSupabase && supabaseServer) {
+      // Create refund record
+      await supabaseServer.from('refunds').insert([newRefundRecord]);
+      // Update order
       await supabaseServer.from('orders').update({
-        status: 'REFUNDED',
-        payment_status: 'REFUNDED',
+        status: localOrderStatus,
+        payment_status: localPaymentStatus,
         updated_at: nowIso,
       }).eq('id', order.id);
     }
 
-    order.status = 'REFUNDED';
-    order.payment_status = 'REFUNDED';
-    order.provider_refund_id = refundResult.id;
+    // Update Memory Store
+    inMemoryStore.refunds.set(internalRefundId, newRefundRecord as any);
+
+    order.status = localOrderStatus as any;
+    order.payment_status = localPaymentStatus as any;
+    order.provider_refund_id = refundResult.refund_id;
     order.refund_reason = reason;
     order.updated_at = nowIso;
     Map.prototype.set.call(inMemoryStore.orders, order.id, order);
 
-    logAuditEvent(req.user, 'ORDER_REFUNDED', 'ORDER', order.id, {
+    logAuditEvent(req.user, 'ORDER_REFUND_INITIATED', 'ORDER', order.id, {
       orderNumber: order.order_number,
       amount: order.total_amount,
-      refundId: refundResult.id,
+      refundId: refundResult.refund_id,
+      status: cfRefundStatus,
       reason,
     });
 
-    res.json({ success: true, message: `Refund of ₹${order.total_amount} processed for Order #${order.order_number}`, refund: refundResult, order });
+    res.json({ 
+      success: true, 
+      message: `Refund initiated. Status: ${cfRefundStatus}`, 
+      refund: newRefundRecord, 
+      order 
+    });
   } catch (err: any) {
+    console.error('[Cashfree API] Refund error:', err);
     res.status(500).json({ error: 'REFUND_FAILED', message: err.message || 'Cashfree refund API call failed' });
+  }
+});
+
+
+// GET /api/admin/orders/:id/refund/sync
+router.get('/orders/:id/refund/sync', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const order = inMemoryStore.orders.get(id);
+  if (!order || !order.provider_refund_id) {
+    return res.status(404).json({ error: 'NOT_FOUND', message: 'Order or refund not found' });
+  }
+
+  try {
+    const refundData = await fetchCashfreeRefund(order.provider_order_id!, order.provider_refund_id);
+    const nowIso = new Date().toISOString();
+
+    const cfRefundStatus = refundData.refund_status || 'PENDING';
+    const cfRefundId = refundData.cf_refund_id?.toString() || '';
+    const refundArn = refundData.refund_arn || '';
+
+    // Update local refund record
+    let refund = Array.from(inMemoryStore.refunds.values()).find(r => r.refund_id === order.provider_refund_id);
+    if (refund) {
+      refund.refund_status = cfRefundStatus === 'SUCCESS' ? 'SUCCESS' : cfRefundStatus === 'FAILED' ? 'FAILED' : 'PENDING';
+      if (cfRefundId) refund.cf_refund_id = cfRefundId;
+      if (refundArn) refund.refund_arn = refundArn;
+      refund.updated_at = nowIso;
+      inMemoryStore.refunds.set(refund.id, refund);
+
+      if (isLiveSupabase && supabaseServer) {
+        supabaseServer.from('refunds').update({
+          refund_status: refund.refund_status,
+          cf_refund_id: refund.cf_refund_id,
+          refund_arn: refund.refund_arn,
+          updated_at: nowIso
+        }).eq('id', refund.id).then(() => {});
+      }
+    }
+
+    const localPaymentStatus = cfRefundStatus === 'SUCCESS' ? 'REFUNDED' 
+                             : cfRefundStatus === 'FAILED' ? 'REFUND_FAILED'
+                             : 'REFUND_PENDING';
+
+    order.payment_status = localPaymentStatus as any;
+    if (cfRefundStatus === 'SUCCESS') order.status = 'REFUNDED';
+    order.updated_at = nowIso;
+    inMemoryStore.orders.set(order.id, order);
+
+    if (isLiveSupabase && supabaseServer) {
+      supabaseServer.from('orders').update({
+        status: order.status,
+        payment_status: order.payment_status,
+        updated_at: nowIso
+      }).eq('id', order.id).then(() => {});
+    }
+
+    res.json({ success: true, refund: refundData, order });
+  } catch (err: any) {
+    res.status(500).json({ error: 'SYNC_FAILED', message: err.message || 'Failed to sync refund' });
   }
 });
 

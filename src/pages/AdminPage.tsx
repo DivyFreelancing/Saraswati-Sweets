@@ -508,6 +508,24 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
   };
 
   // 6. CASHFREE REFUND ACTION (ADMIN ONLY) WITH DOUBLE-REFUND GUARD
+  
+  const handleSyncRefund = async (orderId: string) => {
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}/refund/sync`, {
+        headers: getAuthHeaders()
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(`Refund synced: ${data.refund?.refund_status || 'Unknown'}`, 'success');
+        setOrders(prev => prev.map(o => o.id === orderId ? data.order : o));
+      } else {
+        showToast(data.message || 'Failed to sync refund', 'error');
+      }
+    } catch (e) {
+      showToast('Error syncing refund', 'error');
+    }
+  };
+
   const handleExecuteRefund = async () => {
     if (!refundOrderTarget) return;
 
@@ -1645,10 +1663,20 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                           </span>
                         )}
 
-                        {status === 'REFUNDED' && (
-                          <span className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                            Refunded ({order.cashfree_refund_id || 'Processed'})
-                          </span>
+                        {(status === 'REFUNDED' || order.payment_status?.includes('REFUND')) && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                              {order.payment_status === 'REFUND_PENDING' ? 'Refund Processing' : order.payment_status === 'REFUND_FAILED' ? 'Refund Failed' : 'Refunded'} 
+                              ({order.provider_refund_id || 'Processed'})
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleSyncRefund(order.id)}
+                              className="text-[10px] bg-stone-200 hover:bg-stone-300 px-2 py-0.5 rounded text-stone-700 transition"
+                            >
+                              Sync Status
+                            </button>
+                          </div>
                         )}
                       </div>
 
@@ -1665,7 +1693,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                           </button>
                         )}
 
-                        {isAdmin && isPaidOnline && status !== 'REFUNDED' && (
+                        {isAdmin && isPaidOnline && status !== 'REFUNDED' && !order.payment_status?.includes('REFUND') && (
                           <button
                             type="button"
                             onClick={() => setRefundOrderTarget(order)}

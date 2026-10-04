@@ -124,14 +124,64 @@ export function verifyWebhookSignature(
 }
 
 export async function createCashfreeRefund(
-  paymentId: string,
+  orderId: string,
   amountInPaise: number,
   notes: Record<string, string> = {}
-): Promise<{ id: string; amount: number; status: string }> {
-  // Simulated refund for development/test mode
+): Promise<any> {
+  const amountInRupees = amountInPaise / 100;
+  const refundId = `rfnd_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+  if (!CASHFREE_APP_ID.includes('placeholder') && !CASHFREE_APP_ID.includes('test_app')) {
+    const response = await fetch(`${API_BASE}/orders/${orderId}/refunds`, {
+      method: 'POST',
+      headers: {
+        'x-client-id': CASHFREE_APP_ID,
+        'x-client-secret': CASHFREE_SECRET_KEY,
+        'x-api-version': '2023-08-01',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        refund_amount: amountInRupees,
+        refund_id: refundId,
+        refund_note: notes.reason || 'Store refund'
+      })
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(`Cashfree Refund API failed (${response.status}): ${JSON.stringify(errData)}`);
+    }
+
+    const refundResult = await response.json();
+    return refundResult;
+  }
+
+  // Fallback for simulated development test mode
   return {
-    id: `rfnd_test_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-    amount: amountInPaise,
-    status: 'processed',
+    cf_refund_id: 'sim_cf_rfnd_' + Date.now(),
+    refund_id: refundId,
+    order_id: orderId,
+    refund_amount: amountInRupees,
+    refund_status: 'SUCCESS', // Simulate immediate success in local dev
+    refund_note: notes.reason || ''
   };
+}
+
+export async function fetchCashfreeRefund(orderId: string, refundId: string): Promise<any> {
+  const response = await fetch(`${API_BASE}/orders/${orderId}/refunds/${refundId}`, {
+    method: 'GET',
+    headers: {
+      'x-client-id': CASHFREE_APP_ID,
+      'x-client-secret': CASHFREE_SECRET_KEY,
+      'x-api-version': '2023-08-01',
+      'Accept': 'application/json'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Cashfree Fetch Refund API failed (${response.status})`);
+  }
+
+  return await response.json();
 }

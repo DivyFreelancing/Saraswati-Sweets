@@ -150,7 +150,11 @@ router.post('/webhook/cashfree', async (req: Request, res: Response) => {
 
   const payload = req.body;
   const event = payload?.type;
-  const eventId = payload?.data?.order?.order_id || Date.now().toString();
+  let eventId = payload?.data?.order?.order_id || Date.now().toString();
+  
+  if (event === 'REFUND_STATUS_WEBHOOK') {
+    eventId = (payload?.data?.refund?.refund_id || eventId) + '_' + (payload?.data?.refund?.refund_status || '');
+  }
 
   if (inMemoryStore.processedWebhookEvents.has(eventId + event)) {
     res.status(200).json({ status: 'already_processed' });
@@ -194,9 +198,55 @@ router.post('/webhook/cashfree', async (req: Request, res: Response) => {
 
       inMemoryStore.orders.set(order.id, order);
     }
+  } else if (event === 'REFUND_STATUS_WEBHOOK') {
+    const cfRefundId = payload.data?.refund?.cf_refund_id?.toString();
+    const refundId = payload.data?.refund?.refund_id;
+    const cfRefundStatus = payload.data?.refund?.refund_status;
+    const orderId = payload.data?.order?.order_id; // provider_order_id
+    const refundArn = payload.data?.refund?.refund_arn;
+
+    let order = Array.from(inMemoryStore.orders.values()).find(o => o.provider_order_id === orderId);
+    let refund = Array.from(inMemoryStore.refunds.values()).find(r => r.refund_id === refundId || (cfRefundId && r.cf_refund_id === cfRefundId));
+
+    if (refund) {
+      const localPaymentStatus = cfRefundStatus === 'SUCCESS' ? 'REFUNDED' 
+                             : cfRefundStatus === 'FAILED' ? 'REFUND_FAILED'
+                             : 'REFUND_PENDING';
+      
+      refund.refund_status = cfRefundStatus === 'SUCCESS' ? 'SUCCESS' : cfRefundStatus === 'FAILED' ? 'FAILED' : 'PENDING';
+      if (cfRefundId) refund.cf_refund_id = cfRefundId;
+      if (refundArn) refund.refund_arn = refundArn;
+      refund.updated_at = nowIso;
+      inMemoryStore.refunds.set(refund.id, refund);
+
+      if (isLiveSupabase && supabaseServer) {
+        supabaseServer.from('refunds').update({
+          refund_status: refund.refund_status,
+          cf_refund_id: refund.cf_refund_id,
+          refund_arn: refund.refund_arn,
+          updated_at: nowIso
+        }).eq('id', refund.id).then(() => {});
+      }
+
+      if (order) {
+        order.payment_status = localPaymentStatus as any;
+        if (cfRefundStatus === 'SUCCESS') order.status = 'REFUNDED';
+        order.updated_at = nowIso;
+        inMemoryStore.orders.set(order.id, order);
+
+        if (isLiveSupabase && supabaseServer) {
+          supabaseServer.from('orders').update({
+            status: order.status,
+            payment_status: order.payment_status,
+            updated_at: nowIso
+          }).eq('id', order.id).then(() => {});
+        }
+      }
+    }
   }
 
   res.status(200).json({ status: 'ok', event, processed: true });
+
 });
 
 router.post('/expire-check', (_req: Request, res: Response) => {
