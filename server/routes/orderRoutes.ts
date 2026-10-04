@@ -400,7 +400,7 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
     items: orderItemsSnapshots,
   };
 
-  // If ONLINE payment: create Razorpay order and set 15-min auto-expiry
+  // If ONLINE payment: create Cashfree order and set 15-min auto-expiry
   let cashfreePayload: any = null;
   if (isOnlinePayment) {
     const amountInPaise = Math.round(total * 100);
@@ -420,7 +420,7 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
       }
     );
 
-    newOrder.razorpay_order_id = cfOrder.id;
+    newOrder.provider_order_id = cfOrder.id;
 
     // Record initial created payment record
     const rzpUuid = randomUUID();
@@ -428,7 +428,7 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
       id: typeof rzpUuid !== 'undefined' ? rzpUuid : randomUUID(),
       order_id: orderId,
       order_number: orderNumber,
-      razorpay_order_id: cfOrder.id,
+      provider_order_id: cfOrder.id,
       amount: amountInPaise,
       currency: 'INR',
       status: 'CREATED',

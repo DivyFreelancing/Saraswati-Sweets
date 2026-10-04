@@ -188,13 +188,13 @@ CREATE TABLE IF NOT EXISTS public.order_items (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 10. PAYMENTS (Razorpay & COD audit)
+-- 10. PAYMENTS (Cashfree & COD audit)
 CREATE TABLE IF NOT EXISTS public.payments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
     amount NUMERIC(10, 2) NOT NULL,
     currency VARCHAR(10) NOT NULL DEFAULT 'INR',
-    gateway VARCHAR(30) NOT NULL DEFAULT 'RAZORPAY',
+    gateway VARCHAR(30) NOT NULL DEFAULT 'CASHFREE',
     gateway_order_id VARCHAR(100),
     gateway_payment_id VARCHAR(100),
     gateway_signature VARCHAR(255),

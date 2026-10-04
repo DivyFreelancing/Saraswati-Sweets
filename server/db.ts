@@ -649,8 +649,8 @@ export interface ServerPayment {
   id: string;
   order_id: string;
   order_number: string;
-  razorpay_order_id: string;
-  razorpay_payment_id?: string;
+  provider_order_id: string;
+  provider_payment_id?: string;
   amount: number; // in paise
   currency: string;
   status: 'CREATED' | 'CAPTURED' | 'FAILED' | 'REFUNDED';
@@ -697,9 +697,9 @@ export interface ServerOrder {
   status: OrderStatus;
   payment_method: 'COD' | 'ONLINE';
   payment_status: 'PENDING' | 'CAPTURED' | 'FAILED' | 'REFUNDED';
-  razorpay_order_id?: string;
-  razorpay_payment_id?: string;
-  razorpay_refund_id?: string;
+  provider_order_id?: string;
+  provider_payment_id?: string;
+  provider_refund_id?: string;
   refund_reason?: string;
   special_instructions?: string;
   packaging_notes?: string;
@@ -857,7 +857,7 @@ export const inMemoryStore = {
   deliverySlots: generateInitialSlots(),
   orders: new Map<string, ServerOrder>(),
   ordersByIdempotency: new Map<string, ServerOrder>(),
-  payments: new Map<string, ServerPayment>(), // razorpay_payment_id or razorpay_order_id -> payment
+  payments: new Map<string, ServerPayment>(), // provider_payment_id or provider_order_id -> payment
   processedWebhookEvents: new Set<string>(), // event_id -> deduplication
   categories: new Map<string, ServerCategory>([
     [

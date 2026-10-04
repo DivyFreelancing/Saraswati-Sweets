@@ -763,7 +763,7 @@ router.post('/orders/:id/refund', requireRole(['ADMIN']), async (req: Authentica
     return;
   }
 
-  if (order.payment_method !== 'ONLINE' || order.payment_status !== 'CAPTURED' || !order.razorpay_payment_id) {
+  if (order.payment_method !== 'ONLINE' || order.payment_status !== 'CAPTURED' || !order.provider_payment_id) {
     res.status(400).json({
       error: 'ORDER_NOT_REFUNDABLE',
       message: 'Only successfully paid online orders can be refunded.',
@@ -771,7 +771,7 @@ router.post('/orders/:id/refund', requireRole(['ADMIN']), async (req: Authentica
     return;
   }
 
-  if (order.status === 'REFUNDED' || order.razorpay_refund_id) {
+  if (order.status === 'REFUNDED' || order.provider_refund_id) {
     res.status(409).json({
       error: 'ALREADY_REFUNDED',
       message: `Order #${order.order_number} has already been refunded.`,
@@ -781,7 +781,7 @@ router.post('/orders/:id/refund', requireRole(['ADMIN']), async (req: Authentica
 
   try {
     const amountInPaise = Math.round(order.total_amount * 100);
-    const refundResult = await createCashfreeRefund(order.razorpay_payment_id, amountInPaise, {
+    const refundResult = await createCashfreeRefund(order.provider_payment_id, amountInPaise, {
       orderId: order.id,
       orderNumber: order.order_number,
       reason,
@@ -798,7 +798,7 @@ router.post('/orders/:id/refund', requireRole(['ADMIN']), async (req: Authentica
 
     order.status = 'REFUNDED';
     order.payment_status = 'REFUNDED';
-    order.razorpay_refund_id = refundResult.id;
+    order.provider_refund_id = refundResult.id;
     order.refund_reason = reason;
     order.updated_at = nowIso;
     Map.prototype.set.call(inMemoryStore.orders, order.id, order);

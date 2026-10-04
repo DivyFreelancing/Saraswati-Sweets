@@ -56,7 +56,7 @@ router.post('/verify', async (req: Request, res: Response) => {
   }
   if (!order) {
     order = Array.from(inMemoryStore.orders.values()).find(
-      (o) => o.razorpay_order_id === cashfree_order_id
+      (o) => o.provider_order_id === cashfree_order_id
     );
   }
 
@@ -83,7 +83,7 @@ router.post('/verify', async (req: Request, res: Response) => {
   const nowIso = new Date().toISOString();
   order.status = 'PLACED';
   order.payment_status = 'CAPTURED';
-  order.razorpay_payment_id = cashfree_order_id; // Store cashfree order as payment ref
+  order.provider_payment_id = cashfree_order_id; // Store cashfree order as payment ref
   order.paid_at = nowIso;
   order.updated_at = nowIso;
   inMemoryStore.orders.set(order.id, order);
@@ -97,8 +97,8 @@ router.post('/verify', async (req: Request, res: Response) => {
     id: randomUUID(),
     order_id: order.id,
     order_number: order.order_number,
-    razorpay_order_id: cashfree_order_id,
-    razorpay_payment_id: cashfree_order_id,
+    provider_order_id: cashfree_order_id,
+    provider_payment_id: cashfree_order_id,
     amount: Math.round(order.total_amount * 100),
     currency: 'INR',
     status: 'CAPTURED',
@@ -156,7 +156,7 @@ router.post('/webhook/cashfree', async (req: Request, res: Response) => {
   if (event === 'PAYMENT_SUCCESS_WEBHOOK') {
     const orderId = payload.data?.order?.order_id;
     let order = Array.from(inMemoryStore.orders.values()).find(
-      (o) => o.razorpay_order_id === orderId
+      (o) => o.provider_order_id === orderId
     );
 
     if (order && (order.status === 'PENDING_PAYMENT' || order.payment_status !== 'CAPTURED')) {
@@ -171,7 +171,7 @@ router.post('/webhook/cashfree', async (req: Request, res: Response) => {
   } else if (event === 'PAYMENT_FAILED_WEBHOOK') {
     const orderId = payload.data?.order?.order_id;
     let order = Array.from(inMemoryStore.orders.values()).find(
-      (o) => o.razorpay_order_id === orderId
+      (o) => o.provider_order_id === orderId
     );
 
     if (order && order.status === 'PENDING_PAYMENT') {
