@@ -25,8 +25,48 @@ const router = Router();
 // GET /api/delivery-slots - Get active slots for customer picker
 router.get('/delivery-slots', (_req, res) => {
   const now = new Date();
+  const validDates = new Set();
+  
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    d.setDate(d.getDate() + i);
+    const dateStr = formatter.format(d); // YYYY-MM-DD
+    validDates.add(dateStr);
+    
+    const templates = [
+      { start: '10:00', end: '13:00', cutoffHours: 2 },
+      { start: '14:00', end: '17:00', cutoffHours: 2 },
+      { start: '18:00', end: '21:00', cutoffHours: 2 },
+    ];
+    templates.forEach(tmpl => {
+      const slotId = `slot-${dateStr}-${tmpl.start.replace(':', '')}`;
+      if (!inMemoryStore.deliverySlots.has(slotId)) {
+        const cutoffDate = new Date(`${dateStr}T${tmpl.start}:00+05:30`);
+        cutoffDate.setHours(cutoffDate.getHours() - tmpl.cutoffHours);
+        
+        inMemoryStore.deliverySlots.set(slotId, {
+          id: slotId,
+          slot_date: dateStr,
+          start_time: tmpl.start,
+          end_time: tmpl.end,
+          capacity: 30,
+          booked_count: 0,
+          cutoff_at: cutoffDate.toISOString(),
+          status: 'ACTIVE'
+        });
+      }
+    });
+  }
+
   const slots = Array.from(inMemoryStore.deliverySlots.values())
-    .filter((s) => s.status === "ACTIVE")
+    .filter((s) => s.status === "ACTIVE" && validDates.has(s.slot_date))
     .sort((a, b) => {
       if (a.slot_date !== b.slot_date) return a.slot_date.localeCompare(b.slot_date);
       return a.start_time.localeCompare(b.start_time);
@@ -189,6 +229,27 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
     res.status(400).json({
       error: 'INVALID_SLOT',
       message: 'Selected delivery slot is invalid or inactive.',
+    });
+    return;
+  }
+
+  // Enforce the 7-day delivery window (Asia/Kolkata)
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  const todayISTDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  const todayISTStr = formatter.format(todayISTDate);
+  const maxISTDate = new Date(todayISTDate);
+  maxISTDate.setDate(maxISTDate.getDate() + 6);
+  const maxISTStr = formatter.format(maxISTDate);
+
+  if (slot.slot_date < todayISTStr || slot.slot_date > maxISTStr) {
+    res.status(400).json({
+      error: 'SLOT_OUT_OF_BOUNDS',
+      message: 'Delivery date must be within the next 7 days.',
     });
     return;
   }

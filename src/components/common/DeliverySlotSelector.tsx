@@ -68,10 +68,19 @@ export const DeliverySlotSelector: React.FC<DeliverySlotSelectorProps> = ({
   const uniqueDates = Array.from(new Set(slots.map((s) => s.slot_date))).sort();
 
   const formatSlotDateLabel = (dateStr: string) => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    
+    const nowIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const todayStr = formatter.format(nowIST);
+    
+    const tomorrowIST = new Date(nowIST);
+    tomorrowIST.setDate(tomorrowIST.getDate() + 1);
+    const tomorrowStr = formatter.format(tomorrowIST);
 
     if (dateStr === todayStr) return 'Today';
     if (dateStr === tomorrowStr) return 'Tomorrow';
@@ -114,7 +123,7 @@ export const DeliverySlotSelector: React.FC<DeliverySlotSelectorProps> = ({
   return (
     <div className="space-y-4">
       {/* 1. Date Strip */}
-      <div className="flex gap-2 border-b border-[#E8DFD2] pb-2 overflow-x-auto scrollbar-none">
+      <div className="flex flex-nowrap gap-2 border-b border-[#E8DFD2] pb-3 overflow-x-auto touch-pan-x scroll-smooth [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {uniqueDates.map((dateStr) => {
           const isSelected = (selectedDate || uniqueDates[0]) === dateStr;
           return (
@@ -122,7 +131,7 @@ export const DeliverySlotSelector: React.FC<DeliverySlotSelectorProps> = ({
               key={dateStr}
               type="button"
               onClick={() => setSelectedDate(dateStr)}
-              className={`min-h-[42px] px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+              className={`shrink-0 min-h-[42px] px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
                 isSelected
                   ? 'bg-[#8A1538] text-white shadow-xs'
                   : 'bg-white text-[#1F1B16] border border-[#E8DFD2] hover:bg-[#F3EBE0]'
