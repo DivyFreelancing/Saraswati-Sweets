@@ -1071,12 +1071,12 @@ router.post('/coupons', requireRole(['ADMIN']), async (req: AuthenticatedRequest
   if (!assertSupabase(res)) return;
 
   const {
-    code, description = '', type = 'FLAT', value = 50,
-    min_order_value = 300, max_discount_amount, total_limit, usage_limit_per_user,
-    is_active = true, start_date, valid_until,
+    code, description = '', discount_type = 'FLAT', discount_value = 50,
+    min_order_amount = 300, max_discount_amount, usage_limit, per_user_limit,
+    is_active = true, start_date, end_date,
   } = req.body;
 
-  if (!code || !value) {
+  if (!code || !discount_value) {
     res.status(400).json({ error: 'MISSING_FIELDS', message: 'Coupon code and discount value are required.' });
     return;
   }
@@ -1088,16 +1088,16 @@ router.post('/coupons', requireRole(['ADMIN']), async (req: AuthenticatedRequest
     id,
     code: cleanCode,
     description: String(description).trim(),
-    type: type === 'PERCENTAGE' ? 'PERCENTAGE' : 'FLAT',
-    value: Number(value),
-    min_order_value: Number(min_order_value) || 0,
+    discount_type: discount_type === 'PERCENTAGE' ? 'PERCENTAGE' : 'FLAT',
+    discount_value: Number(discount_value),
+    min_order_amount: Number(min_order_amount) || 0,
     max_discount_amount: max_discount_amount ? Number(max_discount_amount) : null,
-    usage_limit_total: total_limit ? Number(total_limit) : null,
-    usage_limit_per_user: usage_limit_per_user ? Number(usage_limit_per_user) : 1,
+    usage_limit: usage_limit ? Number(usage_limit) : null,
+    per_user_limit: per_user_limit ? Number(per_user_limit) : null,
     usage_count: 0,
     is_active: Boolean(is_active),
     start_date: start_date || new Date().toISOString(),
-    valid_until: valid_until || new Date(Date.now() + 180 * 86400000).toISOString(),
+    end_date: end_date || new Date(Date.now() + 180 * 86400000).toISOString(),
   };
 
   const { error } = await supabaseServer!.from('coupons').insert([row]);
@@ -1108,16 +1108,16 @@ router.post('/coupons', requireRole(['ADMIN']), async (req: AuthenticatedRequest
   }
 
   const newCoupon: ServerCoupon = {
-    id, code: cleanCode, description: row.description, type: row.type as any,
-    value: row.value, min_order_value: row.min_order_value,
-    max_discount_amount: row.max_discount_amount ?? undefined, total_limit: row.usage_limit_total ?? undefined,
-    per_user_limit: row.usage_limit_per_user ?? undefined, used_count: 0, is_active: row.is_active,
-    start_date: row.start_date, valid_until: row.valid_until,
+    id, code: cleanCode, description: row.description, discount_type: row.discount_type as any,
+    discount_value: row.discount_value, min_order_amount: row.min_order_amount,
+    max_discount_amount: row.max_discount_amount ?? undefined, usage_limit: row.usage_limit ?? undefined,
+    per_user_limit: row.per_user_limit ?? undefined, usage_count: 0, is_active: row.is_active,
+    start_date: row.start_date, end_date: row.end_date,
   };
   Map.prototype.set.call(inMemoryStore.coupons, cleanCode, newCoupon);
 
   logAuditEvent(req.user, 'COUPON_CREATED', 'COUPON', id, {
-    code: cleanCode, type: row.type, value: row.value, min_order_value: row.min_order_value,
+    code: cleanCode, discount_type: row.discount_type, discount_value: row.discount_value, min_order_amount: row.min_order_amount,
   });
   res.status(201).json({ success: true, coupon: newCoupon });
 });
@@ -1132,17 +1132,17 @@ router.put('/coupons/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequ
     return;
   }
 
-  const { description, type, value, min_order_value, max_discount_amount, total_limit, usage_limit_per_user, is_active, valid_until } = req.body;
+  const { description, discount_type, discount_value, min_order_amount, max_discount_amount, usage_limit, per_user_limit, is_active, end_date } = req.body;
   const updates: Record<string, any> = {};
   if (description !== undefined) updates.description = String(description).trim();
-  if (type !== undefined) updates.type = type;
-  if (value !== undefined) updates.value = Number(value);
-  if (min_order_value !== undefined) updates.min_order_value = Number(min_order_value);
+  if (discount_type !== undefined) updates.discount_type = discount_type;
+  if (discount_value !== undefined) updates.discount_value = Number(discount_value);
+  if (min_order_amount !== undefined) updates.min_order_amount = Number(min_order_amount);
   if (max_discount_amount !== undefined) updates.max_discount_amount = max_discount_amount ? Number(max_discount_amount) : null;
-  if (total_limit !== undefined) updates.usage_limit_total = total_limit ? Number(total_limit) : null;
-  if (usage_limit_per_user !== undefined) updates.usage_limit_per_user = usage_limit_per_user ? Number(usage_limit_per_user) : null;
+  if (usage_limit !== undefined) updates.usage_limit = usage_limit ? Number(usage_limit) : null;
+  if (per_user_limit !== undefined) updates.per_user_limit = per_user_limit ? Number(per_user_limit) : null;
   if (is_active !== undefined) updates.is_active = Boolean(is_active);
-  if (valid_until !== undefined) updates.valid_until = valid_until;
+  if (end_date !== undefined) updates.end_date = end_date;
 
   const { error } = await supabaseServer!.from('coupons').update(updates).eq('id', coupon.id);
   if (error) {
@@ -1152,11 +1152,11 @@ router.put('/coupons/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequ
   }
 
   if (updates.description !== undefined) coupon.description = updates.description;
-  if (updates.type !== undefined) coupon.type = updates.type;
-  if (updates.value !== undefined) coupon.value = updates.value;
-  if (updates.min_order_value !== undefined) coupon.min_order_value = updates.min_order_value;
+  if (updates.discount_type !== undefined) coupon.discount_type = updates.discount_type;
+  if (updates.discount_value !== undefined) coupon.discount_value = updates.discount_value;
+  if (updates.min_order_amount !== undefined) coupon.min_order_amount = updates.min_order_amount;
   if (updates.is_active !== undefined) coupon.is_active = updates.is_active;
-  if (updates.valid_until !== undefined) coupon.valid_until = updates.valid_until;
+  if (updates.end_date !== undefined) coupon.end_date = updates.end_date;
   Map.prototype.set.call(inMemoryStore.coupons, coupon.code, coupon);
 
   logAuditEvent(req.user, 'COUPON_UPDATED', 'COUPON', coupon.id, { is_active: updates.is_active, value: updates.value });
@@ -1227,7 +1227,7 @@ router.post('/offers', requireRole(['ADMIN']), async (req: AuthenticatedRequest,
     coupon_code: row.code ?? undefined, discount_text: row.discount_text,
     badge: badge ? String(badge).trim() : undefined, bg_color: row.bg_color,
     image_url: image_url || undefined, is_active: row.is_active,
-    display_order: row.display_order, valid_until: valid_until || undefined,
+    display_order: row.display_order, end_date: end_date || undefined,
     created_at: new Date().toISOString(),
   };
   Map.prototype.set.call(inMemoryStore.offers, id, newOffer);

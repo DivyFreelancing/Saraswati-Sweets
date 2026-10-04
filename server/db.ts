@@ -500,16 +500,16 @@ export interface ServerCoupon {
   id: string;
   code: string;
   description: string;
-  type: 'PERCENTAGE' | 'FLAT';
-  value: number;
-  min_order_value: number;
+  discount_discount_type: 'PERCENTAGE' | 'FLAT';
+  discount_value: number;
+  min_order_amount: number;
   max_discount_amount?: number;
   is_active: boolean;
   start_date: string;
-  valid_until: string;
-  total_limit?: number; // Total redemptions across store
+  end_date: string;
+  usage_limit?: number; // Total redemptions across store
   per_user_limit?: number; // Redemptions per user/phone
-  used_count: number;
+  usage_count: number;
 }
 
 export interface ServerCouponUsage {
@@ -1196,21 +1196,21 @@ export function validateCouponServer(
     return { valid: false, discount_amount: 0, error: `Coupon '${cleanCode}' has not started yet`, errorCode: 'COUPON_NOT_STARTED' };
   }
 
-  if (coupon.valid_until && now > new Date(coupon.valid_until).getTime()) {
+  if (coupon.end_date && now > new Date(coupon.end_date).getTime()) {
     return { valid: false, discount_amount: 0, error: `Coupon '${cleanCode}' has expired`, errorCode: 'COUPON_EXPIRED' };
   }
 
-  if (subtotal < coupon.min_order_value) {
+  if (subtotal < coupon.min_order_amount) {
     return {
       valid: false,
       discount_amount: 0,
-      error: `Minimum order amount of ₹${coupon.min_order_value} required to use coupon '${cleanCode}' (current subtotal ₹${subtotal})`,
+      error: `Minimum order amount of ₹${coupon.min_order_amount} required to use coupon '${cleanCode}' (current subtotal ₹${subtotal})`,
       errorCode: 'MIN_ORDER_NOT_MET',
     };
   }
 
   // Check store-wide total usage limit
-  if (coupon.total_limit && (coupon.used_count || 0) >= coupon.total_limit) {
+  if (coupon.usage_limit && (coupon.usage_count || 0) >= coupon.usage_limit) {
     return {
       valid: false,
       discount_amount: 0,
@@ -1240,10 +1240,10 @@ export function validateCouponServer(
 
   // Calculate discount
   let discount = 0;
-  if (coupon.type === 'FLAT') {
-    discount = Math.min(coupon.value, subtotal);
-  } else if (coupon.type === 'PERCENTAGE') {
-    const calculated = (subtotal * coupon.value) / 100;
+  if (coupon.discount_type === 'FLAT') {
+    discount = Math.min(coupon.discount_value, subtotal);
+  } else if (coupon.discount_type === 'PERCENTAGE') {
+    const calculated = (subtotal * coupon.discount_value) / 100;
     discount = coupon.max_discount_amount ? Math.min(coupon.max_discount_amount, calculated) : calculated;
   }
 

@@ -179,10 +179,12 @@ function AppContent() {
           />
         );
       case '/admin':
+      case '/admin/coupons':
         return (
           <AdminPage
             onBackToStore={() => navigateTo('/')}
             onGoToLogin={() => navigateTo('/admin/login')}
+            initialTab={currentPath === '/admin/coupons' ? 'coupons' : undefined}
           />
         );
       case '/':

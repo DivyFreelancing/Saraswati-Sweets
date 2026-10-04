@@ -288,8 +288,8 @@ router.post('/apply-coupon', async (req: AuthenticatedRequest, res: Response) =>
     message: `Coupon '${result.coupon!.code}' applied successfully! Saved ₹${result.discount_amount}.`,
     coupon: {
       code: result.coupon!.code,
-      discount_type: result.coupon!.type,
-      discount_value: result.coupon!.value,
+      discount_type: result.coupon!.discount_type,
+      discount_value: result.coupon!.discount_value,
       description: result.coupon!.description,
     },
     discount: result.discount_amount,

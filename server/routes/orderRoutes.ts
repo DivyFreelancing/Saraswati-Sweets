@@ -508,7 +508,7 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
 
   // 11. Atomic Order & Coupon Usage Recording in the same transaction
   if (validatedCouponObj && appliedCouponCode) {
-    validatedCouponObj.used_count = (validatedCouponObj.used_count || 0) + 1;
+    validatedCouponObj.usage_count = (validatedCouponObj.used_count || 0) + 1;
     inMemoryStore.coupons.set(validatedCouponObj.code, validatedCouponObj);
 
     inMemoryStore.couponUsage.push({

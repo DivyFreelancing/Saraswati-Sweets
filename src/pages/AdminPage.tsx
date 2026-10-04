@@ -51,6 +51,7 @@ import { ProductImagePlaceholder } from '../components/common/ProductImagePlaceh
 interface AdminPageProps {
   onBackToStore: () => void;
   onGoToLogin: () => void;
+  initialTab?: string;
 }
 
 type AdminTab =
@@ -67,13 +68,14 @@ type AdminTab =
   | 'enquiries'
   | 'notifications'
   | 'settings'
+  | 'coupons'
   | 'audit';
 
-export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin }) => {
+export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin, initialTab }) => {
   const { user, isAuthenticated, isStaff, isAdmin, signOut, getAuthHeaders } = useAuth();
   const { showToast } = useToast();
 
-  const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+  const [activeTab, setActiveTab] = useState<AdminTab>((initialTab as AdminTab) || 'overview');
   const [loading, setLoading] = useState(true);
   const [serverError, setServerError] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -182,7 +184,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
     discount_value: 50,
     min_order_amount: 300,
     max_discount_amount: 150,
-    total_limit: '' as string | number,
+    usage_limit: '' as string | number,
     per_user_limit: '' as string | number,
     is_active: true,
   });
@@ -1120,6 +1122,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
           { key: 'customers', label: `Customers (${customers.length})`, icon: Users, adminOnly: true },
           { key: 'delivery', label: `Delivery Riders (${deliveryPartners.length})`, icon: Bike },
           { key: 'slots', label: `Delivery Slots (${deliverySlots.length})`, icon: Calendar },
+          { key: 'coupons', label: `Coupons (${coupons.length})`, icon: Tag, adminOnly: true },
           { key: 'settings', label: 'Store Settings', icon: Settings },
           { key: 'audit', label: `Audit Trail (${auditLogs.length})`, icon: ShieldCheck, adminOnly: true },
         ]
@@ -2362,145 +2365,145 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
             </form>
           )}
 
-          {/* COUPONS & DISCOUNTS MANAGEMENT (ADMIN ONLY FOR MUTATIONS) */}
-          <div className="pt-6 border-t border-[#E8DFD2] space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h4 className="font-display font-bold text-base text-[#1F1B16] flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-[#8A1538]" />
-                  <span>Store Coupons & Promo Discounts</span>
-                </h4>
-                <p className="text-xs text-[#6B6258]">
-                  Manage coupon codes applicable at customer checkout (audited on change).
-                </p>
-              </div>
+        </div>
+      )}
 
-              {isAdmin && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingCouponId(null);
-                    setCouponForm({
-                      code: '',
-                      description: '',
-                      discount_type: 'FLAT',
-                      discount_value: 50,
-                      min_order_amount: 300,
-                      max_discount_amount: 150,
-                      total_limit: '',
-                      per_user_limit: '',
-                      is_active: true,
-                    });
-                    setIsCouponModalOpen(true);
-                  }}
-                  className="px-4 py-2 rounded-xl bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5 self-start sm:self-auto"
-                >
-                  <Plus className="w-4 h-4 text-[#F6E08B]" />
-                  <span>+ Add Coupon</span>
-                </button>
-              )}
+      {/* ==================================================== */}
+      {/* TAB J: COUPONS MANAGEMENT (ADMIN ONLY)                 */}
+      {/* ==================================================== */}
+      {activeTab === 'coupons' && isAdmin && (
+        <div className="bg-white rounded-2xl border border-[#E8DFD2] p-5 sm:p-6 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E8DFD2] pb-4">
+            <div>
+              <h3 className="font-display font-bold text-lg text-[#1F1B16] flex items-center gap-2">
+                <Tag className="w-5 h-5 text-[#8A1538]" />
+                <span>Store Coupons & Promo Discounts</span>
+              </h3>
+              <p className="text-xs text-[#6B6258] mt-1">
+                Manage coupon codes applicable at customer checkout.
+              </p>
             </div>
 
-            {coupons.length === 0 ? (
-              <div className="p-4 text-center text-xs text-[#6B6258] bg-[#FBF7F1] rounded-xl border border-[#E8DFD2]">
-                No coupons active. Click '+ Add Coupon' to configure promo codes.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {coupons.map((coup) => (
-                  <div
-                    key={coup.id}
-                    className="p-3.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] space-y-2 text-xs"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-sm text-[#8A1538] bg-white px-2 py-0.5 rounded border border-[#E8DFD2]">
-                          {coup.code}
-                        </span>
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                            coup.is_active ? 'bg-emerald-100 text-[#2E7D4F]' : 'bg-stone-200 text-stone-600'
-                          }`}
-                        >
-                          {coup.is_active ? 'ACTIVE' : 'INACTIVE'}
-                        </span>
-                      </div>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingCouponId(null);
+                setCouponForm({
+                  code: '',
+                  description: '',
+                  discount_type: 'FLAT',
+                  discount_value: 50,
+                  min_order_amount: 300,
+                  max_discount_amount: 150,
+                  usage_limit: '',
+                  per_user_limit: '',
+                  is_active: true,
+                });
+                setIsCouponModalOpen(true);
+              }}
+              className="px-4 py-2 rounded-xl bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5 self-start sm:self-auto"
+            >
+              <Plus className="w-4 h-4 text-[#F6E08B]" />
+              <span>+ Add Coupon</span>
+            </button>
+          </div>
 
-                      {isAdmin && (
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingCouponId(coup.id);
-                              setCouponForm({
-                                code: coup.code,
-                                description: coup.description || '',
-                                discount_type: coup.discount_type,
-                                discount_value: coup.discount_value,
-                                min_order_amount: coup.min_order_amount,
-                                max_discount_amount: coup.max_discount_amount || 150,
-                                total_limit: coup.total_limit || '',
-                                per_user_limit: coup.per_user_limit || '',
-                                is_active: coup.is_active,
-                              });
-                              setIsCouponModalOpen(true);
-                            }}
-                            className="p-1 text-stone-400 hover:text-[#8A1538]"
-                            title="Edit Coupon"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteCoupon(coup)}
-                            className="p-1 text-stone-400 hover:text-[#B3261E]"
-                            title="Delete Coupon"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
+          {coupons.length === 0 ? (
+            <div className="p-8 text-center text-sm text-[#6B6258] bg-[#FBF7F1] rounded-xl border border-[#E8DFD2]">
+              No coupons active. Click '+ Add Coupon' to configure promo codes.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {coupons.map((coup) => (
+                <div
+                  key={coup.id}
+                  className="p-4 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] space-y-3 flex flex-col justify-between hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-center justify-between border-b border-[#E8DFD2] pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-base text-[#8A1538] bg-white px-2 py-0.5 rounded border border-[#E8DFD2]">
+                        {coup.code}
+                      </span>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                          coup.is_active ? 'bg-emerald-100 text-[#2E7D4F]' : 'bg-stone-200 text-stone-600'
+                        }`}
+                      >
+                        {coup.is_active ? 'ACTIVE' : 'INACTIVE'}
+                      </span>
                     </div>
 
-                    <p className="text-xs text-[#1F1B16] font-medium">{coup.description}</p>
-
-                    <div className="text-[11px] text-[#6B6258] flex items-center justify-between pt-1 border-t border-black/5">
-                      <span>
-                        Discount:{' '}
-                        <strong>
-                          {coup.discount_type === 'FLAT' ? `₹${coup.discount_value}` : `${coup.discount_value}%`}
-                        </strong>{' '}
-                        • Min: ₹{coup.min_order_amount}
-                      </span>
-                      {isAdmin && (
-                        <button
-                          type="button"
-                          onClick={() => handleToggleCoupon(coup)}
-                          className="font-bold text-[#8A1538] hover:underline"
-                        >
-                          {coup.is_active ? 'Deactivate' : 'Activate'}
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-between pt-1 text-[11px] text-[#6B6258] border-t border-dashed border-[#E8DFD2]">
-                      <span>
-                        Limits: Total: {coup.total_limit ?? '∞'} • Per User: {coup.per_user_limit ?? '∞'}
-                      </span>
+                    <div className="flex items-center gap-1">
                       <button
                         type="button"
-                        onClick={() => setSelectedCouponForUsage(coup)}
-                        className="font-semibold text-[#8A1538] hover:underline flex items-center gap-1"
+                        onClick={() => {
+                          setEditingCouponId(coup.id);
+                          setCouponForm({
+                            code: coup.code,
+                            description: coup.description || '',
+                            discount_type: coup.discount_type,
+                            discount_value: coup.discount_value,
+                            min_order_amount: coup.min_order_amount,
+                            max_discount_amount: coup.max_discount_amount || 150,
+                            usage_limit: coup.usage_limit || '',
+                            per_user_limit: coup.per_user_limit || '',
+                            is_active: coup.is_active,
+                          });
+                          setIsCouponModalOpen(true);
+                        }}
+                        className="p-1 text-stone-400 hover:text-[#8A1538] transition-colors"
+                        title="Edit Coupon"
                       >
-                        <History className="w-3 h-3" />
-                        <span>Usage ({coup.used_count || 0})</span>
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCoupon(coup)}
+                        className="p-1 text-stone-400 hover:text-[#B3261E] transition-colors"
+                        title="Delete Coupon"
+                      >
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+
+                  <p className="text-sm text-[#1F1B16] font-medium leading-snug">{coup.description || 'No description'}</p>
+
+                  <div className="text-xs text-[#6B6258] flex items-center justify-between bg-white p-2 rounded-lg border border-[#E8DFD2]">
+                    <span className="flex flex-col gap-0.5">
+                      <span className="font-semibold text-[#1F1B16]">
+                        {coup.discount_type === 'FLAT' ? `₹${coup.discount_value} OFF` : `${coup.discount_value}% OFF`}
+                      </span>
+                      <span className="text-[10px]">Min: ₹{coup.min_order_amount} {coup.max_discount_amount ? `• Max: ₹${coup.max_discount_amount}` : ''}</span>
+                    </span>
+                    
+                    <button
+                      type="button"
+                      onClick={() => handleToggleCoupon(coup)}
+                      className="font-bold text-[11px] text-[#8A1538] hover:underline"
+                    >
+                      {coup.is_active ? 'Deactivate' : 'Activate'}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 text-[11px] text-[#6B6258] border-t border-dashed border-[#E8DFD2]">
+                    <span>
+                      Total Uses: {coup.usage_count || 0} / {coup.usage_limit ?? '∞'} <br/>
+                      Per User: {coup.per_user_limit ?? '∞'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCouponForUsage(coup)}
+                      className="font-semibold text-[#8A1538] bg-[#F7E9EE] px-2 py-1 rounded hover:bg-[#F2D5DE] transition-colors flex items-center gap-1"
+                    >
+                      <History className="w-3 h-3" />
+                      View Log
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -3201,8 +3204,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                     type="number"
                     min={1}
                     placeholder="∞ (Unlimited)"
-                    value={couponForm.total_limit}
-                    onChange={(e) => setCouponForm({ ...couponForm, total_limit: e.target.value ? Number(e.target.value) : '' })}
+                    value={couponForm.usage_limit}
+                    onChange={(e) => setCouponForm({ ...couponForm, usage_limit: e.target.value ? Number(e.target.value) : '' })}
                     className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs"
                   />
                 </div>
