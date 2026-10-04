@@ -1,9 +1,17 @@
 // @ts-nocheck
 import fs from 'fs';
+import dotenv from 'dotenv';
 import { MASTER_PRODUCTS, MASTER_VARIANTS } from '../src/data/seedData';
 
-const PROJECT_URL = 'https://pdovuxqbymgqzvaxcwuk.supabase.co';
-const SERVICE_KEY = '***REMOVED***';
+dotenv.config();
+
+const PROJECT_URL = process.env.VITE_SUPABASE_URL;
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!PROJECT_URL || !SERVICE_KEY) {
+  console.error('Missing VITE_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env');
+  process.exit(1);
+}
 
 async function fetchAPI(path, options = {}) {
   const url = `${PROJECT_URL}/rest/v1/${path}`;
