@@ -321,7 +321,7 @@ export const OrderDetailPage: React.FC<OrderDetailPageProps> = ({
             </div>
 
             <div className="pt-2 border-t border-[#E8DFD2] flex justify-between items-baseline text-base font-bold text-[#1F1B16]">
-              <span>Payment Due (COD)</span>
+              <span>{order.payment_method === 'ONLINE' ? 'Total Paid (Online)' : 'Payment Due (COD)'}</span>
               <span className="text-xl font-display text-[#8A1538] tabular-nums">
                 {formatINR(order.total_amount)}
               </span>

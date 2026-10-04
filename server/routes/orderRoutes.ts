@@ -17,7 +17,7 @@ import {
   isLiveSupabase,
   supabaseServer,
 } from '../db';
-import { createRazorpayOrder, getRazorpayKeyId } from '../services/razorpayService';
+import { createCashfreeOrder, getCashfreeAppId } from '../services/cashfreeService';
 import { notifyOrderPlaced, notifyOrderStatusChanged } from '../services/notificationService';
 
 const router = Router();
@@ -401,18 +401,26 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
   };
 
   // If ONLINE payment: create Razorpay order and set 15-min auto-expiry
-  let razorpayPayload: any = null;
+  let cashfreePayload: any = null;
   if (isOnlinePayment) {
     const amountInPaise = Math.round(total * 100);
     newOrder.expires_at = new Date(Date.now() + 15 * 60 * 1000).toISOString();
 
-    const rzpOrder = await createRazorpayOrder(amountInPaise, orderNumber, {
-      order_id: orderId,
-      order_number: orderNumber,
-      customer_phone: address.recipient_phone,
-    });
+    const cfOrder = await createCashfreeOrder(
+      amountInPaise, 
+      orderNumber, 
+      {
+        customer_id: verifiedUserId || 'guest',
+        customer_phone: address.recipient_phone,
+        customer_name: address.recipient_name,
+      },
+      {
+        order_id: orderId,
+        order_number: orderNumber
+      }
+    );
 
-    newOrder.razorpay_order_id = rzpOrder.id;
+    newOrder.razorpay_order_id = cfOrder.id;
 
     // Record initial created payment record
     const rzpUuid = randomUUID();
@@ -420,7 +428,7 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
       id: typeof rzpUuid !== 'undefined' ? rzpUuid : randomUUID(),
       order_id: orderId,
       order_number: orderNumber,
-      razorpay_order_id: typeof rzpUuid !== 'undefined' ? rzpUuid : randomUUID(),
+      razorpay_order_id: cfOrder.id,
       amount: amountInPaise,
       currency: 'INR',
       status: 'CREATED',
@@ -429,9 +437,9 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
       updated_at: nowIso,
     });
 
-    razorpayPayload = {
-      order_id: typeof rzpUuid !== 'undefined' ? rzpUuid : randomUUID(),
-      key_id: getRazorpayKeyId(),
+    cashfreePayload = {
+      order_id: cfOrder.id,
+      payment_session_id: cfOrder.payment_session_id,
       amount: amountInPaise,
       currency: 'INR',
     };
@@ -557,10 +565,10 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
   res.status(201).json({
     success: true,
     message: isOnlinePayment
-      ? 'Razorpay payment order generated. Please complete payment within 15 minutes.'
+      ? 'Cashfree payment order generated. Please complete payment within 15 minutes.'
       : 'Order placed successfully! Fresh sweets are being prepared.',
     order: newOrder,
-    ...(razorpayPayload ? { razorpay: razorpayPayload } : {}),
+    ...(cashfreePayload ? { cashfree: cashfreePayload } : {}),
   });
 });
 

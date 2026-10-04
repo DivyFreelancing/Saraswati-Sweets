@@ -13,6 +13,7 @@
     "seed_db": "tsx seeder.ts"
   },
   "dependencies": {
+    "@cashfreepayments/cashfree-js": "^1.0.7",
     "@google/genai": "^2.4.0",
     "@supabase/supabase-js": "^2.117.2",
     "@tailwindcss/vite": "^4.3.3",
@@ -27,7 +28,6 @@
     "express-rate-limit": "^8.7.0",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
-    "razorpay": "^2.9.8",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "tailwindcss": "^4.3.3",

@@ -203,81 +203,19 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
         return;
       }
 
-      // If Online Payment, launch Razorpay Checkout modal
-      if (data.razorpay) {
-        const razorpayKeyId = data.razorpay.key_id;
-        const razorpayOrderId = data.razorpay.order_id;
-        const razorpayAmount = data.razorpay.amount;
-
-        if (typeof (window as any).Razorpay !== 'undefined') {
-          const rzpOptions = {
-            key: razorpayKeyId,
-            amount: razorpayAmount,
-            currency: data.razorpay.currency || 'INR',
-            name: 'Saraswati Sweets',
-            description: `Order #${data.order.order_number} - Fresh Mithai Box`,
-            image: '/icon.svg',
-            order_id: razorpayOrderId,
-            handler: async function (response: any) {
-              try {
-                setIsPlacingOrder(true);
-                const verifyRes = await fetch('/api/payments/verify', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    ...getAuthHeaders(),
-                  },
-                  body: JSON.stringify({
-                    order_id: data.order.id,
-                    razorpay_order_id: response.razorpay_order_id,
-                    razorpay_payment_id: response.razorpay_payment_id,
-                    razorpay_signature: response.razorpay_signature,
-                  }),
-                });
-
-                const verifyData = await verifyRes.json();
-                if (verifyRes.ok) {
-                  await clearCart();
-                  showToast('Payment verified successfully! Fresh sweets are being prepared.', 'success');
-                  onOrderSuccess(data.order.order_number);
-                } else {
-                  setErrorMessage(verifyData.message || 'Payment signature verification failed.');
-                  setIsPlacingOrder(false);
-                }
-              } catch (err: any) {
-                setErrorMessage(err.message || 'Error verifying payment signature.');
-                setIsPlacingOrder(false);
-              }
-            },
-            prefill: {
-              name: finalAddress.recipient_name,
-              contact: finalAddress.recipient_phone,
-              email: user?.email || '',
-            },
-            theme: {
-              color: '#8A1538',
-            },
-            modal: {
-              ondismiss: function () {
-                setIsPlacingOrder(false);
-                showToast('Payment window closed. Order is reserved for 15 minutes.', 'info');
-              },
-            },
-          };
-
-          const rzpInstance = new (window as any).Razorpay(rzpOptions);
-          rzpInstance.on('payment.failed', function (failResp: any) {
-            setIsPlacingOrder(false);
-            setErrorMessage(`Payment declined: ${failResp.error?.description || 'Transaction unsuccessful'}`);
-            showToast('Online payment failed. You can retry with another method.', 'error');
+      // If Online Payment, launch Cashfree Checkout modal
+      if (data.cashfree) {
+        if (typeof (window as any).Cashfree !== 'undefined') {
+          const cashfree = await (window as any).Cashfree({
+            mode: "sandbox" // Change to production in live
           });
-
-          rzpInstance.open();
+          cashfree.checkout({
+            paymentSessionId: data.cashfree.payment_session_id,
+            returnUrl: window.location.origin + "/checkout?order_id={order_id}"
+          });
         } else {
-          // Fallback if Razorpay CDN script was blocked
-          showToast('Razorpay script loading. Verifying order...', 'info');
-          await clearCart();
-          onOrderSuccess(data.order.order_number);
+          showToast('Cashfree script failed to load. Please refresh.', 'error');
+          setIsPlacingOrder(false);
         }
       } else {
         await clearCart();
@@ -288,6 +226,42 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
       setIsPlacingOrder(false);
     }
   };
+
+
+  // Cashfree redirect handler
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const order_id = params.get('order_id');
+    if (order_id) {
+      setIsPlacingOrder(true);
+      fetch('/api/payments/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({ cashfree_order_id: order_id }),
+      })
+      .then(res => res.json())
+      .then(async data => {
+        if (data.success || data.idempotent) {
+          await clearCart();
+          showToast('Payment verified successfully! Fresh sweets are being prepared.', 'success');
+          onOrderSuccess(data.order?.order_number || order_id);
+          window.history.replaceState({}, '', '/');
+        } else {
+          setErrorMessage(data.message || 'Payment verification failed.');
+          setIsPlacingOrder(false);
+          window.history.replaceState({}, '', '/checkout');
+        }
+      })
+      .catch(err => {
+        setErrorMessage('Error verifying payment.');
+        setIsPlacingOrder(false);
+        window.history.replaceState({}, '', '/checkout');
+      });
+    }
+  }, []);
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -484,7 +458,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
             />
           </div>
 
-          {/* 3. Payment Method: Online Razorpay vs COD */}
+          {/* 3. Payment Method: Online Cashfree vs COD */}
           <div className="bg-white rounded-2xl border border-[#E8DFD2] p-6 shadow-xs space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 font-display font-bold text-lg text-[#1F1B16]">
@@ -492,12 +466,12 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                 <span>3. Payment Method</span>
               </div>
               <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-[#2E7D4F]/10 text-[#2E7D4F]">
-                {paymentMethod === 'ONLINE' ? 'Razorpay Secure' : 'Cash on Delivery'}
+                {paymentMethod === 'ONLINE' ? 'Cashfree Secure' : 'Cash on Delivery'}
               </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* Option 1: Online Payment (Razorpay) */}
+              {/* Option 1: Online Payment (Cashfree) */}
               <label
                 className={`p-4 rounded-xl border cursor-pointer transition-all flex flex-col justify-between gap-3 ${
                   paymentMethod === 'ONLINE'
@@ -527,7 +501,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                 </div>
                 <div className="text-[11px] text-[#2E7D4F] font-semibold flex items-center gap-1 border-t border-black/5 pt-2">
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>100% Secure via Razorpay</span>
+                  <span>100% Secure via Cashfree</span>
                 </div>
               </label>
 
@@ -720,7 +694,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
               </div>
 
               <div className="pt-3 border-t border-[#E8DFD2] flex justify-between items-baseline text-base font-bold text-[#1F1B16]">
-                <span>{paymentMethod === 'ONLINE' ? 'Total (Online via Razorpay)' : 'Total (Pay with Cash)'}</span>
+                <span>{paymentMethod === 'ONLINE' ? 'Total (Online via Cashfree)' : 'Total (Pay with Cash)'}</span>
                 <span className="text-2xl font-display text-[#8A1538] tabular-nums">
                   {formatINR(effectiveTotal)}
                 </span>
@@ -752,7 +726,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                   {isPlacingOrder
                     ? 'Connecting Secure Gateway...'
                     : paymentMethod === 'ONLINE'
-                    ? `Pay ${formatINR(effectiveTotal)} with Razorpay`
+                    ? `Pay ${formatINR(effectiveTotal)} with Cashfree`
                     : 'Place Cash on Delivery Order'}
                 </span>
                 <ArrowRight className="w-4 h-4 text-[#FAF4DE]" />

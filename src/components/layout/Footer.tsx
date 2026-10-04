@@ -295,7 +295,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               Crafted with tradition, delivered with trust.
             </p>
 
-            {/* Trust Badges Strip (FSSAI, Razorpay, Fast Delivery, 100% Veg) */}
+            {/* Trust Badges Strip (FSSAI, Cashfree, Fast Delivery, 100% Veg) */}
             <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-5 pt-1 text-xs text-[#6E6259]">
               <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-[#E8DCC8] shadow-2xs">
                 <ShieldCheck className="w-3.5 h-3.5 text-[#2E7D4F]" />
@@ -308,7 +308,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
 
               <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-[#E8DCC8] shadow-2xs">
                 <CreditCard className="w-3.5 h-3.5 text-[#7A1129]" />
-                <span className="font-semibold text-[#221A14]">Razorpay & UPI Secure</span>
+                <span className="font-semibold text-[#221A14]">Cashfree & UPI Secure</span>
               </div>
 
               <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-[#E8DCC8] shadow-2xs">

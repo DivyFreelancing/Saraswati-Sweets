@@ -29,7 +29,7 @@ async function startServer() {
   const PORT = parseInt(process.env.PORT || '3000', 10);
   const isDev = process.env.NODE_ENV !== 'production';
 
-  // Body parser for JSON API requests - captures rawBody for Razorpay webhook HMAC validation
+  // Body parser for JSON API requests - captures rawBody for Cashfree webhook HMAC validation
   app.use(
     express.json({
       limit: '50mb',
@@ -65,7 +65,7 @@ async function startServer() {
   app.use('/api/cart', cartRoutes);
   app.use('/api/addresses', addressRoutes);
   app.use('/api/admin', adminRoutes);
-  app.use('/api/payments', sensitiveLimiter, paymentRoutes); // Mounts /api/payments/verify, /api/payments/webhook/razorpay
+  app.use('/api/payments', sensitiveLimiter, paymentRoutes); // Mounts /api/payments/verify, /api/payments/webhook/cashfree
   app.use('/api', apiLimiter, orderRoutes); // Mounts /api/checkout, /api/delivery-slots, /api/orders
   app.use('/api', publicRoutes); // Mounts /api/offers, /api/banners, /api/hampers, /api/enquiries, /api/notifications, /api/products/:id/reviews
 

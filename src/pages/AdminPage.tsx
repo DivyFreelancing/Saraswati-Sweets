@@ -505,7 +505,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
     }
   };
 
-  // 6. RAZORPAY REFUND ACTION (ADMIN ONLY) WITH DOUBLE-REFUND GUARD
+  // 6. CASHFREE REFUND ACTION (ADMIN ONLY) WITH DOUBLE-REFUND GUARD
   const handleExecuteRefund = async () => {
     if (!refundOrderTarget) return;
 
@@ -1413,7 +1413,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                 <span>Orders Dashboard (Live Polling every 20s)</span>
               </h3>
               <p className="text-xs text-[#6B6258]">
-                Enforce state transitions, assign delivery riders, and process Razorpay refunds.
+                Enforce state transitions, assign delivery riders, and process Cashfree refunds.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -1558,7 +1558,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
 
                         {status === 'PENDING_PAYMENT' && (
                           <span className="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-semibold">
-                            Awaiting Razorpay Payment (15m expiry)
+                            Awaiting Cashfree Payment (15m expiry)
                           </span>
                         )}
 
@@ -1644,7 +1644,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
 
                         {status === 'REFUNDED' && (
                           <span className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                            Refunded ({order.razorpay_refund_id || 'Processed'})
+                            Refunded ({order.cashfree_refund_id || 'Processed'})
                           </span>
                         )}
                       </div>
@@ -1668,7 +1668,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                             onClick={() => setRefundOrderTarget(order)}
                             className="px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold shadow-xs"
                           >
-                            Refund via Razorpay
+                            Refund via Cashfree
                           </button>
                         )}
                       </div>
@@ -2515,7 +2515,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
               <span>Security & Operations Audit Trail</span>
             </h3>
             <p className="text-xs text-[#6B6258]">
-              Immutable log of order status transitions, Razorpay refunds, and store configuration changes.
+              Immutable log of order status transitions, Cashfree refunds, and store configuration changes.
             </p>
           </div>
 
@@ -2861,7 +2861,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       )}
 
       {/* ==================================================== */}
-      {/* MODAL 3: RAZORPAY REFUND CONFIRMATION (ADMIN ONLY)   */}
+      {/* MODAL 3: CASHFREE REFUND CONFIRMATION (ADMIN ONLY)   */}
       {/* ==================================================== */}
       {refundOrderTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
@@ -2875,7 +2875,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                 Refund Order #{refundOrderTarget.order_number}?
               </h3>
               <p className="text-xs text-[#6B6258] leading-relaxed">
-                This will trigger the Razorpay Refunds API for <strong>{formatINR(refundOrderTarget.total_amount)}</strong> back to the customer's account and transition order status to <strong>REFUNDED</strong>.
+                This will trigger the Cashfree Refunds API for <strong>{formatINR(refundOrderTarget.total_amount)}</strong> back to the customer's account and transition order status to <strong>REFUNDED</strong>.
               </p>
             </div>
 

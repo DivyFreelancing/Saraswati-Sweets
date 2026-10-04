@@ -23,7 +23,7 @@ import {
   isLiveSupabase,
   supabaseServer,
 } from '../db';
-import { createRazorpayRefund } from '../services/razorpayService';
+import { createCashfreeRefund } from '../services/cashfreeService';
 import { emailProvider } from '../services/notificationService';
 
 const router = Router();
@@ -781,7 +781,7 @@ router.post('/orders/:id/refund', requireRole(['ADMIN']), async (req: Authentica
 
   try {
     const amountInPaise = Math.round(order.total_amount * 100);
-    const refundResult = await createRazorpayRefund(order.razorpay_payment_id, amountInPaise, {
+    const refundResult = await createCashfreeRefund(order.razorpay_payment_id, amountInPaise, {
       orderId: order.id,
       orderNumber: order.order_number,
       reason,
@@ -812,7 +812,7 @@ router.post('/orders/:id/refund', requireRole(['ADMIN']), async (req: Authentica
 
     res.json({ success: true, message: `Refund of ₹${order.total_amount} processed for Order #${order.order_number}`, refund: refundResult, order });
   } catch (err: any) {
-    res.status(500).json({ error: 'REFUND_FAILED', message: err.message || 'Razorpay refund API call failed' });
+    res.status(500).json({ error: 'REFUND_FAILED', message: err.message || 'Cashfree refund API call failed' });
   }
 });
 
