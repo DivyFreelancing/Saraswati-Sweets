@@ -752,7 +752,7 @@ function generateInitialSlots(): Map<string, ServerDeliverySlot> {
     const dateStr = d.toISOString().split('T')[0];
 
     templates.forEach((tmpl, idx) => {
-      const slotId = `slot-${dateStr}-${tmpl.start.replace(':', '')}`;
+      const slotId = crypto.randomUUID();
       // Cutoff time: slot date at start_time minus cutoffHours
       const cutoffDate = new Date(`${dateStr}T${tmpl.start}:00Z`);
       cutoffDate.setHours(cutoffDate.getHours() - tmpl.cutoffHours);
@@ -874,6 +874,7 @@ export const inMemoryStore = {
   orders: new Map<string, ServerOrder>(),
   ordersByIdempotency: new Map<string, ServerOrder>(),
   payments: new Map<string, ServerPayment>(), // provider_payment_id or provider_order_id -> payment
+  refunds: new Map<string, ServerRefund>(),
   processedWebhookEvents: new Set<string>(), // event_id -> deduplication
   categories: new Map<string, ServerCategory>([
     [

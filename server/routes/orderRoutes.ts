@@ -39,30 +39,6 @@ router.get('/delivery-slots', (_req, res) => {
     d.setDate(d.getDate() + i);
     const dateStr = formatter.format(d); // YYYY-MM-DD
     validDates.add(dateStr);
-    
-    const templates = [
-      { start: '10:00', end: '13:00', cutoffHours: 2 },
-      { start: '14:00', end: '17:00', cutoffHours: 2 },
-      { start: '18:00', end: '21:00', cutoffHours: 2 },
-    ];
-    templates.forEach(tmpl => {
-      const slotId = `slot-${dateStr}-${tmpl.start.replace(':', '')}`;
-      if (!inMemoryStore.deliverySlots.has(slotId)) {
-        const cutoffDate = new Date(`${dateStr}T${tmpl.start}:00+05:30`);
-        cutoffDate.setHours(cutoffDate.getHours() - tmpl.cutoffHours);
-        
-        inMemoryStore.deliverySlots.set(slotId, {
-          id: slotId,
-          slot_date: dateStr,
-          start_time: tmpl.start,
-          end_time: tmpl.end,
-          capacity: 30,
-          booked_count: 0,
-          cutoff_at: cutoffDate.toISOString(),
-          status: 'ACTIVE'
-        });
-      }
-    });
   }
 
   const slots = Array.from(inMemoryStore.deliverySlots.values())
@@ -107,7 +83,7 @@ router.post(
       const dateStr = d.toISOString().split('T')[0];
 
       templates.forEach((tmpl) => {
-        const slotId = `slot-${dateStr}-${tmpl.start.replace(':', '')}`;
+        const slotId = randomUUID();
         const cutoffDate = new Date(`${dateStr}T${tmpl.start}:00Z`);
         cutoffDate.setHours(cutoffDate.getHours() - tmpl.cutoffHours);
 
