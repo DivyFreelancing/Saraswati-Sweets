@@ -27,10 +27,27 @@ export interface CatalogFilterOptions {
   bestsellerOnly?: boolean;
 }
 
+// --- PERFORMANCE OPTIMIZATION: Client-Side Cache ---
+const CACHE_TTL_MS = 5 * 60 * 1000;
+const memCache: Record<string, { data: any; timestamp: number }> = {};
+function getCached<T>(key: string): T | null {
+  const entry = memCache[key];
+  if (entry && Date.now() - entry.timestamp < CACHE_TTL_MS) return entry.data as T;
+  return null;
+}
+function setCached<T>(key: string, data: T): void {
+  memCache[key] = { data, timestamp: Date.now() };
+}
+// ----------------------------------------------------
+
 export const catalogService = {
   isLive: () => isSupabaseConfigured(),
 
   async getCategories(): Promise<Category[]> {
+    const cacheKey = 'categories';
+    const cached = getCached<Category[]>(cacheKey);
+    if (cached) return cached;
+
     let fetchedFromServer = false;
     let categories: Category[] = [];
 
@@ -46,32 +63,20 @@ export const catalogService = {
     } catch (e) {
       console.warn('Fetch from /api/categories failed:', e);
     }
-
-    if (!fetchedFromServer && isSupabaseConfigured() && supabase) {
-      try {
-        const { data, error } = await supabase
-          .from('categories')
-          .select('*')
-          .eq('is_active', true)
-          .order('display_order', { ascending: true });
-
-        if (!error && data) {
-          categories = data as Category[];
-          fetchedFromServer = true;
-        }
-      } catch (err) {
-        console.warn('Supabase fetch categories failed, using fallback:', err);
-      }
-    }
     
     if (!fetchedFromServer) {
-      return SEED_CATEGORIES.filter((c) => c.is_active);
+      categories = SEED_CATEGORIES.filter((c) => c.is_active);
     }
     
+    setCached(cacheKey, categories);
     return categories;
   },
 
   async getProducts(options: CatalogFilterOptions = {}): Promise<Product[]> {
+    const cacheKey = 'products_' + JSON.stringify(options);
+    const cached = getCached<Product[]>(cacheKey);
+    if (cached) return cached;
+
     let products: Product[] = [];
     let fetchedFromServer = false;
 
@@ -86,33 +91,6 @@ export const catalogService = {
       }
     } catch (e) {
       console.warn('Fetch from /api/products failed:', e);
-    }
-
-    if (!fetchedFromServer && isSupabaseConfigured() && supabase) {
-      try {
-        let query = supabase
-          .from('products')
-          .select(`
-            *,
-            category:categories(*),
-            variants:product_variants(*),
-            images:product_images(*)
-          `)
-          .eq('is_active', true)
-          .is('deleted_at', null);
-
-        const { data, error } = await query;
-
-        if (!error && data) {
-          products = (data as any[]).map(p => ({
-            ...p,
-            images: p.images ? p.images.map((img: any) => ({ ...img, image_url: img.image_url || img.url })) : []
-          })) as Product[];
-          fetchedFromServer = true;
-        }
-      } catch (err) {
-        console.warn('Supabase fetch products failed, using fallback:', err);
-      }
     }
 
     if (!fetchedFromServer) {
@@ -161,6 +139,7 @@ export const catalogService = {
       }
     }
 
+    setCached(cacheKey, products);
     return products;
   },
 
@@ -425,22 +404,6 @@ export const catalogService = {
       }
     } catch (e) {
       console.warn('Fetch from ' + endpoint + ' failed:', e);
-    }
-
-    if (!fetchedFromServer && isSupabaseConfigured() && supabase) {
-      try {
-        let query = supabase.from('reviews').select('*').eq('is_published', true).order('created_at', { ascending: false });
-        if (productId) {
-           query = query.eq('product_id', productId);
-        }
-        const { data, error } = await query;
-        if (!error && data) {
-          fetchedReviews = data as Review[];
-          fetchedFromServer = true;
-        }
-      } catch (err) {
-        console.warn('Supabase fetch reviews failed:', err);
-      }
     }
 
     if (!fetchedFromServer) {

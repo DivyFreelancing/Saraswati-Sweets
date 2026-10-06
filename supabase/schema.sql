@@ -19,10 +19,13 @@ $$ language 'plpgsql';
 -- 1. PROFILES (Extends Supabase auth.users)
 CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    full_name VARCHAR(150),
     phone VARCHAR(20),
     email VARCHAR(255),
-    full_name VARCHAR(150),
-    role VARCHAR(20) NOT NULL DEFAULT 'CUSTOMER' CHECK (role IN ('CUSTOMER', 'STAFF', 'ADMIN')),
+    role VARCHAR(20) NOT NULL DEFAULT 'CUSTOMER',
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    fcm_token TEXT,
+    notif_promotional_opt_in BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -30,16 +33,21 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 -- 2. ADDRESSES
 CREATE TABLE IF NOT EXISTS public.addresses (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    profile_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
-    label VARCHAR(50) DEFAULT 'Home', -- Home, Office, Other
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    label VARCHAR(50) DEFAULT 'Home',
     recipient_name VARCHAR(150) NOT NULL,
-    recipient_phone VARCHAR(20) NOT NULL,
-    street_address TEXT NOT NULL,
-    landmark TEXT,
+    phone VARCHAR(20) NOT NULL,
+    line1 TEXT NOT NULL,
+    line2 TEXT,
     city VARCHAR(100) NOT NULL DEFAULT 'Barabanki',
     state VARCHAR(100) NOT NULL DEFAULT 'Uttar Pradesh',
     pincode VARCHAR(10) NOT NULL,
+    landmark TEXT,
+    latitude NUMERIC(10, 6),
+    longitude NUMERIC(10, 6),
+    delivery_instructions TEXT,
     is_default BOOLEAN NOT NULL DEFAULT FALSE,
+    is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -51,6 +59,7 @@ CREATE TABLE IF NOT EXISTS public.categories (
     slug VARCHAR(120) NOT NULL UNIQUE,
     description TEXT,
     image_url TEXT,
+    parent_id UUID REFERENCES public.categories(id) ON DELETE SET NULL,
     display_order INT NOT NULL DEFAULT 0,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -64,17 +73,15 @@ CREATE TABLE IF NOT EXISTS public.products (
     name VARCHAR(150) NOT NULL,
     slug VARCHAR(180) NOT NULL UNIQUE,
     description TEXT NOT NULL,
-    ingredients TEXT,
-    shelf_life_days INT DEFAULT 7,
-    is_eggless BOOLEAN NOT NULL DEFAULT TRUE,
-    is_pure_ghee BOOLEAN NOT NULL DEFAULT TRUE,
-    is_bestseller BOOLEAN NOT NULL DEFAULT FALSE,
-    is_featured BOOLEAN NOT NULL DEFAULT FALSE,
+    tags TEXT[],
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    badge_label VARCHAR(50), -- 'Fresh Batch', 'Festive Special', 'Chef Special'
+    is_featured BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    deleted_at TIMESTAMPTZ
+    is_pure_ghee BOOLEAN NOT NULL DEFAULT TRUE,
+    shelf_life_days INT DEFAULT 7,
+    ingredients TEXT,
+    is_bestseller BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 -- 5. PRODUCT VARIANTS (Weights like 250g, 500g, 1kg)
@@ -132,8 +139,9 @@ CREATE TABLE IF NOT EXISTS public.delivery_slots (
     capacity INT NOT NULL DEFAULT 25,
     booked_count INT NOT NULL DEFAULT 0 CHECK (booked_count <= capacity),
     cutoff_at TIMESTAMPTZ NOT NULL,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(slot_date, start_time, end_time)
 );
 
@@ -141,29 +149,21 @@ CREATE TABLE IF NOT EXISTS public.delivery_slots (
 CREATE TABLE IF NOT EXISTS public.orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     order_number VARCHAR(30) NOT NULL UNIQUE,
-    profile_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
-    guest_phone VARCHAR(20),
-    guest_email VARCHAR(255),
+    user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    address_id UUID REFERENCES public.addresses(id) ON DELETE SET NULL,
     address_snapshot JSONB NOT NULL,
-    slot_id UUID REFERENCES public.delivery_slots(id) ON DELETE SET NULL,
-    slot_snapshot JSONB,
+    delivery_slot_id UUID REFERENCES public.delivery_slots(id) ON DELETE SET NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'PENDING_PAYMENT',
+    payment_method VARCHAR(20) NOT NULL,
+    payment_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
     subtotal NUMERIC(10, 2) NOT NULL,
-    discount NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+    discount_amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
     delivery_charge NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
-    tax NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
-    total NUMERIC(10, 2) NOT NULL,
-    status VARCHAR(30) NOT NULL DEFAULT 'PENDING_PAYMENT' CHECK (
-        status IN (
-            'PENDING_PAYMENT', 'PLACED', 'CONFIRMED', 'PREPARING',
-            'READY_FOR_PICKUP', 'OUT_FOR_DELIVERY', 'DELIVERED',
-            'CANCELLED', 'PAYMENT_FAILED', 'REFUNDED'
-        )
-    ),
-    payment_method VARCHAR(20) NOT NULL CHECK (payment_method IN ('ONLINE', 'COD')),
-    payment_status VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (payment_status IN ('PENDING', 'COMPLETED', 'FAILED', 'REFUNDED')),
+    tax_amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+    total_amount NUMERIC(10, 2) NOT NULL,
+    coupon_id UUID REFERENCES public.coupons(id) ON DELETE SET NULL,
     special_instructions TEXT,
     packaging_notes TEXT,
-    idempotency_key VARCHAR(100) UNIQUE,
     placed_at TIMESTAMPTZ,
     confirmed_at TIMESTAMPTZ,
     preparing_at TIMESTAMPTZ,
@@ -171,20 +171,28 @@ CREATE TABLE IF NOT EXISTS public.orders (
     out_for_delivery_at TIMESTAMPTZ,
     delivered_at TIMESTAMPTZ,
     cancelled_at TIMESTAMPTZ,
+    cancel_reason TEXT,
+    idempotency_key VARCHAR(100) UNIQUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    guest_phone VARCHAR(20),
+    guest_email VARCHAR(255),
+    slot_snapshot JSONB,
+    coupon_code VARCHAR(50),
+    refund_reason TEXT
 );
 
 CREATE TABLE IF NOT EXISTS public.order_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
-    product_id UUID REFERENCES public.products(id) ON DELETE SET NULL,
-    variant_id UUID REFERENCES public.product_variants(id) ON DELETE SET NULL,
-    product_name VARCHAR(150) NOT NULL,
-    variant_label VARCHAR(50) NOT NULL,
+    item_type VARCHAR(30) NOT NULL DEFAULT 'PRODUCT',
+    product_variant_id UUID REFERENCES public.product_variants(id) ON DELETE SET NULL,
+    gift_hamper_id UUID REFERENCES public.gift_hampers(id) ON DELETE SET NULL,
+    product_name_snapshot TEXT NOT NULL,
+    variant_label_snapshot TEXT NOT NULL,
     unit_price NUMERIC(10, 2) NOT NULL,
     quantity INT NOT NULL CHECK (quantity > 0),
-    total_price NUMERIC(10, 2) NOT NULL,
+    line_total NUMERIC(10, 2) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -192,14 +200,15 @@ CREATE TABLE IF NOT EXISTS public.order_items (
 CREATE TABLE IF NOT EXISTS public.payments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+    razorpay_order_id TEXT,
+    razorpay_payment_id TEXT,
+    razorpay_signature TEXT,
     amount NUMERIC(10, 2) NOT NULL,
-    currency VARCHAR(10) NOT NULL DEFAULT 'INR',
-    gateway VARCHAR(30) NOT NULL DEFAULT 'CASHFREE',
-    gateway_order_id VARCHAR(100),
-    gateway_payment_id VARCHAR(100),
-    gateway_signature VARCHAR(255),
     status VARCHAR(30) NOT NULL DEFAULT 'INITIATED',
-    raw_response JSONB,
+    method VARCHAR(30) NOT NULL,
+    raw_webhook_payload JSONB,
+    failure_reason TEXT,
+    refunded_amount NUMERIC(10, 2) DEFAULT 0.00,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -208,18 +217,17 @@ CREATE TABLE IF NOT EXISTS public.payments (
 CREATE TABLE IF NOT EXISTS public.coupons (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code VARCHAR(50) NOT NULL UNIQUE,
-    description TEXT,
-    discount_type VARCHAR(20) NOT NULL CHECK (discount_type IN ('PERCENTAGE', 'FLAT')),
-    discount_value NUMERIC(10, 2) NOT NULL CHECK (discount_value > 0),
-    min_order_amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+    type VARCHAR(20) NOT NULL CHECK (type IN ('PERCENTAGE', 'FLAT')),
+    value NUMERIC(10, 2) NOT NULL CHECK (value > 0),
+    min_order_value NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
     max_discount_amount NUMERIC(10, 2),
-    usage_limit INT,
-    usage_count INT NOT NULL DEFAULT 0,
-    per_user_limit INT DEFAULT 1,
-    start_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    end_date TIMESTAMPTZ NOT NULL,
+    usage_limit_total INT,
+    usage_limit_per_user INT DEFAULT 1,
+    valid_from TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    valid_until TIMESTAMPTZ NOT NULL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS public.coupon_usage (
@@ -235,14 +243,19 @@ CREATE TABLE IF NOT EXISTS public.coupon_usage (
 CREATE TABLE IF NOT EXISTS public.offers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title VARCHAR(150) NOT NULL,
-    tagline VARCHAR(200),
     description TEXT,
+    image_url TEXT,
+    coupon_id UUID REFERENCES public.coupons(id) ON DELETE SET NULL,
+    display_order INT DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    starts_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ends_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    tagline VARCHAR(200),
     code VARCHAR(50),
     discount_text VARCHAR(100),
-    bg_color VARCHAR(30) DEFAULT '#8A1538',
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    display_order INT DEFAULT 0,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    bg_color VARCHAR(30) DEFAULT '#8A1538'
 );
 
 CREATE TABLE IF NOT EXISTS public.banners (

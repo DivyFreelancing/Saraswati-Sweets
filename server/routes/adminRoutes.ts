@@ -23,7 +23,7 @@ import {
   isLiveSupabase,
   supabaseServer,
 } from '../db';
-import { createCashfreeRefund } from '../services/cashfreeService';
+import { createCashfreeRefund, fetchCashfreeRefund } from '../services/cashfreeService';
 import { emailProvider } from '../services/notificationService';
 
 const router = Router();
@@ -1352,6 +1352,7 @@ router.post('/offers', requireRole(['ADMIN']), async (req: AuthenticatedRequest,
     bg_color,
     is_active: Boolean(is_active),
     display_order: Number(display_order) || 1,
+    ends_at: valid_until || null
   };
 
   const { error } = await supabaseServer!.from('offers').insert([row]);
@@ -1366,7 +1367,7 @@ router.post('/offers', requireRole(['ADMIN']), async (req: AuthenticatedRequest,
     coupon_code: row.code ?? undefined, discount_text: row.discount_text,
     badge: badge ? String(badge).trim() : undefined, bg_color: row.bg_color,
     image_url: image_url || undefined, is_active: row.is_active,
-    display_order: row.display_order, end_date: end_date || undefined,
+    display_order: row.display_order, valid_until: valid_until || undefined,
     created_at: new Date().toISOString(),
   };
   Map.prototype.set.call(inMemoryStore.offers, id, newOffer);

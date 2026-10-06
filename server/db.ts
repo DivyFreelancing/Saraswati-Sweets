@@ -500,7 +500,7 @@ export interface ServerCoupon {
   id: string;
   code: string;
   description: string;
-  discount_discount_type: 'PERCENTAGE' | 'FLAT';
+  discount_type: 'PERCENTAGE' | 'FLAT';
   discount_value: number;
   min_order_amount: number;
   max_discount_amount?: number;
