@@ -18,8 +18,8 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
     try {
       const { data, error } = await supabaseServer
         .from('addresses')
-        .select('*')
-        .eq('profile_id', userId)
+        .select('id, profile_id:user_id, label, recipient_name, recipient_phone:phone, street_address:line1, landmark, city, state, pincode, is_default, created_at, updated_at')
+        .eq('user_id', userId)
         .order('is_default', { ascending: false });
 
       if (!error && data) {
@@ -107,13 +107,29 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
         await supabaseServer
           .from('addresses')
           .update({ is_default: false })
-          .eq('profile_id', userId);
+          .eq('user_id', userId);
       }
+
+      const dbPayload = {
+        id: newAddress.id,
+        user_id: newAddress.profile_id,
+        label: newAddress.label,
+        recipient_name: newAddress.recipient_name,
+        phone: newAddress.recipient_phone,
+        line1: newAddress.street_address,
+        landmark: newAddress.landmark,
+        city: newAddress.city,
+        state: newAddress.state,
+        pincode: newAddress.pincode,
+        is_default: newAddress.is_default,
+        created_at: newAddress.created_at,
+        updated_at: newAddress.updated_at,
+      };
 
       const { data, error } = await supabaseServer
         .from('addresses')
-        .insert([newAddress])
-        .select()
+        .insert([dbPayload])
+        .select('id, profile_id:user_id, label, recipient_name, recipient_phone:phone, street_address:line1, landmark, city, state, pincode, is_default, created_at, updated_at')
         .single();
 
       if (!error && data) {
@@ -192,11 +208,25 @@ router.put('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
 
   if (isLiveSupabase && supabaseServer) {
     try {
+      const dbPayload = {
+        user_id: updatedAddress.profile_id,
+        label: updatedAddress.label,
+        recipient_name: updatedAddress.recipient_name,
+        phone: updatedAddress.recipient_phone,
+        line1: updatedAddress.street_address,
+        landmark: updatedAddress.landmark,
+        city: updatedAddress.city,
+        state: updatedAddress.state,
+        pincode: updatedAddress.pincode,
+        is_default: updatedAddress.is_default,
+        updated_at: updatedAddress.updated_at,
+      };
+
       await supabaseServer
         .from('addresses')
-        .update(updatedAddress)
+        .update(dbPayload)
         .eq('id', id)
-        .eq('profile_id', userId);
+        .eq('user_id', userId);
     } catch (err) {
       console.warn('Supabase update address warning:', err);
     }
@@ -218,7 +248,7 @@ router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respon
         .from('addresses')
         .delete()
         .eq('id', id)
-        .eq('profile_id', userId);
+        .eq('user_id', userId);
     } catch (err) {
       console.warn('Supabase delete address warning:', err);
     }
@@ -240,8 +270,8 @@ router.post('/:id/default', requireAuth, async (req: AuthenticatedRequest, res: 
 
   if (isLiveSupabase && supabaseServer) {
     try {
-      await supabaseServer.from('addresses').update({ is_default: false }).eq('profile_id', userId);
-      await supabaseServer.from('addresses').update({ is_default: true }).eq('id', id).eq('profile_id', userId);
+      await supabaseServer.from('addresses').update({ is_default: false }).eq('user_id', userId);
+      await supabaseServer.from('addresses').update({ is_default: true }).eq('id', id).eq('user_id', userId);
     } catch (err) {
       console.warn('Supabase set default address warning:', err);
     }

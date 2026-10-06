@@ -74,11 +74,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   // Quick navigation categories mapped to actual catalogue slugs
   const quickNavItems = [
     { label: 'All Sweets', slug: '', isAll: true },
-    { label: 'Desi Ghee Mithai', slug: 'desi-ghee-sweets' },
-    { label: 'Kaju & Dry Fruits', slug: 'kaju-dry-fruits' },
-    { label: 'Chhena & Syrupy', slug: 'chhena-syrupy' },
-    { label: 'Khoya & Mawa', slug: 'khoya-mawa' },
-    { label: 'Artisanal Namkeen', slug: 'namkeen-savories' },
+    ...categories.map((c) => ({ label: c.name, slug: c.slug })),
     { label: 'Festive Hampers', slug: 'hampers', isHamperPage: true },
   ];
 
@@ -137,15 +133,21 @@ export const HomePage: React.FC<HomePageProps> = ({
             onAction={() => onNavigate('/categories')}
           />
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 sm:gap-5">
-            {categories.map((category) => (
-              <CategoryCard
-                key={category.id}
-                category={category}
-                onClick={(slug) => onNavigate(`/catalog?category=${slug}`)}
-              />
-            ))}
-          </div>
+          {categories.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 sm:gap-5">
+              {categories.map((category) => (
+                <CategoryCard
+                  key={category.id}
+                  category={category}
+                  onClick={(slug) => onNavigate(`/catalog?category=${slug}`)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-10 bg-[#F5EAD9]/40 rounded-2xl border border-[#E8DCC8]">
+              <p className="text-[#6E6259] font-medium">No categories available at the moment.</p>
+            </div>
+          )}
         </section>
 
         {/* 6. Heritage Maroon: "The Saraswati Promise / Made With Tradition. Served With Care." */}

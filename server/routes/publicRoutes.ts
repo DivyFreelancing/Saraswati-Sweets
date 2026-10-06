@@ -17,7 +17,7 @@ const router = Router();
 // 0. CATALOG (PUBLIC)
 // ==========================================================
 router.get('/categories', (_req, res: Response) => {
-  res.setHeader('Cache-Control', 'public, max-age=60');
+  res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
   const categories = Array.from(inMemoryStore.categories.values())
     .filter((c) => c.is_active)
     .sort((a, b) => a.display_order - b.display_order);

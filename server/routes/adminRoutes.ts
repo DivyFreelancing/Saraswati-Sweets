@@ -309,6 +309,41 @@ router.delete('/categories/:id', requireRole(['ADMIN']), async (req: Authenticat
     return;
   }
 
+  // 1. Check if category has any products
+  const { count, error: countError } = await supabaseServer!
+    .from('products')
+    .select('id', { count: 'exact', head: true })
+    .eq('category_id', id);
+
+  if (countError) {
+    res.status(500).json({ error: 'DB_READ_FAILED', message: countError.message });
+    return;
+  }
+
+  if (count && count > 0) {
+    // 2. Soft-deactivate if products exist
+    const { error: updateError } = await supabaseServer!
+      .from('categories')
+      .update({ is_active: false })
+      .eq('id', id);
+
+    if (updateError) {
+      res.status(500).json({ error: 'DB_WRITE_FAILED', message: updateError.message });
+      return;
+    }
+
+    cat.is_active = false;
+    Map.prototype.set.call(inMemoryStore.categories, id, cat);
+    logAuditEvent(req.user, 'CATEGORY_DEACTIVATED', 'CATEGORY', id, { name: cat.name, reason: 'Products exist' });
+    res.json({ 
+      success: true, 
+      deactivated: true, 
+      message: 'Category deactivated because products are still associated with it.' 
+    });
+    return;
+  }
+
+  // 3. Hard delete if no products exist
   const { error } = await supabaseServer!.from('categories').delete().eq('id', id);
   if (error) {
     console.error('[Admin] Category delete failed:', error);
@@ -318,8 +353,9 @@ router.delete('/categories/:id', requireRole(['ADMIN']), async (req: Authenticat
 
   Map.prototype.delete.call(inMemoryStore.categories, id);
   logAuditEvent(req.user, 'CATEGORY_DELETED', 'CATEGORY', id, { name: cat.name });
-  res.json({ success: true, message: `Category '${cat.name}' deleted.` });
+  res.json({ success: true, message: `Category '${cat.name}' permanently deleted.` });
 });
+
 
 // ==========================================================
 // 4. PRODUCTS & VARIANTS MANAGEMENT

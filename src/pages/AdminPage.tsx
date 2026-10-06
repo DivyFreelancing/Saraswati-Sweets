@@ -801,9 +801,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
             method: 'DELETE',
             headers: getAuthHeaders(),
           });
+          const data = await res.json();
           if (res.ok) {
-            showToast('Category deleted.', 'info');
+            showToast(data.message || 'Category deleted.', 'info');
             loadAllAdminData(true);
+          } else {
+            showToast(data.message || 'Failed to delete category', 'error');
           }
         } catch {
           showToast('Failed to delete category', 'error');

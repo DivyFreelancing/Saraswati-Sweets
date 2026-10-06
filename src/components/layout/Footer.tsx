@@ -100,46 +100,19 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 <li>
                   <button
                     type="button"
-                    onClick={() => onNavigate('/catalog?category=desi-ghee-sweets')}
+                    onClick={() => onNavigate('/catalog')}
                     className="hover:text-[#7A1129] transition-colors"
                   >
-                    Mithai
+                    All Sweets
                   </button>
                 </li>
                 <li>
                   <button
                     type="button"
-                    onClick={() => onNavigate('/catalog?category=namkeen-savories')}
+                    onClick={() => onNavigate('/categories')}
                     className="hover:text-[#7A1129] transition-colors"
                   >
-                    Namkeen & Snacks
-                  </button>
-                </li>
-                <li>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('/catalog?category=kaju-dry-fruits')}
-                    className="hover:text-[#7A1129] transition-colors"
-                  >
-                    Luxury Dry Fruits
-                  </button>
-                </li>
-                <li>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('/catalog?category=breakfast-chaat')}
-                    className="hover:text-[#7A1129] transition-colors"
-                  >
-                    Breakfast Delights
-                  </button>
-                </li>
-                <li>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('/catalog?category=chhena-syrupy')}
-                    className="hover:text-[#7A1129] transition-colors"
-                  >
-                    Healthy Indulgence
+                    Shop by Category
                   </button>
                 </li>
                 <li>
