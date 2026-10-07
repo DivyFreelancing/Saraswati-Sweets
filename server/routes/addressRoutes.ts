@@ -164,6 +164,11 @@ router.put('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
 
   let existing = inMemoryStore.addresses.get(id);
 
+  if (existing && existing.profile_id !== userId) {
+    res.status(404).json({ error: 'NOT_FOUND', message: 'Address not found' });
+    return;
+  }
+
   if (pincode) {
     const cleanPincode = String(pincode).trim();
     if (!SERVICEABLE_PINCODES.includes(cleanPincode)) {
@@ -239,6 +244,11 @@ router.put('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
 router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
   const { id } = req.params;
+  const existing = inMemoryStore.addresses.get(id);
+  if (!existing || existing.profile_id !== userId) {
+    res.status(404).json({ error: 'NOT_FOUND', message: 'Address not found' });
+    return;
+  }
 
   inMemoryStore.addresses.delete(id);
 
@@ -261,6 +271,12 @@ router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respon
 router.post('/:id/default', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
   const { id } = req.params;
+
+  const target = inMemoryStore.addresses.get(id);
+  if (!target || target.profile_id !== userId) {
+    res.status(404).json({ error: 'NOT_FOUND', message: 'Address not found' });
+    return;
+  }
 
   for (const [addrId, addr] of inMemoryStore.addresses.entries()) {
     if (addr.profile_id === userId) {

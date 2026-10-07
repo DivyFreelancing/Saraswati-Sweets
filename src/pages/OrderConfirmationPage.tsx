@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2, Package, MapPin, Clock, ArrowRight, Truck, FileText, Sparkles } from 'lucide-react';
+import { CheckCircle2, Package, MapPin, Clock, ArrowRight, Truck, FileText, Sparkles, Lock } from 'lucide-react';
 import { formatINR } from '../utils/formatters';
+import { useAuth } from '../context/AuthContext';
 
 interface OrderConfirmationPageProps {
   orderNumber: string;
@@ -17,15 +18,25 @@ export const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
 }) => {
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const { isAuthenticated, openAuthModal, getAuthHeaders } = useAuth();
 
   useEffect(() => {
     async function loadOrder() {
+      if (!isAuthenticated) {
+        setLoading(false);
+        return;
+      }
+      
       try {
         setLoading(true);
-        const res = await fetch(`/api/orders/${orderNumber}`);
+        const res = await fetch(`/api/orders/${orderNumber}`, {
+          headers: getAuthHeaders(),
+        });
         if (res.ok) {
           const data = await res.json();
           setOrder(data.order);
+        } else if (res.status === 401 || res.status === 403 || res.status === 404) {
+          setOrder(null);
         }
       } catch (err) {
         console.error('Failed to load order confirmation details:', err);
@@ -34,7 +45,29 @@ export const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
       }
     }
     loadOrder();
-  }, [orderNumber]);
+  }, [orderNumber, isAuthenticated, getAuthHeaders]);
+
+  if (!isAuthenticated) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center space-y-6">
+        <div className="w-20 h-20 rounded-full bg-[#F3EBE0] text-[#8A1538] flex items-center justify-center mx-auto">
+          <Lock className="w-10 h-10" />
+        </div>
+        <h1 className="font-display font-bold text-3xl text-[#1F1B16]">
+          Authentication Required
+        </h1>
+        <p className="text-[#6B6258] max-w-md mx-auto">
+          Please log in to view the details for order #{orderNumber}. This protects your personal information.
+        </p>
+        <button
+          onClick={openAuthModal}
+          className="px-8 py-3 rounded-xl bg-[#8A1538] hover:bg-[#701029] text-white font-semibold transition-colors shadow-sm"
+        >
+          Log in to view order
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">

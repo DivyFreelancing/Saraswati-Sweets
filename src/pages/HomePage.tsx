@@ -18,6 +18,7 @@ import { HeroSection } from '../components/common/HeroSection';
 import { SectionHeader } from '../components/common/SectionHeader';
 import { CategoryCard } from '../components/common/CategoryCard';
 import { ProductGrid } from '../components/common/ProductGrid';
+import { ProductCarousel } from '../components/common/ProductCarousel';
 import { PromoBanner } from '../components/common/PromoBanner';
 import { HamperCard } from '../components/common/HamperCard';
 import { ReviewCard } from '../components/common/ReviewCard';
@@ -48,7 +49,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         setLoading(true);
         const [cats, prods, hamps, bans, offs, revs] = await Promise.all([
           catalogService.getCategories(),
-          catalogService.getProducts({ bestsellerOnly: true }),
+          catalogService.getProducts({}),
           catalogService.getGiftHampers(),
           catalogService.getBanners(),
           catalogService.getOffers(),
@@ -56,7 +57,24 @@ export const HomePage: React.FC<HomePageProps> = ({
         ]);
 
         setCategories(cats);
-        setBestsellers(prods);
+
+        // Exclude Savory & Namkeen products from the Bestselling Mithai carousel
+        const savorySlugs = ['namkeen-savories', 'namkeen-snacks'];
+        const savoryCategoryIds = cats
+          .filter(
+            (c) =>
+              (c.slug && savorySlugs.includes(c.slug.toLowerCase())) ||
+              (c.name && (c.name.toLowerCase().includes('savory') || c.name.toLowerCase().includes('namkeen')))
+          )
+          .map((c) => c.id);
+
+        const sweetsOnly = prods.filter((p) => {
+          // If no category ID is assigned or it's missing, safely keep it (assume it's a sweet)
+          if (!p.category_id) return true;
+          return !savoryCategoryIds.includes(p.category_id);
+        });
+
+        setBestsellers(sweetsOnly);
         setHampers(hamps);
         setBanners(bans.filter((b) => b.is_active));
         setOffers(offs.filter((o) => o.is_active));
@@ -107,9 +125,9 @@ export const HomePage: React.FC<HomePageProps> = ({
                 key={item.label}
                 type="button"
                 onClick={() => {
-                  if (item.isHamperPage) {
+                  if ((item as any).isHamperPage) {
                     onNavigate('/hampers');
-                  } else if (item.isAll) {
+                  } else if ((item as any).isAll) {
                     onNavigate('/catalog');
                   } else {
                     onNavigate(`/catalog?category=${item.slug}`);
@@ -117,14 +135,30 @@ export const HomePage: React.FC<HomePageProps> = ({
                 }}
                 className="shrink-0 px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full border border-[#E8DCC8] bg-white hover:bg-[#F5EAD9] hover:border-[#7A1129]/40 text-[#221A14] text-xs sm:text-sm font-semibold transition-all duration-150 shadow-xs flex items-center gap-1.5 active:scale-95"
               >
-                {item.isHamperPage && <Gift className="w-3.5 h-3.5 text-[#C79A3D]" />}
+                {(item as any).isHamperPage && <Gift className="w-3.5 h-3.5 text-[#C79A3D]" />}
                 <span>{item.label}</span>
               </button>
             ))}
           </div>
         </section>
 
-        {/* 5. "Shop by Category" Section (Clean Ecommerce) */}
+        {/* 5. "Our Bestsellers" Section */}
+        <section>
+          <SectionHeader
+            eyebrow="Customer Favorites"
+            title="Our Bestselling Mithai"
+            actionText="View All Sweets"
+            onAction={() => onNavigate('/catalog')}
+          />
+
+          <ProductCarousel
+            products={bestsellers}
+            isLoading={loading}
+            onOpenDetail={onOpenProductDetail}
+          />
+        </section>
+
+        {/* 6. "Shop by Category" Section (Clean Ecommerce) */}
         <section className="-mt-3 sm:-mt-6">
           <SectionHeader
             eyebrow="Authentic Collections"
@@ -150,7 +184,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           )}
         </section>
 
-        {/* 6. Heritage Maroon: "The Saraswati Promise / Made With Tradition. Served With Care." */}
+        {/* 7. Heritage Maroon: "The Saraswati Promise / Made With Tradition. Served With Care." */}
         <section
           id="promise"
           aria-label="The Saraswati Promise"
@@ -254,22 +288,6 @@ export const HomePage: React.FC<HomePageProps> = ({
               </div>
             </div>
           </div>
-        </section>
-
-        {/* 7. "Our Bestsellers" Section */}
-        <section>
-          <SectionHeader
-            eyebrow="Customer Favorites"
-            title="Our Bestselling Mithai"
-            actionText="View All Sweets"
-            onAction={() => onNavigate('/catalog')}
-          />
-
-          <ProductGrid
-            products={bestsellers}
-            isLoading={loading}
-            onOpenDetail={onOpenProductDetail}
-          />
         </section>
 
         {/* 8. "Order Now or Plan Ahead" — Two-Card Split Section */}

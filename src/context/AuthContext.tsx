@@ -19,8 +19,8 @@ interface AuthContextType {
   role: 'CUSTOMER' | 'STAFF' | 'ADMIN';
   isAdmin: boolean;
   isStaff: boolean;
-  sendPhoneOtp: (phone: string, fullName?: string) => Promise<{ success: boolean; message?: string }>;
-  verifyPhoneOtp: (phone: string, token: string, fullName?: string) => Promise<{ success: boolean; message?: string }>;
+  sendEmailOtp: (email: string) => Promise<{ success: boolean; message?: string }>;
+  verifyEmailOtp: (email: string, token: string) => Promise<{ success: boolean; message?: string; needsProfileInfo?: boolean }>;
   signInWithEmail: (email: string, password: string) => Promise<{ success: boolean; message?: string }>;
   signOut: () => Promise<void>;
   openAuthModal: () => void;
@@ -128,99 +128,84 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     restoreSession();
   }, []);
 
-  // Send Phone OTP
-  const sendPhoneOtp = async (phone: string, fullName?: string): Promise<{ success: boolean; message?: string }> => {
-    const cleanPhone = phone.replace(/\D/g, '').slice(-10);
-    if (cleanPhone.length < 10) {
-      return { success: false, message: 'Please enter a valid 10-digit mobile number' };
+  // Send Email OTP
+  const sendEmailOtp = async (email: string): Promise<{ success: boolean; message?: string }> => {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      return { success: false, message: 'Please enter a valid email address' };
     }
-
-    const formattedPhone = `+91${cleanPhone}`;
 
     if (isSupabaseConfigured() && supabase) {
       try {
         const { error } = await supabase.auth.signInWithOtp({
-          phone: formattedPhone,
+          email: cleanEmail,
+          options: {
+            shouldCreateUser: true,
+          }
         });
         if (error) {
-          console.warn('Supabase SMS OTP warning:', error.message);
-          // Allow fallback for development/demo
+          console.warn('Supabase Email OTP warning:', error.message);
+          return { success: false, message: error.message };
         } else {
-          return { success: true, message: `OTP sent to ${formattedPhone}` };
+          return { success: true, message: `Verification code sent to ${cleanEmail}` };
         }
       } catch (err: any) {
         console.warn('Supabase OTP error:', err);
+        return { success: false, message: 'Network error sending OTP' };
       }
     }
 
-    // Demo/Development OTP simulation
-    return {
-      success: true,
-      message: `OTP sent to ${formattedPhone} (For preview, enter 123456 or click 1-Tap OTP)`,
-    };
+    return { success: false, message: 'Supabase is not configured' };
   };
 
-  // Verify Phone OTP
-  const verifyPhoneOtp = async (phone: string, otp: string, fullName?: string): Promise<{ success: boolean; message?: string }> => {
-    const cleanPhone = phone.replace(/\D/g, '').slice(-10);
-    const formattedPhone = `+91${cleanPhone}`;
+  // Verify Email OTP
+  const verifyEmailOtp = async (email: string, otp: string): Promise<{ success: boolean; message?: string; needsProfileInfo?: boolean }> => {
+    const cleanEmail = email.trim().toLowerCase();
 
-    if (isSupabaseConfigured() && supabase && otp !== '123456') {
+    if (isSupabaseConfigured() && supabase) {
       try {
         const { data, error } = await supabase.auth.verifyOtp({
-          phone: formattedPhone,
+          email: cleanEmail,
           token: otp,
-          type: 'sms',
+          type: 'email',
         });
 
-        if (!error && data.session && data.user) {
+        if (error) {
+          return { success: false, message: 'Invalid or expired OTP. Please request a new code.' };
+        }
+
+        if (data.session && data.user) {
           const jwt = data.session.access_token;
           setToken(jwt);
 
           const synced = await syncProfileOnServer(
             {
               id: data.user.id,
-              phone: formattedPhone,
-              full_name: fullName?.trim() || (data.user.user_metadata?.full_name as string) || '',
+              email: cleanEmail,
+              full_name: (data.user.user_metadata?.full_name as string) || '',
               role: 'CUSTOMER',
             },
             jwt
           );
 
           localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: jwt, user: synced }));
-          setIsAuthModalOpen(false);
-          showToast(`Welcome back, ${synced.full_name}!`, 'success');
-          return { success: true };
+          
+          const missingInfo = !synced.phone || !synced.full_name;
+
+          if (!missingInfo) {
+            setIsAuthModalOpen(false);
+            showToast(`Welcome back, ${synced.full_name}!`, 'success');
+          }
+          
+          return { success: true, needsProfileInfo: missingInfo };
         }
       } catch (err) {
         console.warn('Supabase verifyOtp error:', err);
+        return { success: false, message: 'Error verifying OTP' };
       }
     }
 
-    // Standard / Demo fallback verification
-    if (otp === '123456' || otp.length === 6) {
-      try {
-        const res = await fetch('/api/auth/demo-login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: cleanPhone, full_name: fullName?.trim() }),
-        });
-
-        const data = await res.json();
-        if (data.success && data.token && data.profile) {
-          setToken(data.token);
-          setUser(data.profile);
-          localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: data.token, user: data.profile }));
-          setIsAuthModalOpen(false);
-          showToast(`Welcome to Saraswati Sweets, ${data.profile.full_name}!`, 'success');
-          return { success: true };
-        }
-      } catch (err: any) {
-        return { success: false, message: err.message || 'Verification failed' };
-      }
-    }
-
-    return { success: false, message: 'Invalid OTP. Use 123456 or the code sent to your phone.' };
+    return { success: false, message: 'Supabase is not configured' };
   };
 
   // Sign In with Email & Password (for Admin/Staff at /admin/login)
@@ -236,12 +221,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const jwt = data.session.access_token;
           setToken(jwt);
 
-          const role = email.includes('admin') ? 'ADMIN' : email.includes('staff') ? 'STAFF' : 'CUSTOMER';
+          const role = 'CUSTOMER'; // Role is determined by the server
           const synced = await syncProfileOnServer(
             {
               id: data.user.id,
               email: data.user.email,
-              full_name: (data.user.user_metadata?.full_name as string) || (role === 'ADMIN' ? 'Shop Owner' : 'Store Staff'),
+              full_name: (data.user.user_metadata?.full_name as string) || '',
               role,
             },
             jwt
@@ -255,28 +240,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.warn('Supabase signInWithPassword error:', err);
       }
     }
-
-    // Direct credentials verification
-    try {
-      const res = await fetch('/api/auth/demo-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password: pass }),
-      });
-
-      const data = await res.json();
-      if (data.success && data.token && data.profile) {
-        setToken(data.token);
-        setUser(data.profile);
-        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: data.token, user: data.profile }));
-        showToast(`Authenticated as ${data.profile.full_name} (${data.profile.role})`, 'success');
-        return { success: true };
-      } else {
-        return { success: false, message: data.message || 'Invalid email or password' };
-      }
-    } catch (err: any) {
-      return { success: false, message: err.message || 'Login failed' };
-    }
+    return { success: false, message: 'Invalid email or password' };
   };
 
   // Sign out
@@ -335,8 +299,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         role,
         isAdmin,
         isStaff,
-        sendPhoneOtp,
-        verifyPhoneOtp,
+        sendEmailOtp,
+        verifyEmailOtp,
         signInWithEmail,
         signOut,
         openAuthModal: () => setIsAuthModalOpen(true),

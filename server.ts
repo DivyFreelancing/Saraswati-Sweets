@@ -44,6 +44,15 @@ async function startServer() {
 
   // --- API Routes ---
   
+  // Security Headers & Cache Control for APIs
+  // Defaults to no-store to protect private data. Public routes override this.
+  app.use('/api', (req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    next();
+  });
+  
   const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100, // Limit each IP to 100 requests per window

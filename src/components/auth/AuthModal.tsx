@@ -1,22 +1,93 @@
-import React, { useState } from 'react';
-import { X, Phone, User, Sparkles, ArrowRight, CheckCircle2, RotateCcw, ShieldCheck, Edit2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Phone, User, ArrowRight, CheckCircle2, RotateCcw, ShieldCheck, Edit2, Mail } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 
 export const AuthModal: React.FC = () => {
-  const { isAuthModalOpen, closeAuthModal, sendPhoneOtp, verifyPhoneOtp } = useAuth();
+  const { isAuthModalOpen, closeAuthModal, sendEmailOtp, verifyEmailOtp, updateUserProfile } = useAuth();
   const { showToast } = useToast();
 
-  const [step, setStep] = useState<'PHONE' | 'OTP'>('PHONE');
+  const [step, setStep] = useState<'EMAIL' | 'OTP' | 'PROFILE'>('EMAIL');
+  const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  const { user, isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    if (isAuthModalOpen && isAuthenticated) {
+      if (!user?.phone || !user?.full_name) {
+        setStep('PROFILE');
+      }
+    } else if (isAuthModalOpen) {
+      setStep('EMAIL');
+    }
+  }, [isAuthModalOpen, isAuthenticated, user]);
+
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendCooldown]);
 
   if (!isAuthModalOpen) return null;
 
   const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage('');
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      setErrorMessage('Please enter a valid email address');
+      return;
+    }
+
+    setIsSubmitting(true);
+    const res = await sendEmailOtp(cleanEmail);
+    setIsSubmitting(false);
+
+    if (res.success) {
+      setStep('OTP');
+      setResendCooldown(60);
+      showToast(res.message || 'OTP sent successfully', 'info');
+    } else {
+      setErrorMessage(res.message || 'Failed to send OTP');
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage('');
+    if (otp.length < 6) {
+      setErrorMessage('Please enter the verification code');
+      return;
+    }
+
+    setIsSubmitting(true);
+    const res = await verifyEmailOtp(email, otp);
+    setIsSubmitting(false);
+
+    if (res.success) {
+      if (res.needsProfileInfo) {
+        setStep('PROFILE');
+        showToast('Authentication successful. Please complete your profile.', 'success');
+      } else {
+        // Modal closed internally in AuthContext if not missing info
+        setStep('EMAIL');
+        setEmail('');
+        setOtp('');
+      }
+    } else {
+      setErrorMessage(res.message || 'Invalid OTP code');
+    }
+  };
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
 
@@ -33,47 +104,40 @@ export const AuthModal: React.FC = () => {
     }
 
     setIsSubmitting(true);
-    const res = await sendPhoneOtp(clean, cleanName);
+    const res = await updateUserProfile({
+      full_name: cleanName,
+      phone: `+91 ${clean.slice(0, 5)} ${clean.slice(5)}`
+    });
     setIsSubmitting(false);
 
     if (res.success) {
-      setStep('OTP');
-      showToast(res.message || 'OTP sent successfully', 'info');
-    } else {
-      setErrorMessage(res.message || 'Failed to send OTP');
-    }
-  };
-
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage('');
-    if (otp.length < 6) {
-      setErrorMessage('Please enter the 6-digit OTP code');
-      return;
-    }
-
-    setIsSubmitting(true);
-    const res = await verifyPhoneOtp(phoneNumber, otp, fullName.trim());
-    setIsSubmitting(false);
-
-    if (res.success) {
-      // Modal closed and profile synced inside verifyPhoneOtp
-      setStep('PHONE');
+      setStep('EMAIL');
+      setEmail('');
+      setOtp('');
       setFullName('');
       setPhoneNumber('');
-      setOtp('');
+      closeAuthModal();
+      showToast('Profile saved successfully! Welcome to Saraswati Sweets.', 'success');
     } else {
-      setErrorMessage(res.message || 'Invalid OTP code');
+      setErrorMessage(res.message || 'Failed to save profile');
     }
-  };
-
-  const handleDemoQuickFill = () => {
-    setOtp('123456');
   };
 
   const handleClose = () => {
     setErrorMessage('');
     closeAuthModal();
+  };
+
+  const getStepTitle = () => {
+    if (step === 'EMAIL') return 'Welcome to Saraswati';
+    if (step === 'OTP') return 'Verify Email OTP';
+    return 'Complete Profile';
+  };
+
+  const getStepSubtitle = () => {
+    if (step === 'EMAIL') return 'Enter your email to sign in or create an account.';
+    if (step === 'OTP') return `We sent a verification code to ${email}`;
+    return 'Please provide your name and mobile number to complete your account setup.';
   };
 
   return (
@@ -113,12 +177,10 @@ export const AuthModal: React.FC = () => {
 
               <div>
                 <h2 className="font-display font-bold text-2xl sm:text-[26px] text-[#221A14] tracking-tight">
-                  {step === 'PHONE' ? 'Welcome to Saraswati' : 'Verify Mobile OTP'}
+                  {getStepTitle()}
                 </h2>
                 <p className="text-xs sm:text-sm text-[#6E6259] mt-1 max-w-xs mx-auto leading-relaxed">
-                  {step === 'PHONE'
-                    ? 'Enter your name and mobile number to sign in or complete your order.'
-                    : `We sent a 6-digit code to +91 ${phoneNumber.replace(/\D/g, '').slice(-10)}`}
+                  {getStepSubtitle()}
                 </p>
               </div>
             </div>
@@ -131,46 +193,23 @@ export const AuthModal: React.FC = () => {
               </div>
             )}
 
-            {/* STEP 1: Full Name then Mobile Number */}
-            {step === 'PHONE' && (
+            {/* STEP 1: Email Input */}
+            {step === 'EMAIL' && (
               <form onSubmit={handleSendOtp} className="space-y-4">
-                {/* 1. Full Name (FIRST) */}
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-[#221A14] mb-1.5 flex items-center gap-1.5">
-                    <User className="w-3.5 h-3.5 text-[#7A1129]" />
-                    <span>Your Full Name</span>
+                    <Mail className="w-3.5 h-3.5 text-[#7A1129]" />
+                    <span>Email Address</span>
                   </label>
                   <div className="flex rounded-xl border border-[#E8DCC8] bg-[#FDFBF7] focus-within:border-[#7A1129] focus-within:ring-2 focus-within:ring-[#C79A3D]/25 focus-within:bg-white overflow-hidden shadow-2xs transition-all">
                     <input
-                      type="text"
+                      type="email"
                       required
                       autoFocus
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      placeholder="e.g. Ramesh Kumar Verma"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="e.g. customer@example.com"
                       className="w-full px-4 py-3 text-sm text-[#221A14] bg-transparent focus:outline-none font-medium placeholder:text-[#6E6259]/60"
-                    />
-                  </div>
-                </div>
-
-                {/* 2. Mobile Number (SECOND) */}
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-[#221A14] mb-1.5 flex items-center gap-1.5">
-                    <Phone className="w-3.5 h-3.5 text-[#7A1129]" />
-                    <span>Mobile Number</span>
-                  </label>
-                  <div className="flex rounded-xl border border-[#E8DCC8] bg-[#FDFBF7] focus-within:border-[#7A1129] focus-within:ring-2 focus-within:ring-[#C79A3D]/25 focus-within:bg-white overflow-hidden shadow-2xs transition-all">
-                    <span className="px-3.5 py-3 text-sm font-bold text-[#7A1129] bg-[#F5EAD9] border-r border-[#E8DCC8] flex items-center select-none">
-                      +91
-                    </span>
-                    <input
-                      type="tel"
-                      required
-                      maxLength={10}
-                      value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
-                      placeholder="91611 10030"
-                      className="w-full px-4 py-3 text-sm text-[#221A14] bg-transparent focus:outline-none font-medium placeholder:text-[#6E6259]/60 tracking-wider"
                     />
                   </div>
                 </div>
@@ -201,12 +240,14 @@ export const AuthModal: React.FC = () => {
                 {/* Customer summary pill with Change button */}
                 <div className="p-3 rounded-xl bg-[#F5EAD9]/60 border border-[#E8DCC8] flex items-center justify-between text-xs">
                   <div>
-                    <span className="font-bold text-[#221A14] block">{fullName}</span>
-                    <span className="text-[#6E6259] font-medium">+91 {phoneNumber.replace(/\D/g, '').slice(-10)}</span>
+                    <span className="font-bold text-[#221A14] block">{email}</span>
                   </div>
                   <button
                     type="button"
-                    onClick={() => setStep('PHONE')}
+                    onClick={() => {
+                      setStep('EMAIL');
+                      setOtp('');
+                    }}
                     className="text-[#7A1129] hover:underline font-semibold flex items-center gap-1 p-1"
                   >
                     <Edit2 className="w-3 h-3" />
@@ -216,11 +257,11 @@ export const AuthModal: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-[#221A14] mb-1.5">
-                    Enter 6-Digit OTP
+                    Enter Verification Code
                   </label>
                   <input
                     type="text"
-                    maxLength={6}
+                    maxLength={8}
                     required
                     autoFocus
                     value={otp}
@@ -237,32 +278,85 @@ export const AuthModal: React.FC = () => {
                   className="w-full min-h-[48px] py-3 px-5 rounded-xl bg-[#7A1129] hover:bg-[#5E0D20] disabled:bg-stone-300 text-white font-semibold text-sm transition-all duration-150 shadow-[0_4px_16px_rgba(122,17,41,0.25)] flex items-center justify-center gap-2 active:scale-[0.99] border border-[#C79A3D]/30"
                 >
                   <CheckCircle2 className="w-4 h-4 text-[#FAF4DE]" />
-                  <span>{isSubmitting ? 'Verifying...' : 'Verify OTP & Complete Sign In'}</span>
+                  <span>{isSubmitting ? 'Verifying...' : 'Verify OTP & Sign In'}</span>
                 </button>
 
-                {/* Demo 1-Click Fast Fill & Resend */}
-                <div className="pt-2 flex items-center justify-between text-xs">
+                {/* Resend */}
+                <div className="pt-2 flex items-center justify-end text-xs">
                   <button
                     type="button"
-                    onClick={handleDemoQuickFill}
-                    className="font-bold text-[#7A1129] hover:text-[#5E0D20] inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#F5EAD9]/80 border border-[#E8DCC8] transition-colors"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-[#C79A3D]" />
-                    <span>Quick Demo OTP (123456)</span>
-                  </button>
-
-                  <button
-                    type="button"
+                    disabled={resendCooldown > 0}
                     onClick={() => {
                       setOtp('');
-                      showToast(`New OTP sent to +91 ${phoneNumber}`, 'info');
+                      sendEmailOtp(email).then((res) => {
+                        if (res.success) {
+                          setResendCooldown(60);
+                          showToast(`New OTP sent to ${email}`, 'info');
+                        }
+                      });
                     }}
-                    className="text-[#6E6259] hover:text-[#221A14] flex items-center gap-1 font-medium transition-colors"
+                    className="text-[#6E6259] hover:text-[#221A14] disabled:opacity-50 flex items-center gap-1 font-medium transition-colors"
                   >
                     <RotateCcw className="w-3 h-3" />
-                    <span>Resend OTP</span>
+                    <span>{resendCooldown > 0 ? `Resend OTP in ${resendCooldown}s` : 'Resend OTP'}</span>
                   </button>
                 </div>
+              </form>
+            )}
+
+            {/* STEP 3: Complete Profile */}
+            {step === 'PROFILE' && (
+              <form onSubmit={handleUpdateProfile} className="space-y-4">
+                {/* 1. Full Name */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-[#221A14] mb-1.5 flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5 text-[#7A1129]" />
+                    <span>Your Full Name</span>
+                  </label>
+                  <div className="flex rounded-xl border border-[#E8DCC8] bg-[#FDFBF7] focus-within:border-[#7A1129] focus-within:ring-2 focus-within:ring-[#C79A3D]/25 focus-within:bg-white overflow-hidden shadow-2xs transition-all">
+                    <input
+                      type="text"
+                      required
+                      autoFocus
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="e.g. Ramesh Kumar Verma"
+                      className="w-full px-4 py-3 text-sm text-[#221A14] bg-transparent focus:outline-none font-medium placeholder:text-[#6E6259]/60"
+                    />
+                  </div>
+                </div>
+
+                {/* 2. Mobile Number (MANDATORY) */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-[#221A14] mb-1.5 flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5 text-[#7A1129]" />
+                    <span>Mobile Number</span>
+                  </label>
+                  <div className="flex rounded-xl border border-[#E8DCC8] bg-[#FDFBF7] focus-within:border-[#7A1129] focus-within:ring-2 focus-within:ring-[#C79A3D]/25 focus-within:bg-white overflow-hidden shadow-2xs transition-all">
+                    <span className="px-3.5 py-3 text-sm font-bold text-[#7A1129] bg-[#F5EAD9] border-r border-[#E8DCC8] flex items-center select-none">
+                      +91
+                    </span>
+                    <input
+                      type="tel"
+                      required
+                      maxLength={10}
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
+                      placeholder="91611 10030"
+                      className="w-full px-4 py-3 text-sm text-[#221A14] bg-transparent focus:outline-none font-medium placeholder:text-[#6E6259]/60 tracking-wider"
+                    />
+                  </div>
+                </div>
+
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full min-h-[48px] py-3 px-5 rounded-xl bg-[#7A1129] hover:bg-[#5E0D20] text-white font-semibold text-sm transition-all duration-150 shadow-[0_4px_16px_rgba(122,17,41,0.25)] flex items-center justify-center gap-2 active:scale-[0.99] border border-[#C79A3D]/30 mt-2"
+                >
+                  <CheckCircle2 className="w-4 h-4 text-[#FAF4DE]" />
+                  <span>{isSubmitting ? 'Saving Profile...' : 'Complete Profile'}</span>
+                </button>
               </form>
             )}
           </div>

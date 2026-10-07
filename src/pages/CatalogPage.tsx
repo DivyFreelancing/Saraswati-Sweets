@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Search, Sparkles, Check, X, RotateCcw } from 'lucide-react';
 import { ProductGrid } from '../components/common/ProductGrid';
 import { Product, Category } from '../types/database';
@@ -36,6 +36,14 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
   useEffect(() => {
     setSelectedCategory(initialCategorySlug);
   }, [initialCategorySlug]);
+
+  const selectedTabRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (selectedTabRef.current) {
+      selectedTabRef.current.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+  }, [selectedCategory, categories.length]);
 
   useEffect(() => {
     async function loadData() {
@@ -171,11 +179,12 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
       {/* Category and Quick Filter Chips */}
       <div className="space-y-3">
         {/* Category Pills */}
-        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+        <div className="flex flex-nowrap gap-2 overflow-x-auto pb-2 no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden overscroll-x-contain">
           <button
             type="button"
+            ref={!selectedCategory ? selectedTabRef : null}
             onClick={() => setSelectedCategory('')}
-            className={`min-h-[38px] px-4 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors border ${
+            className={`shrink-0 min-h-[38px] px-4 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors border ${
               !selectedCategory
                 ? 'bg-[#7A1129] text-white border-[#7A1129]'
                 : 'bg-white text-[#221A14] border-[#E8DCC8] hover:bg-[#F5EAD9]'
@@ -188,8 +197,9 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
             <button
               key={cat.id}
               type="button"
+              ref={selectedCategory === cat.slug ? selectedTabRef : null}
               onClick={() => setSelectedCategory(selectedCategory === cat.slug ? '' : cat.slug)}
-              className={`min-h-[38px] px-4 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors border ${
+              className={`shrink-0 min-h-[38px] px-4 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors border ${
                 selectedCategory === cat.slug
                   ? 'bg-[#7A1129] text-white border-[#7A1129]'
                   : 'bg-white text-[#221A14] border-[#E8DCC8] hover:bg-[#F5EAD9]'

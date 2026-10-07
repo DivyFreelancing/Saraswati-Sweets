@@ -76,7 +76,7 @@ export const CartPage: React.FC<CartPageProps> = ({
           <div className="flex items-center gap-2.5">
             <Sparkles className="w-4 h-4 text-[#8A1538] shrink-0" />
             <span className="text-[#1F1B16]">
-              You are ordering as a <strong>Guest</strong>. Sign in with mobile OTP to automatically save this cart to your account.
+              You are ordering as a <strong>Guest</strong>. Sign in with email to automatically save this cart to your account.
             </span>
           </div>
 

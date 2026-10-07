@@ -108,14 +108,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
           Sign In to Your Account
         </h1>
         <p className="text-sm text-[#6B6258] leading-relaxed">
-          Sign in with your mobile OTP to manage your saved Barabanki delivery addresses and account cart.
+          Sign in with your email to manage your saved Barabanki delivery addresses and account cart.
         </p>
         <button
           type="button"
           onClick={openAuthModal}
           className="min-h-[44px] px-6 py-2.5 rounded-xl bg-[#8A1538] hover:bg-[#701029] text-white font-semibold text-sm transition-colors shadow-xs"
         >
-          Sign In with Mobile OTP
+          Sign In with Email
         </button>
       </div>
     );

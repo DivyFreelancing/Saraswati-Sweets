@@ -258,7 +258,7 @@ router.post('/categories', requireRole(['ADMIN']), async (req: AuthenticatedRequ
 
   logAuditEvent(req.user, 'CATEGORY_CREATED', 'CATEGORY', id, { name: row.name, slug });
   res.status(201).json({ success: true, category: newCat });
-  loadStoreState().catch(err => console.error('[Cache Refresh Error]', err));
+  
 });
 
 router.put('/categories/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
@@ -296,7 +296,7 @@ router.put('/categories/:id', requireRole(['ADMIN']), async (req: AuthenticatedR
     display_order: updates.display_order,
   });
   res.json({ success: true, category: cat });
-  loadStoreState().catch(err => console.error('[Cache Refresh Error]', err));
+  
 });
 
 router.delete('/categories/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
@@ -484,7 +484,7 @@ router.post('/products', requireRole(['ADMIN']), async (req: AuthenticatedReques
 
   logAuditEvent(req.user, 'PRODUCT_CREATED', 'PRODUCT', id, { name: productRow.name, category_id, variantsCount: createdVariants.length });
   res.status(201).json({ success: true, product: { ...newProd, variants: createdVariants } });
-  loadStoreState().catch(err => console.error('[Cache Refresh Error]', err));
+  
 });
 
 router.put('/products/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
@@ -566,7 +566,7 @@ router.put('/products/:id', requireRole(['ADMIN']), async (req: AuthenticatedReq
     category_id: updates.category_id,
   });
   res.json({ success: true, product: prod });
-  loadStoreState().catch(err => console.error('[Cache Refresh Error]', err));
+  
 });
 
 router.delete('/products/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
@@ -822,6 +822,10 @@ router.post('/orders/:id/refund', requireRole(['ADMIN']), async (req: Authentica
     const existingRefunds = Array.from(inMemoryStore.refunds.values()).filter(r => r.order_id === order.id);
     if (existingRefunds.some(r => r.refund_status === 'SUCCESS' || r.refund_status === 'PENDING')) {
       return res.status(409).json({ error: 'ALREADY_REFUNDED', message: 'A refund has already been initiated or completed for this order.' });
+    }
+
+    if (!order.provider_order_id) {
+      return res.status(400).json({ error: 'NO_CASHFREE_ORDER', message: 'Order was not processed via Cashfree or missing provider ID.' });
     }
 
     // Call Cashfree Refund API
@@ -1185,7 +1189,7 @@ router.put('/store/settings', requireRole(['ADMIN']), async (req: AuthenticatedR
   });
 
   res.json({ success: true, message: 'Store settings updated successfully.', settings: inMemoryStore.storeSettings });
-  loadStoreState().catch(err => console.error('[Cache Refresh Error]', err));
+  
 });
 
 // ==========================================================

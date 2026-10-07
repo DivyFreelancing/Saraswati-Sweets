@@ -1,10 +1,13 @@
 import { randomUUID } from 'crypto';
 import { Router, Request, Response } from 'express';
+import { AuthenticatedRequest, requireAuth } from '../authMiddleware';
 import {
   inMemoryStore,
   ServerPayment,
   ServerOrder,
   expireUnpaidOrders,
+  isLiveSupabase,
+  supabaseServer,
 } from '../db';
 import {
   verifyCashfreeOrderStatus,
@@ -21,7 +24,7 @@ const router = Router();
  * POST /api/payments/verify
  * Validates Cashfree frontend checkout success
  */
-router.post('/verify', async (req: Request, res: Response) => {
+router.post('/verify', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const {
     order_id,
     cashfree_order_id,
@@ -73,6 +76,17 @@ router.post('/verify', async (req: Request, res: Response) => {
       message: `No local order found for Cashfree order ${cashfree_order_id}`,
     });
     return;
+  }
+
+  // Authorize order ownership
+  if (req.user && req.user.role === 'CUSTOMER') {
+    if (order.user_id && order.user_id !== req.user.id) {
+      res.status(404).json({
+        error: 'ORDER_NOT_FOUND',
+        message: 'Order not found.',
+      });
+      return;
+    }
   }
 
   // 3. Idempotent check

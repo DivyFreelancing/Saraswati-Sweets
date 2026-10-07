@@ -119,7 +119,13 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
     setErrorMessage('');
 
     if (!isAuthenticated) {
-      showToast('Please sign in with your phone or email to place an order.', 'info');
+      showToast('Please sign in with your email to place an order.', 'info');
+      openAuthModal();
+      return;
+    }
+
+    if (isAuthenticated && (!user?.phone || !user?.full_name)) {
+      showToast('Please complete your profile (name and mobile) to continue.', 'info');
       openAuthModal();
       return;
     }
@@ -299,7 +305,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
             onClick={openAuthModal}
             className="shrink-0 min-h-[44px] px-6 py-2.5 rounded-full bg-[#7A1129] hover:bg-[#5E0D20] text-white text-xs sm:text-sm font-semibold transition-all shadow-xs"
           >
-            Sign In with Mobile OTP
+            Sign In with Email
           </button>
         </div>
       )}

@@ -74,34 +74,41 @@ export const catalogService = {
 
   async getProducts(options: CatalogFilterOptions = {}): Promise<Product[]> {
     const cacheKey = 'products_' + JSON.stringify(options);
-    const cached = getCached<Product[]>(cacheKey);
-    if (cached) return cached;
+    const cachedFiltered = getCached<Product[]>(cacheKey);
+    if (cachedFiltered) return cachedFiltered;
 
-    let products: Product[] = [];
-    let fetchedFromServer = false;
+    const rawCacheKey = 'products_raw';
+    let products: Product[] = getCached<Product[]>(rawCacheKey) || [];
+    let fetchedFromServer = products.length > 0;
 
-    try {
-      const res = await fetch('/api/products');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.products && Array.isArray(data.products)) {
-          products = data.products;
-          fetchedFromServer = true;
+    if (!fetchedFromServer) {
+      try {
+        const res = await fetch('/api/products');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.products && Array.isArray(data.products)) {
+            products = data.products;
+            fetchedFromServer = true;
+            setCached(rawCacheKey, products);
+          }
         }
+      } catch (e) {
+        console.warn('Fetch from /api/products failed:', e);
       }
-    } catch (e) {
-      console.warn('Fetch from /api/products failed:', e);
     }
 
     if (!fetchedFromServer) {
       products = [...SEED_PRODUCTS];
     }
 
+    // Perform filtering synchronously on the (cached) raw list
+    let filtered = [...products];
+
     // Filter by category slug
     if (options.categorySlug) {
       const category = SEED_CATEGORIES.find((c) => c.slug === options.categorySlug);
       if (category) {
-        products = products.filter(
+        filtered = filtered.filter(
           (p) => p.category_id === category.id || (p.category && p.category.slug === options.categorySlug)
         );
       }
@@ -109,18 +116,18 @@ export const catalogService = {
 
     // Filter by Pure Ghee
     if (options.pureGheeOnly) {
-      products = products.filter((p) => p.is_pure_ghee);
+      filtered = filtered.filter((p) => p.is_pure_ghee);
     }
 
     // Filter by Bestseller
     if (options.bestsellerOnly) {
-      products = products.filter((p) => p.is_bestseller);
+      filtered = filtered.filter((p) => p.is_bestseller);
     }
 
     // Filter by search
     if (options.search && options.search.trim()) {
       const term = options.search.toLowerCase().trim();
-      products = products.filter(
+      filtered = filtered.filter(
         (p) =>
           p.name.toLowerCase().includes(term) ||
           p.description.toLowerCase().includes(term) ||
@@ -131,16 +138,16 @@ export const catalogService = {
     // Sort
     if (options.sortBy) {
       if (options.sortBy === 'price-asc') {
-        products.sort((a, b) => (a.variants[0]?.price || 0) - (b.variants[0]?.price || 0));
+        filtered.sort((a, b) => (a.variants[0]?.price || 0) - (b.variants[0]?.price || 0));
       } else if (options.sortBy === 'price-desc') {
-        products.sort((a, b) => (b.variants[0]?.price || 0) - (a.variants[0]?.price || 0));
+        filtered.sort((a, b) => (b.variants[0]?.price || 0) - (a.variants[0]?.price || 0));
       } else if (options.sortBy === 'name') {
-        products.sort((a, b) => a.name.localeCompare(b.name));
+        filtered.sort((a, b) => a.name.localeCompare(b.name));
       }
     }
 
-    setCached(cacheKey, products);
-    return products;
+    setCached(cacheKey, filtered);
+    return filtered;
   },
 
   async getProductBySlug(slug: string): Promise<Product | null> {

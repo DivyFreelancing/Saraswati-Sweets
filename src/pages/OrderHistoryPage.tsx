@@ -88,14 +88,14 @@ export const OrderHistoryPage: React.FC<OrderHistoryPageProps> = ({
           View Your Order History
         </h1>
         <p className="text-sm text-[#6B6258] leading-relaxed">
-          Sign in with your mobile OTP to view past sweet orders, check live delivery status, and reorder favorites.
+          Sign in with your email to view past sweet orders, check live delivery status, and reorder favorites.
         </p>
         <button
           type="button"
           onClick={openAuthModal}
           className="min-h-[44px] px-6 py-2.5 rounded-xl bg-[#8A1538] text-white text-sm font-semibold hover:bg-[#701029] transition-colors"
         >
-          Sign In with Mobile OTP
+          Sign In with Email
         </button>
       </div>
     );

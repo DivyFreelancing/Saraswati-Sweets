@@ -54,8 +54,19 @@ router.put('/profile', requireAuth, async (req: AuthenticatedRequest, res: Respo
 });
 
 // POST /api/auth/sync - Sync profile row on first login
-router.post('/sync', async (req: AuthenticatedRequest, res: Response) => {
-  const { id, email, phone, full_name, role } = req.body;
+router.post('/sync', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const { id, email, phone, full_name } = req.body;
+
+  if (!id) {
+    res.status(400).json({ error: 'MISSING_ID', message: 'User ID is required' });
+    return;
+  }
+
+  // Ensure users can only sync their own profile
+  if (req.user!.id !== id) {
+    res.status(403).json({ error: 'FORBIDDEN', message: 'You can only sync your own profile' });
+    return;
+  }
 
   if (!id) {
     res.status(400).json({ error: 'MISSING_ID', message: 'User ID is required' });
@@ -65,17 +76,37 @@ router.post('/sync', async (req: AuthenticatedRequest, res: Response) => {
   const cleanPhone = phone ? phone.replace(/\D/g, '').slice(-10) : '';
   const formattedPhone = cleanPhone ? `+91 ${cleanPhone.slice(0, 5)} ${cleanPhone.slice(5)}` : phone;
 
-  const assignedRole = role || (email?.includes('admin') ? 'ADMIN' : email?.includes('staff') ? 'STAFF' : 'CUSTOMER');
   // Bug #2 Fix: Never generate a placeholder name.
   const displayName = full_name?.trim() || (email ? email.split('@')[0] : '');
+
+  let finalRole = req.user!.role || 'CUSTOMER';
+  let finalCreatedAt = new Date().toISOString();
+
+  if (isLiveSupabase && supabaseServer) {
+    try {
+      // First check if profile already exists to preserve role and created_at
+      const { data: existingProfile } = await supabaseServer
+        .from('profiles')
+        .select('role, created_at')
+        .eq('id', id)
+        .single();
+        
+      if (existingProfile) {
+        finalRole = existingProfile.role;
+        finalCreatedAt = existingProfile.created_at;
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
 
   const profileData: ServerProfile = {
     id,
     email: email || undefined,
     phone: formattedPhone || undefined,
     full_name: displayName,
-    role: assignedRole,
-    created_at: new Date().toISOString(),
+    role: finalRole,
+    created_at: finalCreatedAt,
     updated_at: new Date().toISOString(),
   };
 
@@ -104,138 +135,6 @@ router.post('/sync', async (req: AuthenticatedRequest, res: Response) => {
   res.json({ success: true, profile: profileData });
 });
 
-// POST /api/auth/demo-login - Facilitates instant testing for both customer phone & admin credentials
-router.post('/demo-login', async (req, res) => {
-  const { phone, email, password } = req.body;
 
-  if (email && password) {
-    // Admin / Staff login
-    if (email === 'admin@saraswatisweets.in' || email.includes('admin')) {
-      let adminProfile = inMemoryStore.profiles.get('admin-default');
-      if (!adminProfile) {
-        adminProfile = {
-          id: 'admin-default',
-          email: 'admin@saraswatisweets.in',
-          phone: '+919161110030',
-          full_name: 'Shop Owner (Admin)',
-          role: 'ADMIN',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        inMemoryStore.profiles.set('admin-default', adminProfile);
-      }
-      const token = 'demo-admin-token';
-      res.json({
-        success: true,
-        token,
-        profile: adminProfile,
-      });
-      return;
-    } else if (email === 'staff@saraswatisweets.in' || email.includes('staff')) {
-      let staffProfile = inMemoryStore.profiles.get('staff-default');
-      if (!staffProfile) {
-        staffProfile = {
-          id: 'staff-default',
-          email: 'staff@saraswatisweets.in',
-          phone: '+919450012346',
-          full_name: 'Store Counter Staff',
-          role: 'STAFF',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        inMemoryStore.profiles.set('staff-default', staffProfile);
-      }
-      const token = 'demo-staff-token';
-      res.json({
-        success: true,
-        token,
-        profile: staffProfile,
-      });
-      return;
-    } else {
-      res.status(401).json({ error: 'INVALID_CREDENTIALS', message: 'Invalid email or password' });
-      return;
-    }
-  }
-
-  if (phone) {
-    // Customer phone login
-    const cleanPhone = phone.replace(/\D/g, '').slice(-10);
-    if (cleanPhone.length < 10) {
-      res.status(400).json({ error: 'INVALID_PHONE', message: 'Please enter a valid 10-digit mobile number' });
-      return;
-    }
-
-    
-    const formattedPhoneToSearch = `+91 ${cleanPhone.slice(0, 5)} ${cleanPhone.slice(5)}`;
-    let userId: any = randomUUID();
-    let isRealUser = false;
-    if (isLiveSupabase && supabaseServer) {
-      const { data } = await supabaseServer.from('profiles').select('id').eq('phone', formattedPhoneToSearch).maybeSingle();
-      if (data) {
-        userId = data.id;
-        isRealUser = true;
-      } else {
-        const { data: authData, error: authErr } = await supabaseServer.auth.admin.createUser({
-          phone: formattedPhoneToSearch,
-          phone_confirm: true,
-          user_metadata: { full_name: req.body.full_name || '' }
-        });
-        if (authData?.user) {
-          userId = authData.user.id;
-          isRealUser = true;
-        } else {
-          console.error('Failed to create mock user in Supabase auth:', authErr);
-        }
-      }
-    } else {
-      const existingUser = Array.from(inMemoryStore.profiles.values()).find(p => p.phone === formattedPhoneToSearch || p.phone === cleanPhone);
-      userId = existingUser ? existingUser.id : randomUUID();
-    }
-
-    const token = isRealUser ? `dev-user-${userId}` : `dev-user-${cleanPhone}`;
-    const formattedPhone = `+91 ${cleanPhone.slice(0, 5)} ${cleanPhone.slice(5)}`;
-    const providedName = (req.body.full_name && typeof req.body.full_name === 'string' && req.body.full_name.trim()) || '';
-
-    // Check if profile exists under canonical ID or token
-    let profile = inMemoryStore.profiles.get(userId) || inMemoryStore.profiles.get(token);
-
-    if (!profile) {
-      profile = {
-        id: userId,
-        phone: formattedPhone,
-        // Bug #2 Fix: Never generate a placeholder name. If no real name provided, store empty string.
-        // This ensures the checkout recipient name field stays blank, not pre-filled with "Patron XXXX".
-        full_name: providedName || '',
-        role: req.body.role || 'CUSTOMER',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-    } else {
-      // If user provides a real full name, update it!
-      if (providedName) {
-        profile.full_name = providedName;
-      }
-      if (req.body.role) {
-        profile.role = req.body.role;
-      }
-      profile.phone = formattedPhone;
-      profile.updated_at = new Date().toISOString();
-    }
-
-    // Persist under both keys so lookups never fail
-    inMemoryStore.profiles.set(userId, profile);
-    inMemoryStore.profiles.set(token, profile);
-
-    res.json({
-      success: true,
-      token,
-      profile,
-    });
-    return;
-  }
-
-  res.status(400).json({ error: 'BAD_REQUEST', message: 'Provide either phone or email credentials' });
-});
 
 export default router;

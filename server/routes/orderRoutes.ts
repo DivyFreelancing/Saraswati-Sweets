@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto';
+    import { randomUUID } from 'crypto';
 import { Router, Response } from 'express';
 import { AuthenticatedRequest, requireAuth, requireRole } from '../authMiddleware';
 import {
@@ -645,7 +645,7 @@ router.get('/orders', requireAuth, (req: AuthenticatedRequest, res: Response) =>
 });
 
 // GET /api/orders/:orderNumber - Fetch order details by order_number
-router.get('/orders/:orderNumber', (req: AuthenticatedRequest, res: Response) => {
+router.get('/orders/:orderNumber', requireAuth, (req: AuthenticatedRequest, res: Response) => {
   const { orderNumber } = req.params;
 
   const order = Array.from(inMemoryStore.orders.values()).find(
@@ -663,7 +663,7 @@ router.get('/orders/:orderNumber', (req: AuthenticatedRequest, res: Response) =>
   // If user is authenticated and not staff, verify ownership
   if (req.user && req.user.role === 'CUSTOMER') {
     if (order.user_id && order.user_id !== req.user.id) {
-      res.status(403).json({ error: 'FORBIDDEN', message: 'You do not have access to this order.' });
+      res.status(404).json({ error: 'ORDER_NOT_FOUND', message: `Order #${orderNumber} not found.` });
       return;
     }
   }
@@ -672,7 +672,7 @@ router.get('/orders/:orderNumber', (req: AuthenticatedRequest, res: Response) =>
 });
 
 // PATCH /api/orders/:id/status - Server-side Order State Machine
-router.patch('/orders/:id/status', async (req: AuthenticatedRequest, res: Response) => {
+router.patch('/orders/:id/status', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const { status: targetStatus, reason } = req.body;
 
@@ -689,6 +689,11 @@ router.patch('/orders/:id/status', async (req: AuthenticatedRequest, res: Respon
   // 1. Customer Cancel Rule: Only allowed if status is PLACED or CONFIRMED
   const isCustomer = req.user?.role === 'CUSTOMER';
   if (isCustomer) {
+    if (order.user_id && order.user_id !== req.user?.id) {
+      res.status(404).json({ error: 'ORDER_NOT_FOUND', message: 'Order not found' });
+      return;
+    }
+
     if (nextStatus !== 'CANCELLED') {
       res.status(403).json({
         error: 'FORBIDDEN',
