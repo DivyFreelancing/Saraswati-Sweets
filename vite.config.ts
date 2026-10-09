@@ -50,6 +50,7 @@ export default defineConfig(({ command }) => {
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,svg,woff2}'],
           globIgnores: ['**/images/**', '**/*.png'],
+          navigateFallbackDenylist: [/^\/robots\.txt$/, /^\/sitemap\.xml$/, /^\/api/],
           runtimeCaching: [
             {
               urlPattern: /\/images\/.*\.(webp|png|jpg|svg)$/i,
