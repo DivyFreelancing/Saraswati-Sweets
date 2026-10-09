@@ -141,10 +141,77 @@ async function startServer() {
     res.send(generateRobotsTxt());
   });
 
-  app.get('/sitemap.xml', (_req, res) => {
-    res.type('application/xml');
+  // Robust Sitemap Endpoints & Aliases:
+  // Handles /sitemap.xml, /sitemap, /sitemap_index.xml, and accidental full-domain prefixes from GSC
+  const handleSitemapRequest = (_req: express.Request, res: express.Response) => {
+    let xml = generateSitemapXml();
+    // Safety fallback: if dynamic generation produced too few URLs, use public/sitemap.xml static file
+    if (!xml || xml.length < 500) {
+      const fallbackPath = path.resolve(__dirname, 'public', 'sitemap.xml');
+      if (fs.existsSync(fallbackPath)) {
+        xml = fs.readFileSync(fallbackPath, 'utf8');
+      }
+    }
+    const buf = Buffer.from(xml, 'utf-8');
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
-    res.send(generateSitemapXml());
+    res.setHeader('Content-Length', buf.length.toString());
+    res.send(buf);
+  };
+
+  app.get(['/sitemap.xml', '/sitemap.xml/'], handleSitemapRequest);
+  app.get(['/sitemap', '/sitemap/', '/sitemap_index.xml'], (_req, res) => res.redirect(301, '/sitemap.xml'));
+  // Handle accidental double-domain submissions in GSC: e.g. /https://saraswatisweetsbarabanki.com/sitemap.xml
+  app.get(/.*sitemap\.xml$/, handleSitemapRequest);
+
+  // Agent Discoverability Routes: llms.txt, llms-full.txt & ai-catalog.json
+  const readRootFile = (fileName: string): string | null => {
+    const candidatePaths = [
+      path.resolve(__dirname, 'public', fileName),
+      path.resolve(__dirname, 'dist', fileName),
+      path.resolve(process.cwd(), 'public', fileName),
+      path.resolve(process.cwd(), 'dist', fileName),
+    ];
+    for (const p of candidatePaths) {
+      if (fs.existsSync(p)) {
+        return fs.readFileSync(p, 'utf8');
+      }
+    }
+    return null;
+  };
+
+  app.get(['/llms.txt', '/.well-known/llms.txt'], (_req, res) => {
+    const content = readRootFile('llms.txt');
+    if (content) {
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.send(content);
+    } else {
+      res.status(404).type('text/plain').send('llms.txt not found');
+    }
+  });
+
+  app.get('/llms-full.txt', (_req, res) => {
+    const content = readRootFile('llms-full.txt');
+    if (content) {
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.send(content);
+    } else {
+      res.status(404).type('text/plain').send('llms-full.txt not found');
+    }
+  });
+
+  app.get(['/ai-catalog.json', '/.well-known/ai-catalog.json', '/.well-known/ard.json'], (_req, res) => {
+    const content = readRootFile('ai-catalog.json');
+    if (content) {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.send(content);
+    } else {
+      res.status(404).type('application/json').json({ error: 'NotFound', message: 'ai-catalog.json not found' });
+    }
   });
 
   

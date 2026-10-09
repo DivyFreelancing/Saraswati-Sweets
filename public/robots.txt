@@ -7,6 +7,10 @@ Allow: /images/
 Allow: /assets/
 Allow: /icon.svg
 Allow: /apple-touch-icon.png
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /ai-catalog.json
+Allow: /.well-known/
 
 # Disallow private, administrative, and checkout transaction paths
 Disallow: /admin
@@ -20,3 +24,4 @@ Disallow: /profile
 Disallow: /api/
 
 Sitemap: https://saraswatisweetsbarabanki.com/sitemap.xml
+Agentmap: https://saraswatisweetsbarabanki.com/ai-catalog.json

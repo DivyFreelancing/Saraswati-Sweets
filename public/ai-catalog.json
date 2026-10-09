@@ -1,0 +1,142 @@
+{
+  "specVersion": "1.0",
+  "host": {
+    "displayName": "Saraswati Sweets",
+    "identifier": "did:web:saraswatisweetsbarabanki.com",
+    "documentationUrl": "https://saraswatisweetsbarabanki.com/llms.txt",
+    "logoUrl": "https://saraswatisweetsbarabanki.com/icon.svg"
+  },
+  "entries": [
+    {
+      "identifier": "urn:air:saraswatisweetsbarabanki.com:catalog:mithai-and-namkeen",
+      "displayName": "Saraswati Sweets Artisanal Mithai & Namkeen Catalog",
+      "type": "application/json",
+      "url": "https://saraswatisweetsbarabanki.com/catalog",
+      "description": "Artisanal Indian sweets (mithai), authentic namkeen, and festive gift hampers handcrafted with pure desi ghee in Barabanki, Uttar Pradesh.",
+      "tags": [
+        "mithai",
+        "sweets",
+        "namkeen",
+        "hampers",
+        "barabanki",
+        "pure-desi-ghee"
+      ],
+      "capabilities": [
+        "browse_catalog",
+        "view_categories",
+        "order_hampers",
+        "bulk_enquiry"
+      ],
+      "representativeQueries": [
+        "order pure desi ghee mithai online in Barabanki",
+        "buy authentic kaju katli and kesar peda",
+        "festive Diwali sweets and gift hampers Barabanki"
+      ],
+      "version": "1.0.0",
+      "updatedAt": "2026-10-09T00:00:00Z",
+      "metadata": {
+        "store": "Saraswati Sweets",
+        "city": "Barabanki",
+        "state": "Uttar Pradesh",
+        "purity": "Pure Desi Ghee",
+        "established": 1978
+      }
+    },
+    {
+      "identifier": "urn:air:saraswatisweetsbarabanki.com:categories:traditional-sweets",
+      "displayName": "Saraswati Sweets Categories Directory",
+      "type": "text/html",
+      "url": "https://saraswatisweetsbarabanki.com/categories",
+      "description": "Explore categorized Indian sweets and savories including Peda, Laddu, Barfi, Khoya sweets, Dry Fruit sweets, and Namkeen.",
+      "tags": [
+        "categories",
+        "peda",
+        "laddu",
+        "barfi",
+        "khoya-sweets",
+        "dry-fruits"
+      ],
+      "capabilities": [
+        "browse_categories",
+        "filter_products"
+      ],
+      "representativeQueries": [
+        "traditional Barabanki peda and laddu categories",
+        "fresh khoya sweets and dry fruit barfi varieties"
+      ],
+      "version": "1.0.0",
+      "updatedAt": "2026-10-09T00:00:00Z"
+    },
+    {
+      "identifier": "urn:air:saraswatisweetsbarabanki.com:hampers:festive-gifting",
+      "displayName": "Festive Mithai Gift Hampers & Celebration Boxes",
+      "type": "text/html",
+      "url": "https://saraswatisweetsbarabanki.com/hampers",
+      "description": "Curated royal festive gift boxes and artisanal mithai hampers for weddings, corporate gifting, and festivals.",
+      "tags": [
+        "gift-hampers",
+        "festive-boxes",
+        "wedding-gifting",
+        "corporate-gifts"
+      ],
+      "capabilities": [
+        "explore_hampers",
+        "custom_packaging"
+      ],
+      "representativeQueries": [
+        "luxury mithai gift box for wedding gifting",
+        "corporate Diwali sweet hampers Barabanki"
+      ],
+      "version": "1.0.0",
+      "updatedAt": "2026-10-09T00:00:00Z"
+    },
+    {
+      "identifier": "urn:air:saraswatisweetsbarabanki.com:services:bulk-orders",
+      "displayName": "Bulk & Corporate Catering Enquiries",
+      "type": "text/html",
+      "url": "https://saraswatisweetsbarabanki.com/bulk-enquiry",
+      "description": "Custom bulk orders, wedding sweet arrangements, and corporate gifting requests directly with Saraswati Sweets.",
+      "tags": [
+        "bulk-orders",
+        "catering",
+        "wedding-sweets",
+        "corporate-enquiry"
+      ],
+      "capabilities": [
+        "bulk_quotation",
+        "custom_orders"
+      ],
+      "representativeQueries": [
+        "bulk sweets order for marriage in Barabanki",
+        "wholesale mithai enquiry for events"
+      ],
+      "version": "1.0.0",
+      "updatedAt": "2026-10-09T00:00:00Z"
+    },
+    {
+      "identifier": "urn:air:saraswatisweetsbarabanki.com:store:location-and-contact",
+      "displayName": "Saraswati Sweets Store Location & Contact",
+      "type": "text/html",
+      "url": "https://saraswatisweetsbarabanki.com/contact",
+      "description": "Visit Saraswati Sweets flagship retail shop at Indira Market, Begum Gunj, Barabanki, UP or contact customer support.",
+      "tags": [
+        "store-location",
+        "barabanki",
+        "contact",
+        "customer-support",
+        "timings"
+      ],
+      "capabilities": [
+        "store_info",
+        "directions",
+        "customer_service"
+      ],
+      "representativeQueries": [
+        "Saraswati Sweets address and phone number in Barabanki",
+        "sweet shop near Indira Market Begum Gunj Barabanki"
+      ],
+      "version": "1.0.0",
+      "updatedAt": "2026-10-09T00:00:00Z"
+    }
+  ]
+}

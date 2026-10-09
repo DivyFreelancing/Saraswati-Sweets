@@ -16,6 +16,10 @@ export function generateRobotsTxt(): string {
     'Allow: /assets/',
     'Allow: /icon.svg',
     'Allow: /apple-touch-icon.png',
+    'Allow: /llms.txt',
+    'Allow: /llms-full.txt',
+    'Allow: /ai-catalog.json',
+    'Allow: /.well-known/',
     '',
     '# Disallow private, administrative, and checkout transaction paths',
     'Disallow: /admin',
@@ -29,6 +33,7 @@ export function generateRobotsTxt(): string {
     'Disallow: /api/',
     '',
     `Sitemap: ${SITE_DOMAIN}/sitemap.xml`,
+    `Agentmap: ${SITE_DOMAIN}/ai-catalog.json`,
     '',
   ].join('\n');
 }

@@ -1,0 +1,41 @@
+# Saraswati Sweets - Full Reference
+> Pure Desi Ghee Mithai & Artisanal Namkeen Since 1978. Heritage sweet shop based in Barabanki, Uttar Pradesh, crafting authentic Indian sweets, traditional savories, and premium festive gift hampers.
+
+## Store Background & Quality Guarantee
+Saraswati Sweets has been a cornerstone of traditional confectionery in Barabanki, Uttar Pradesh since 1978. Every sweet is prepared using 100% pure desi cow ghee, grade-A dry fruits, and slow-simmered rich khoya without artificial preservatives or starch adulteration.
+
+- Physical Store Address: Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001
+- Official Website: https://saraswatisweetsbarabanki.com/
+- Contact Phone / WhatsApp: +91 91611 10030
+- Contact Email: order@saraswatisweets.in
+
+## Public Web Navigation
+- [Home Page](https://saraswatisweetsbarabanki.com/): Online storefront featuring daily freshly prepared sweets, special offers, and festive collections.
+- [Sweet Catalog](https://saraswatisweetsbarabanki.com/catalog): Complete catalog of sweets, laddoos, pedas, barfis, and namkeen.
+- [Product Categories](https://saraswatisweetsbarabanki.com/categories): Categorized navigation by sweet and savory types.
+- [Festive Gift Hampers](https://saraswatisweetsbarabanki.com/hampers): Curated celebration gift boxes with customized silk and velvet packaging.
+- [Bulk & Corporate Orders](https://saraswatisweetsbarabanki.com/bulk-enquiry): Order bulk quantities for weddings, receptions, and corporate gifting.
+- [Contact & Store Information](https://saraswatisweetsbarabanki.com/contact): Store location, operational hours, customer care, and WhatsApp enquiry.
+
+## Categories & Specialty Offerings
+- [Peda](https://saraswatisweetsbarabanki.com/categories/peda): Heritage Awadhi pedas, notably Barabanki Kesar Peda and Khoya Peda.
+- [Laddu](https://saraswatisweetsbarabanki.com/categories/laddu): Pure shuddh desi ghee Motichoor Laddu, Besan Laddu, and seasonal Pinni / Gond Laddu.
+- [Barfi](https://saraswatisweetsbarabanki.com/categories/barfi): Signature Silver Leaf Kaju Katli, Milk Cake, and traditional Khoya Barfi.
+- [Khoya Sweets](https://saraswatisweetsbarabanki.com/categories/khoya-sweets): Melt-in-mouth Gulab Jamun, Kala Jamun, Rasgulla, and Malai Peda.
+- [Dry Fruit Sweets](https://saraswatisweetsbarabanki.com/categories/dry-fruit-sweets): Cashew rolls, pistachio fudge, and anjeer dry fruit sweets.
+- [Namkeen & Savories](https://saraswatisweetsbarabanki.com/categories/namkeen): Awadhi Shahi Dalmoth Mixture, Khasta Ajwain Mathri, Mini Samosa, and crispy Bhujia.
+
+## Featured Products
+- [Signature Silver Leaf Kaju Katli](https://saraswatisweetsbarabanki.com/products/kaju-katli): Diamond-cut cashew fudge made with premium cashews, pure ghee, and edible silver leaf. Available in 250g, 500g, and 1kg boxes.
+- [Pure Shuddh Ghee Motichoor Ladoo](https://saraswatisweetsbarabanki.com/products/motichoor-ladoo): Golden gram flour pearl ladoos infused with Kashmiri saffron and pure cow ghee. Available in 250g, 500g, and 1kg packs.
+- [Barabanki Kesar Peda](https://saraswatisweetsbarabanki.com/products/kesar-peda): Iconic Barabanki specialty slow-simmered milk fudge garnished with saffron and pistachios. Available in 250g and 500g boxes.
+- [Besan Laddu](https://saraswatisweetsbarabanki.com/products/besan-laddu): Slow-roasted gram flour spheres enriched with pure desi ghee and crunchy dry fruits.
+- [Gulab Jamun](https://saraswatisweetsbarabanki.com/products/gulab-jamun): Soft khoya dumplings soaked in warm rosewater and green cardamom syrup.
+- [Spongy Rasgulla](https://saraswatisweetsbarabanki.com/products/rasgulla): Light, spongy fresh chenna dumplings steeped in aromatic sugar syrup.
+- [Awadhi Shahi Dalmoth Mixture](https://saraswatisweetsbarabanki.com/products/dalmoth): Spicy, crunchy royal savory mixture with fried lentils, cashews, and traditional Awadhi spices.
+- [Crispy Ajwain Khasta Mathri](https://saraswatisweetsbarabanki.com/products/mathri): Flaky, golden fried savory crackers flavored with carom seeds (ajwain).
+
+## Machine-Readable Endpoints
+- [XML Sitemap](https://saraswatisweetsbarabanki.com/sitemap.xml): Dynamic XML sitemap indexing all active public store routes.
+- [Robots.txt](https://saraswatisweetsbarabanki.com/robots.txt): Crawler rules and sitemap/agentmap locations.
+- [AI Catalog Manifest](https://saraswatisweetsbarabanki.com/ai-catalog.json): Published Agentic Resource Discovery manifest adhering to the ARD specification.

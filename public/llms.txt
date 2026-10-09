@@ -1,0 +1,33 @@
+# Saraswati Sweets
+> Pure Desi Ghee Mithai & Artisanal Namkeen Since 1978. Heritage sweet shop based in Barabanki, Uttar Pradesh, crafting authentic Indian sweets, traditional savories, and premium festive gift hampers.
+
+## Main Pages
+- [Home](https://saraswatisweetsbarabanki.com/): Official online storefront for artisanal Indian mithai, namkeen, and festive gift boxes in Barabanki.
+- [Sweet Catalog](https://saraswatisweetsbarabanki.com/catalog): Complete collection of pure desi ghee sweets, peda, laddu, and handcrafted savories.
+- [Product Categories](https://saraswatisweetsbarabanki.com/categories): Browse products by category including Peda, Laddu, Barfi, Khoya Sweets, Dry Fruit Sweets, and Namkeen.
+- [Festive Gift Hampers](https://saraswatisweetsbarabanki.com/hampers): Luxury mithai gift boxes and curated celebration hampers for Diwali, Rakhi, Holi, and weddings.
+- [Bulk & Corporate Orders](https://saraswatisweetsbarabanki.com/bulk-enquiry): Custom packaging and bulk orders for weddings, celebrations, and corporate gifting.
+- [Contact & Store Location](https://saraswatisweetsbarabanki.com/contact): Retail shop address at Indira Market, Begum Gunj, Barabanki, customer care, and WhatsApp ordering.
+
+## Sweet Categories
+- [Peda](https://saraswatisweetsbarabanki.com/categories/peda): Heritage Awadhi peda varieties including Kesar Peda and Plain Khoya Peda.
+- [Laddu](https://saraswatisweetsbarabanki.com/categories/laddu): Pure ghee Motichoor Laddu, Besan Laddu, and Gond Laddu.
+- [Barfi](https://saraswatisweetsbarabanki.com/categories/barfi): Signature Silver Leaf Kaju Katli, Milk Cake, and classic Khoya Barfi.
+- [Khoya Sweets](https://saraswatisweetsbarabanki.com/categories/khoya-sweets): Traditional fresh khoya sweets like Gulab Jamun, Kala Jamun, and Malai Peda.
+- [Dry Fruit Sweets](https://saraswatisweetsbarabanki.com/categories/dry-fruit-sweets): Premium dry fruit confections, Kaju Roll, and Anjeer Barfi.
+- [Namkeen](https://saraswatisweetsbarabanki.com/categories/namkeen): Crispy savory snacks, Shahi Dalmoth, Bhujia, and Khasta Mathri.
+
+## Signature Products
+- [Signature Silver Leaf Kaju Katli](https://saraswatisweetsbarabanki.com/products/kaju-katli): Diamond-cut cashew fudge made with premium cashews, pure ghee, and edible silver leaf.
+- [Pure Shuddh Ghee Motichoor Ladoo](https://saraswatisweetsbarabanki.com/products/motichoor-ladoo): Golden gram flour pearl ladoos infused with Kashmiri saffron and pure cow ghee.
+- [Barabanki Kesar Peda](https://saraswatisweetsbarabanki.com/products/kesar-peda): Iconic Barabanki specialty slow-simmered milk fudge garnished with saffron and pistachios.
+- [Besan Laddu](https://saraswatisweetsbarabanki.com/products/besan-laddu): Slow-roasted gram flour spheres enriched with pure desi ghee and crunchy dry fruits.
+- [Gulab Jamun](https://saraswatisweetsbarabanki.com/products/gulab-jamun): Soft khoya dumplings soaked in warm rosewater and green cardamom syrup.
+- [Spongy Rasgulla](https://saraswatisweetsbarabanki.com/products/rasgulla): Light, spongy fresh chenna dumplings steeped in aromatic sugar syrup.
+- [Awadhi Shahi Dalmoth Mixture](https://saraswatisweetsbarabanki.com/products/dalmoth): Spicy, crunchy royal savory mixture with fried lentils, cashews, and traditional Awadhi spices.
+- [Crispy Ajwain Khasta Mathri](https://saraswatisweetsbarabanki.com/products/mathri): Flaky, golden fried savory crackers flavored with carom seeds (ajwain).
+
+## Optional
+- [Full Documentation](https://saraswatisweetsbarabanki.com/llms-full.txt): Comprehensive product details and store background.
+- [XML Sitemap](https://saraswatisweetsbarabanki.com/sitemap.xml): Complete machine-readable XML sitemap for crawlers.
+- [AI Catalog Manifest](https://saraswatisweetsbarabanki.com/ai-catalog.json): Machine-readable Agentic Resource Discovery (ARD) capability manifest.
