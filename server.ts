@@ -18,6 +18,7 @@ import orderRoutes from './server/routes/orderRoutes';
 import paymentRoutes from './server/routes/paymentRoutes';
 import publicRoutes from './server/routes/publicRoutes';
 import { STORE_SETTINGS , loadStoreState } from './server/db';
+import { generateRobotsTxt, generateSitemapXml } from './server/services/seoService';
 
 dotenv.config();
 
@@ -131,6 +132,19 @@ async function startServer() {
       timestamp: new Date().toISOString(),
       shop: 'Saraswati Sweets (Barabanki, UP)',
     });
+  });
+
+  // SEO Routes: Production robots.txt & dynamic sitemap.xml
+  app.get('/robots.txt', (_req, res) => {
+    res.type('text/plain');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(generateRobotsTxt());
+  });
+
+  app.get('/sitemap.xml', (_req, res) => {
+    res.type('application/xml');
+    res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+    res.send(generateSitemapXml());
   });
 
   

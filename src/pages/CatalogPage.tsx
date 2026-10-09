@@ -6,11 +6,13 @@ import { catalogService } from '../services/catalogService';
 
 interface CatalogPageProps {
   initialCategorySlug?: string;
+  initialProductSlug?: string;
   onOpenProductDetail: (product: Product) => void;
 }
 
 export const CatalogPage: React.FC<CatalogPageProps> = ({
   initialCategorySlug = '',
+  initialProductSlug = '',
   onOpenProductDetail,
 }) => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -36,6 +38,17 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
   useEffect(() => {
     setSelectedCategory(initialCategorySlug);
   }, [initialCategorySlug]);
+
+  useEffect(() => {
+    if (initialProductSlug && products.length > 0) {
+      const matched = products.find(
+        (p) => p.slug === initialProductSlug || p.id === initialProductSlug
+      );
+      if (matched) {
+        onOpenProductDetail(matched);
+      }
+    }
+  }, [initialProductSlug, products, onOpenProductDetail]);
 
   const selectedTabRef = useRef<HTMLButtonElement>(null);
 

@@ -88,11 +88,19 @@ function AppContent() {
   const handleOpenProductDetail = (product: Product) => {
     setSelectedProduct(product);
     setIsDetailModalOpen(true);
+    if (product.slug && !currentPath.startsWith('/products/')) {
+      window.history.pushState({}, '', `/products/${product.slug}`);
+      setCurrentPath(`/products/${product.slug}`);
+    }
   };
 
   const handleCloseProductDetail = () => {
     setIsDetailModalOpen(false);
     setSelectedProduct(null);
+    if (currentPath.startsWith('/products/')) {
+      window.history.pushState({}, '', '/catalog');
+      setCurrentPath('/catalog');
+    }
   };
 
   const renderCurrentPage = () => {
@@ -121,6 +129,28 @@ function AppContent() {
       );
     }
 
+    // Dynamic category route: /categories/:slug
+    if (currentPath.startsWith('/categories/') && currentPath !== '/categories') {
+      const categorySlug = decodeURIComponent(currentPath.replace('/categories/', '')).replace(/\/$/, '');
+      return (
+        <CatalogPage
+          initialCategorySlug={categorySlug}
+          onOpenProductDetail={handleOpenProductDetail}
+        />
+      );
+    }
+
+    // Dynamic product route: /products/:slug
+    if (currentPath.startsWith('/products/') && currentPath !== '/products') {
+      const productSlug = decodeURIComponent(currentPath.replace('/products/', '')).replace(/\/$/, '');
+      return (
+        <CatalogPage
+          initialProductSlug={productSlug}
+          onOpenProductDetail={handleOpenProductDetail}
+        />
+      );
+    }
+
     switch (currentPath) {
       case '/catalog':
         return (
@@ -132,7 +162,7 @@ function AppContent() {
       case '/categories':
         return (
           <CategoriesPage
-            onSelectCategory={(slug) => navigateTo(`/catalog?category=${slug}`)}
+            onSelectCategory={(slug) => navigateTo(`/categories/${slug}`)}
           />
         );
       case '/hampers':

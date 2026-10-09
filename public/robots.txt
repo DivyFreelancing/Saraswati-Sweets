@@ -1,0 +1,22 @@
+# Robots.txt for Saraswati Sweets (Barabanki)
+# Production Website: https://saraswatisweetsbarabanki.com/
+
+User-agent: *
+Allow: /
+Allow: /images/
+Allow: /assets/
+Allow: /icon.svg
+Allow: /apple-touch-icon.png
+
+# Disallow private, administrative, and checkout transaction paths
+Disallow: /admin
+Disallow: /admin/
+Disallow: /cart
+Disallow: /checkout
+Disallow: /orders
+Disallow: /orders/
+Disallow: /order-confirmation/
+Disallow: /profile
+Disallow: /api/
+
+Sitemap: https://saraswatisweetsbarabanki.com/sitemap.xml
