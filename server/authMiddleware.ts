@@ -12,11 +12,14 @@ export async function authenticateToken(
   next: NextFunction
 ): Promise<void> {
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return next();
+  let token: string | undefined;
+
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.split(' ')[1]?.trim();
+  } else if (typeof req.query?.token === 'string') {
+    token = req.query.token.trim();
   }
 
-  const token = authHeader.split(' ')[1]?.trim();
   if (!token) {
     return next();
   }
@@ -58,8 +61,8 @@ export async function authenticateToken(
       }
     }
 
-    // Attempt decode JWT token payload only if not using live Supabase auth
-    if (!isLiveSupabase) {
+    // Fallback: Attempt decode JWT / session token payload if not resolved by Supabase
+    if (!req.user) {
       try {
         let payloadJson: string | null = null;
         if (token.includes('.')) {

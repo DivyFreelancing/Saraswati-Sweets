@@ -1,3 +1,4 @@
+import { EventEmitter } from 'events';
 import dotenv from 'dotenv';
 import {
   ServerOrder,
@@ -9,6 +10,27 @@ import {
 } from '../db';
 
 dotenv.config();
+
+/**
+ * Event emitter for real-time admin order notifications
+ */
+export const adminOrderEvents = new EventEmitter();
+adminOrderEvents.setMaxListeners(100);
+
+export interface AdminOrderNotificationPayload {
+  id: string;
+  order_number: string;
+  total_amount: number;
+  payment_method: string;
+  payment_status: string;
+  status: string;
+  placed_at: string;
+  recipient_name: string;
+  recipient_phone: string;
+  item_count: number;
+  items_summary?: string;
+  order_snapshot?: ServerOrder;
+}
 
 export interface EmailMessage {
   to: string;
@@ -414,6 +436,34 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
       </div>
     `,
   });
+
+  // 3. Emit real-time event to connected admin dashboard clients
+  try {
+    const itemCount = Array.isArray(order.items)
+      ? order.items.reduce((sum, item) => sum + (item.quantity || 1), 0)
+      : 0;
+
+    const payload: AdminOrderNotificationPayload = {
+      id: order.id,
+      order_number: order.order_number,
+      total_amount: order.total_amount,
+      payment_method: order.payment_method,
+      payment_status: order.payment_status,
+      status: order.status,
+      placed_at: order.placed_at || order.created_at || new Date().toISOString(),
+      recipient_name: order.address_snapshot?.recipient_name || 'Customer',
+      recipient_phone: order.address_snapshot?.recipient_phone || order.guest_phone || '',
+      item_count: itemCount,
+      items_summary: Array.isArray(order.items)
+        ? order.items.map((i) => `${i.product_name} (${i.variant_label || ''}) × ${i.quantity}`).join(', ')
+        : '',
+      order_snapshot: order,
+    };
+
+    adminOrderEvents.emit('new_order', payload);
+  } catch (err) {
+    console.error('[AdminOrderEvents] Broadcast error:', err);
+  }
 }
 
 /**

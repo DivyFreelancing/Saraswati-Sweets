@@ -36,6 +36,8 @@ import {
   Building2,
   Bell,
   History,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -47,6 +49,17 @@ import { AdminEnquiriesTab } from '../components/admin/AdminEnquiriesTab';
 import { AdminNotificationsTab } from '../components/admin/AdminNotificationsTab';
 import { AdminCouponUsageModal } from '../components/admin/AdminCouponUsageModal';
 import { ProductImagePlaceholder } from '../components/common/ProductImagePlaceholder';
+import {
+  isOrderSoundMuted,
+  setOrderSoundMuted,
+  isAudioContextSuspended,
+  unlockAudioContext,
+  playNewOrderChime,
+} from '../utils/soundEffects';
+import {
+  AdminOrderNotificationBanner,
+  NewOrderAlertItem,
+} from '../components/admin/AdminOrderNotificationBanner';
 
 interface AdminPageProps {
   onBackToStore: () => void;
@@ -72,13 +85,20 @@ type AdminTab =
   | 'audit';
 
 export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin, initialTab }) => {
-  const { user, isAuthenticated, isStaff, isAdmin, signOut, getAuthHeaders } = useAuth();
+  const { user, token, isAuthenticated, isStaff, isAdmin, signOut, getAuthHeaders } = useAuth();
   const { showToast } = useToast();
 
   const [activeTab, setActiveTab] = useState<AdminTab>((initialTab as AdminTab) || 'overview');
   const [loading, setLoading] = useState(true);
   const [serverError, setServerError] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Real-time Order Alerts & Audio State
+  const [isMuted, setIsMuted] = useState<boolean>(() => isOrderSoundMuted());
+  const [isAudioSuspended, setIsAudioSuspended] = useState<boolean>(false);
+  const [streamConnected, setStreamConnected] = useState<boolean>(false);
+  const [orderAlerts, setOrderAlerts] = useState<NewOrderAlertItem[]>([]);
+  const seenOrderIdsRef = useRef<Set<string>>(new Set());
 
   // Data states
   const [metrics, setMetrics] = useState<any>(null);
@@ -256,7 +276,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
 
       if (ordersRes.ok) {
         const data = await ordersRes.json();
-        setOrders(data.orders || []);
+        const fetchedOrders = data.orders || [];
+        setOrders(fetchedOrders);
+        // Mark existing orders as seen so they do not trigger alert chimes
+        fetchedOrders.forEach((o: any) => {
+          if (o?.id) seenOrderIdsRef.current.add(o.id);
+        });
       }
 
       if (productsRes.ok) {
@@ -359,6 +384,186 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
 
     return () => clearInterval(interval);
   }, [isAuthenticated, isStaff, isAdmin]);
+
+  // 3. AUDIO AUTOPLAY STATE TRACKER
+  useEffect(() => {
+    setIsAudioSuspended(isAudioContextSuspended());
+    const handleInteraction = () => {
+      if (isAudioContextSuspended()) {
+        setIsAudioSuspended(true);
+      } else {
+        setIsAudioSuspended(false);
+      }
+    };
+    window.addEventListener('click', handleInteraction, { passive: true });
+    return () => window.removeEventListener('click', handleInteraction);
+  }, []);
+
+  // 4. REAL-TIME NEW ORDER SSE SUBSCRIPTION
+  useEffect(() => {
+    if (!isAuthenticated || !isStaff || !token) {
+      setStreamConnected(false);
+      return;
+    }
+
+    let eventSource: EventSource | null = null;
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+    let isDisposed = false;
+
+    const connectSSE = () => {
+      if (isDisposed) return;
+
+      const sseUrl = `/api/admin/orders/stream?token=${encodeURIComponent(token)}`;
+      eventSource = new EventSource(sseUrl);
+
+      eventSource.onopen = () => {
+        setStreamConnected(true);
+      };
+
+      eventSource.addEventListener('connected', () => {
+        setStreamConnected(true);
+      });
+
+      eventSource.addEventListener('new_order', (e: MessageEvent) => {
+        try {
+          const payload = JSON.parse(e.data);
+          if (!payload || !payload.id) return;
+
+          // Deduplication: If already processed (historical or repeated event), ignore safely
+          if (seenOrderIdsRef.current.has(payload.id)) {
+            return;
+          }
+          seenOrderIdsRef.current.add(payload.id);
+
+          // Play notification chime if sound is enabled
+          if (!isOrderSoundMuted()) {
+            const played = playNewOrderChime();
+            if (!played && isAudioContextSuspended()) {
+              setIsAudioSuspended(true);
+            }
+          }
+
+          // Trigger background browser notification only if tab is hidden and permission is already granted
+          if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+            try {
+              new Notification(`New Order #${payload.order_number || payload.id.slice(-6).toUpperCase()}`, {
+                body: `₹${Number(payload.total_amount).toLocaleString('en-IN')} • ${payload.item_count || 1} items (${payload.payment_method || 'Order'})`,
+                icon: '/favicon.ico',
+                tag: payload.id,
+              });
+            } catch (notifErr) {
+              console.warn('[Notification] Background desktop notification error:', notifErr);
+            }
+          }
+
+          // Show floating toast alert banner
+          const alertItem: NewOrderAlertItem = {
+            id: payload.id,
+            order_number: payload.order_number || payload.id.slice(-6).toUpperCase(),
+            total_amount: Number(payload.total_amount) || 0,
+            payment_method: payload.payment_method || 'ONLINE',
+            placed_at: payload.placed_at || new Date().toISOString(),
+            recipient_name: payload.recipient_name,
+            recipient_phone: payload.recipient_phone,
+            item_count: payload.item_count || 1,
+            items_summary: payload.items_summary,
+          };
+
+          setOrderAlerts((prev) => [alertItem, ...prev.filter((a) => a.id !== alertItem.id)].slice(0, 10));
+
+          // Prepend new order to orders state immediately without requiring page refresh
+          if (payload.order_snapshot) {
+            setOrders((prev) => {
+              const exists = prev.some((o) => o.id === payload.id);
+              if (exists) {
+                return prev.map((o) => (o.id === payload.id ? payload.order_snapshot : o));
+              }
+              return [payload.order_snapshot, ...prev];
+            });
+          }
+
+          // Update live metrics counters
+          setMetrics((prev: any) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              totalOrders: (Number(prev.totalOrders) || 0) + 1,
+              todayOrders: (Number(prev.todayOrders) || 0) + 1,
+              todayRevenue: (Number(prev.todayRevenue) || 0) + (Number(payload.total_amount) || 0),
+            };
+          });
+        } catch (parseErr) {
+          console.error('[Admin SSE] Error parsing new_order event:', parseErr);
+        }
+      });
+
+      eventSource.onerror = () => {
+        setStreamConnected(false);
+        if (eventSource) {
+          eventSource.close();
+          eventSource = null;
+        }
+        if (!isDisposed) {
+          reconnectTimeout = setTimeout(connectSSE, 5000);
+        }
+      };
+    };
+
+    connectSSE();
+
+    return () => {
+      isDisposed = true;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+      }
+      setStreamConnected(false);
+    };
+  }, [isAuthenticated, isStaff, token]);
+
+  // Audio & Notification Handlers
+  const handleToggleSound = () => {
+    const nextState = !isMuted;
+    setIsMuted(nextState);
+    setOrderSoundMuted(nextState);
+    if (!nextState) {
+      unlockAudioContext().then(() => {
+        setIsAudioSuspended(false);
+        playNewOrderChime();
+        showToast('Order notification sound enabled', 'success');
+      });
+    } else {
+      showToast('Order notification sound muted', 'info');
+    }
+  };
+
+  const handleEnableAudio = async () => {
+    await unlockAudioContext();
+    setIsAudioSuspended(false);
+    if (isMuted) {
+      setIsMuted(false);
+      setOrderSoundMuted(false);
+    }
+    await playNewOrderChime();
+    showToast('Order sound alert activated', 'success');
+  };
+
+  const handleDismissAlert = (id: string) => {
+    setOrderAlerts((prev) => prev.filter((a) => a.id !== id));
+  };
+
+  const handleViewOrderFromAlert = (orderNumberOrId: string) => {
+    setOrderAlerts((prev) => prev.filter((a) => a.id !== orderNumberOrId && a.order_number !== orderNumberOrId));
+    setActiveTab('orders');
+    setOrderStatusFilter('ALL');
+    const targetOrder = orders.find((o) => o.id === orderNumberOrId || o.order_number === orderNumberOrId);
+    if (targetOrder?.order_number) {
+      setOrderSearchQuery(targetOrder.order_number);
+    } else {
+      setOrderSearchQuery(orderNumberOrId);
+    }
+  };
 
   // Manual Refresh
   const handleManualRefresh = () => {
@@ -1079,8 +1284,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
             </span>
             <span className="text-white/70 text-xs">•</span>
             <span className="text-white/90 text-xs font-medium flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Live Barabanki Store Sync (20s)
+              <span className={`w-2 h-2 rounded-full ${streamConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+              {streamConnected ? 'Real-Time Order Stream' : 'Live Store Sync'}
             </span>
           </div>
 
@@ -1093,6 +1298,43 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Autoplay blocked banner button */}
+          {isAudioSuspended && (
+            <button
+              type="button"
+              onClick={handleEnableAudio}
+              className="min-h-[40px] px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm animate-pulse"
+              title="Click to enable sound alerts for new incoming orders"
+            >
+              <Volume2 className="w-3.5 h-3.5" />
+              <span>Enable Sound</span>
+            </button>
+          )}
+
+          {/* Sound Mute/Unmute Toggle */}
+          <button
+            type="button"
+            onClick={handleToggleSound}
+            className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+              isMuted
+                ? 'bg-rose-950/70 text-rose-200 hover:bg-rose-900 border border-rose-400/40'
+                : 'bg-white/15 hover:bg-white/25 text-white'
+            }`}
+            title={isMuted ? 'Order notification chime is muted. Click to unmute.' : 'Order notification chime is active. Click to mute.'}
+          >
+            {isMuted ? (
+              <>
+                <VolumeX className="w-3.5 h-3.5 text-rose-300" />
+                <span>Muted</span>
+              </>
+            ) : (
+              <>
+                <Volume2 className="w-3.5 h-3.5 text-emerald-300" />
+                <span>Sound On</span>
+              </>
+            )}
+          </button>
+
           <button
             type="button"
             onClick={handleManualRefresh}
@@ -3430,6 +3672,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
           </div>
         </div>
       )}
+
+      {/* Floating Real-Time New Order Alerts & Autoplay Banner */}
+      <AdminOrderNotificationBanner
+        alerts={orderAlerts}
+        onDismiss={handleDismissAlert}
+        onViewOrder={handleViewOrderFromAlert}
+        isAudioSuspended={isAudioSuspended}
+        onEnableAudio={handleEnableAudio}
+        isMuted={isMuted}
+        onToggleMute={handleToggleSound}
+      />
     </div>
   );
 };

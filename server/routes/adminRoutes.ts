@@ -24,7 +24,7 @@ import {
   supabaseServer,
 } from '../db';
 import { createCashfreeRefund, fetchCashfreeRefund } from '../services/cashfreeService';
-import { emailProvider } from '../services/notificationService';
+import { adminOrderEvents, AdminOrderNotificationPayload, emailProvider } from '../services/notificationService';
 
 const router = Router();
 
@@ -957,6 +957,48 @@ router.get('/orders/:id/refund/sync', requireRole(['ADMIN']), async (req: Authen
   } catch (err: any) {
     res.status(500).json({ error: 'SYNC_FAILED', message: err.message || 'Failed to sync refund' });
   }
+});
+
+// ==========================================================
+// 5.4 REAL-TIME ORDER NOTIFICATION STREAM (SSE)
+// ==========================================================
+// GET /api/admin/orders/stream - Server-Sent Events stream for authenticated Staff & Admins
+router.get('/orders/stream', (req: AuthenticatedRequest, res: Response) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+
+  // Initial handshake
+  res.write(`:connected ${new Date().toISOString()}\n\n`);
+
+  // Event handler for new order arrivals
+  const onNewOrder = (payload: AdminOrderNotificationPayload) => {
+    try {
+      res.write(`event: new_order\ndata: ${JSON.stringify(payload)}\n\n`);
+    } catch (err) {
+      console.warn('[Admin SSE] Failed to write event to stream:', err);
+    }
+  };
+
+  adminOrderEvents.on('new_order', onNewOrder);
+
+  // Keep-alive heartbeat every 25 seconds
+  const keepAliveInterval = setInterval(() => {
+    try {
+      res.write(`:ping ${Date.now()}\n\n`);
+    } catch {
+      clearInterval(keepAliveInterval);
+    }
+  }, 25000);
+
+  // Clean up on client disconnect
+  req.on('close', () => {
+    clearInterval(keepAliveInterval);
+    adminOrderEvents.off('new_order', onNewOrder);
+  });
 });
 
 // ==========================================================
