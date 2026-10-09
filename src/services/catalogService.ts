@@ -194,12 +194,17 @@ export const catalogService = {
   },
 
   async getGiftHampers(): Promise<GiftHamper[]> {
+    const cacheKey = 'gift_hampers';
+    const cached = getCached<GiftHamper[]>(cacheKey);
+    if (cached) return cached;
+
+    let result: GiftHamper[] = [];
     try {
       const res = await fetch('/api/hampers');
       if (res.ok) {
         const data = await res.json();
         if (data.hampers && data.hampers.length > 0) {
-          return data.hampers.map((h: any) => ({
+          result = data.hampers.map((h: any) => ({
             ...h,
             items: h.items_included
               ? h.items_included.map((i: any) => ({
@@ -217,7 +222,7 @@ export const catalogService = {
       console.warn('Fetch from /api/hampers failed, trying fallback:', e);
     }
 
-    if (isSupabaseConfigured() && supabase) {
+    if (result.length === 0 && isSupabaseConfigured() && supabase) {
       try {
         const { data, error } = await supabase
           .from('gift_hampers')
@@ -225,13 +230,16 @@ export const catalogService = {
           .eq('is_active', true);
 
         if (!error && data && data.length > 0) {
-          return data as GiftHamper[];
+          result = data as GiftHamper[];
         }
       } catch (err) {
         console.warn('Supabase fetch gift hampers failed:', err);
       }
     }
-    return [];
+    if (result.length > 0) {
+      setCached(cacheKey, result);
+    }
+    return result;
   },
 
   async getGiftHamperBySlug(slug: string): Promise<GiftHamper | null> {
@@ -278,19 +286,24 @@ export const catalogService = {
   },
 
   async getBanners(): Promise<Banner[]> {
+    const cacheKey = 'banners';
+    const cached = getCached<Banner[]>(cacheKey);
+    if (cached) return cached;
+
+    let result: Banner[] = [];
     try {
       const res = await fetch('/api/banners');
       if (res.ok) {
         const data = await res.json();
         if (data.banners && data.banners.length > 0) {
-          return data.banners;
+          result = data.banners;
         }
       }
     } catch (e) {
       console.warn('Fetch from /api/banners failed:', e);
     }
 
-    if (isSupabaseConfigured() && supabase) {
+    if (result.length === 0 && isSupabaseConfigured() && supabase) {
       try {
         const { data, error } = await supabase
           .from('banners')
@@ -299,22 +312,30 @@ export const catalogService = {
           .order('display_order', { ascending: true });
 
         if (!error && data && data.length > 0) {
-          return data as Banner[];
+          result = data as Banner[];
         }
       } catch (err) {
         console.warn('Supabase fetch banners failed:', err);
       }
     }
-    return [];
+    if (result.length > 0) {
+      setCached(cacheKey, result);
+    }
+    return result;
   },
 
   async getOffers(): Promise<Offer[]> {
+    const cacheKey = 'offers';
+    const cached = getCached<Offer[]>(cacheKey);
+    if (cached) return cached;
+
+    let result: Offer[] = [];
     try {
       const res = await fetch('/api/offers');
       if (res.ok) {
         const data = await res.json();
         if (data.offers && data.offers.length > 0) {
-          return data.offers.map((o: any) => ({
+          result = data.offers.map((o: any) => ({
             ...o,
             code: o.coupon_code || o.code,
           }));
@@ -324,7 +345,7 @@ export const catalogService = {
       console.warn('Fetch from /api/offers failed:', e);
     }
 
-    if (isSupabaseConfigured() && supabase) {
+    if (result.length === 0 && isSupabaseConfigured() && supabase) {
       try {
         const { data, error } = await supabase
           .from('offers')
@@ -332,13 +353,16 @@ export const catalogService = {
           .eq('is_active', true);
 
         if (!error && data && data.length > 0) {
-          return data as Offer[];
+          result = data as Offer[];
         }
       } catch (err) {
         console.warn('Supabase fetch offers failed:', err);
       }
     }
-    return [];
+    if (result.length > 0) {
+      setCached(cacheKey, result);
+    }
+    return result;
   },
 
   async getStoreSettings(): Promise<StoreSettings> {
@@ -389,6 +413,10 @@ export const catalogService = {
   },
 
   async getReviews(productId?: string): Promise<Review[]> {
+    const cacheKey = `reviews_${productId || 'global'}`;
+    const cached = getCached<Review[]>(cacheKey);
+    if (cached) return cached;
+
     let fetchedFromServer = false;
     let fetchedReviews: Review[] = [];
     const endpoint = productId ? `/api/products/${productId}/reviews` : `/api/reviews`;
@@ -417,6 +445,7 @@ export const catalogService = {
       return [];
     }
 
+    setCached(cacheKey, fetchedReviews);
     return fetchedReviews;
   },
 
@@ -446,6 +475,8 @@ export const catalogService = {
       if (!res.ok) {
         return { success: false, message: data.message || 'Failed to submit review' };
       }
+      delete memCache[`reviews_${productId}`];
+      delete memCache['reviews_global'];
       return { success: true, message: data.message || 'Review submitted for approval.' };
     } catch (e: any) {
       return { success: false, message: e.message || 'Network error submitting review' };

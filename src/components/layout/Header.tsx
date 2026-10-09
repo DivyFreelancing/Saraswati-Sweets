@@ -50,10 +50,18 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Detect scroll to adjust glass transparency
+  // Detect scroll to adjust glass transparency (rAF throttled to prevent unneeded re-renders)
   useEffect(() => {
+    let ticking = false;
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 15);
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const scrolled = window.scrollY > 15;
+          setIsScrolled((prev) => (prev !== scrolled ? scrolled : prev));
+          ticking = false;
+        });
+        ticking = true;
+      }
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -200,9 +208,13 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
               title="Saraswati Sweets - Home"
             >
               <img
-                src="/images/logo.png"
+                src="/images/logo.webp"
                 alt="Saraswati Sweets Since 1989"
+                width="240"
+                height="96"
                 className="h-16 sm:h-20 md:h-22 lg:h-24 w-auto object-contain group-hover:scale-105 transition-transform duration-200 drop-shadow-sm"
+                loading="eager"
+                decoding="async"
               />
             </div>
           </div>
@@ -248,8 +260,8 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
               <Search className="w-4 h-4 text-[#7A1129]" />
             </button>
 
-            {/* In-App PWA Install */}
-            <div className="hidden xl:block">
+            {/* In-App PWA Install (Reserved width to prevent layout shift) */}
+            <div className="hidden xl:flex items-center min-w-[110px]">
               <PWAInstallButton variant="header" />
             </div>
 

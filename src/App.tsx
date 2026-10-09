@@ -17,16 +17,18 @@ import { HomePage } from './pages/HomePage';
 import { CatalogPage } from './pages/CatalogPage';
 import { CategoriesPage } from './pages/CategoriesPage';
 import { HampersPage } from './pages/HampersPage';
-import { BulkEnquiryPage } from './pages/BulkEnquiryPage';
-import { ContactPage } from './pages/ContactPage';
-import { CartPage } from './pages/CartPage';
-import { ProfilePage } from './pages/ProfilePage';
-import { CheckoutPage } from './pages/CheckoutPage';
-import { OrderConfirmationPage } from './pages/OrderConfirmationPage';
-import { OrderHistoryPage } from './pages/OrderHistoryPage';
-import { OrderDetailPage } from './pages/OrderDetailPage';
-import { AdminPage } from './pages/AdminPage';
-import { AdminLoginPage } from './pages/AdminLoginPage';
+
+// Code-split secondary routes so initial homepage load is ultra-light
+const BulkEnquiryPage = React.lazy(() => import('./pages/BulkEnquiryPage').then(m => ({ default: m.BulkEnquiryPage })));
+const ContactPage = React.lazy(() => import('./pages/ContactPage').then(m => ({ default: m.ContactPage })));
+const CartPage = React.lazy(() => import('./pages/CartPage').then(m => ({ default: m.CartPage })));
+const ProfilePage = React.lazy(() => import('./pages/ProfilePage').then(m => ({ default: m.ProfilePage })));
+const CheckoutPage = React.lazy(() => import('./pages/CheckoutPage').then(m => ({ default: m.CheckoutPage })));
+const OrderConfirmationPage = React.lazy(() => import('./pages/OrderConfirmationPage').then(m => ({ default: m.OrderConfirmationPage })));
+const OrderHistoryPage = React.lazy(() => import('./pages/OrderHistoryPage').then(m => ({ default: m.OrderHistoryPage })));
+const OrderDetailPage = React.lazy(() => import('./pages/OrderDetailPage').then(m => ({ default: m.OrderDetailPage })));
+const AdminPage = React.lazy(() => import('./pages/AdminPage').then(m => ({ default: m.AdminPage })));
+const AdminLoginPage = React.lazy(() => import('./pages/AdminLoginPage').then(m => ({ default: m.AdminLoginPage })));
 
 import { Product } from './types/database';
 
@@ -80,7 +82,7 @@ function AppContent() {
 
     setCurrentPath(path);
     window.history.pushState({}, '', pathWithQuery);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
   const handleOpenProductDetail = (product: Product) => {
@@ -209,7 +211,9 @@ function AppContent() {
 
       {/* Main Page Body */}
       <main className="flex-1">
-        {renderCurrentPage()}
+        <React.Suspense fallback={<div className="min-h-[50vh] flex items-center justify-center text-xs text-[#6E6259]">Loading...</div>}>
+          {renderCurrentPage()}
+        </React.Suspense>
       </main>
 
       {/* Footer */}

@@ -63,6 +63,8 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({ banner, onCtaClick }) 
             <img
               src={banner.image_url}
               alt={banner.title}
+              loading="lazy"
+              decoding="async"
               className="w-full h-full object-cover opacity-95 hover:scale-105 transition-transform duration-500"
             />
             <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-[#7A1129]/60 via-transparent to-transparent" />

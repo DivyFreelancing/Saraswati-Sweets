@@ -23,8 +23,14 @@ import { PromoBanner } from '../components/common/PromoBanner';
 import { HamperCard } from '../components/common/HamperCard';
 import { ReviewCard } from '../components/common/ReviewCard';
 import { ScallopTrim } from '../components/common/DecorativeBorders';
+import {
+  CategoryCardSkeleton,
+  HamperCardSkeleton,
+  ReviewCardSkeleton,
+} from '../components/common/LoadingSkeleton';
 import { Category, Product, GiftHamper, Banner, Review, Offer } from '../types/database';
 import { catalogService } from '../services/catalogService';
+import { SEED_CATEGORIES } from '../data/seedData';
 
 interface HomePageProps {
   onNavigate: (path: string) => void;
@@ -35,7 +41,8 @@ export const HomePage: React.FC<HomePageProps> = ({
   onNavigate,
   onOpenProductDetail,
 }) => {
-  const [categories, setCategories] = useState<Category[]>([]);
+  // Pre-seed categories to ensure zero layout shift in the quick-nav and category grid
+  const [categories, setCategories] = useState<Category[]>(SEED_CATEGORIES);
   const [bestsellers, setBestsellers] = useState<Product[]>([]);
   const [hampers, setHampers] = useState<GiftHamper[]>([]);
   const [banners, setBanners] = useState<Banner[]>([]);
@@ -105,9 +112,9 @@ export const HomePage: React.FC<HomePageProps> = ({
       />
 
       {/* Cursive / Script Accent Line (Gold #C79A3D) with thin decorative flourish lines on either side */}
-      <div className="max-w-3xl mx-auto px-4 pt-2.5 sm:pt-4 pb-1 sm:pb-2 flex items-center justify-center gap-2 sm:gap-4 text-center select-none overflow-hidden">
+      <div className="max-w-3xl mx-auto px-4 pt-2.5 sm:pt-4 pb-1 sm:pb-2 flex items-center justify-center gap-2 sm:gap-4 text-center select-none overflow-hidden min-h-[44px] sm:min-h-[52px]">
         <div className="h-px flex-1 min-w-[12px] bg-gradient-to-r from-transparent via-[#C79A3D]/40 to-[#C79A3D]" />
-        <span className="font-script text-base sm:text-2xl md:text-3xl text-[#C79A3D] font-normal tracking-wide px-1.5 text-center max-w-full">
+        <span className="font-script text-base sm:text-2xl md:text-3xl text-[#C79A3D] font-normal tracking-wide px-1.5 text-center max-w-full leading-normal">
           Handcrafted with pure devotion since 1989
         </span>
         <div className="h-px flex-1 min-w-[12px] bg-gradient-to-l from-transparent via-[#C79A3D]/40 to-[#C79A3D]" />
@@ -167,7 +174,13 @@ export const HomePage: React.FC<HomePageProps> = ({
             onAction={() => onNavigate('/categories')}
           />
 
-          {categories.length > 0 ? (
+          {loading && categories.length === 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 sm:gap-5">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <CategoryCardSkeleton key={i} />
+              ))}
+            </div>
+          ) : categories.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 sm:gap-5">
               {categories.map((category) => (
                 <CategoryCard
@@ -200,7 +213,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           <div
             className="absolute inset-x-0 bottom-0 h-36 sm:h-48 md:h-56 lg:h-64 pointer-events-none select-none"
             style={{
-              backgroundImage: `url('/images/saraswati-heritage-border.png')`,
+              backgroundImage: `url('/images/saraswati-heritage-border.webp')`,
               backgroundPosition: 'center bottom',
               backgroundSize: 'cover',
               backgroundRepeat: 'no-repeat',
@@ -383,7 +396,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           <div
             className="absolute inset-x-0 bottom-0 h-44 sm:h-56 md:h-64 pointer-events-none opacity-20 sm:opacity-25 select-none"
             style={{
-              backgroundImage: `url('/images/saraswati-heritage-border.png')`,
+              backgroundImage: `url('/images/saraswati-heritage-border.webp')`,
               backgroundPosition: 'center bottom',
               backgroundSize: 'cover',
               backgroundRepeat: 'no-repeat',
@@ -402,9 +415,13 @@ export const HomePage: React.FC<HomePageProps> = ({
             />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
-              {hampers.map((hamper) => (
-                <HamperCard key={hamper.id} hamper={hamper} />
-              ))}
+              {loading && hampers.length === 0
+                ? Array.from({ length: 2 }).map((_, i) => (
+                    <HamperCardSkeleton key={i} />
+                  ))
+                : hampers.map((hamper) => (
+                    <HamperCard key={hamper.id} hamper={hamper} />
+                  ))}
             </div>
           </div>
         </section>
@@ -472,6 +489,10 @@ export const HomePage: React.FC<HomePageProps> = ({
                     <img
                       src="https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=600&q=80"
                       alt="Historic Ghantaghar Flagship Store"
+                      width="210"
+                      height="280"
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
@@ -492,6 +513,10 @@ export const HomePage: React.FC<HomePageProps> = ({
                     <img
                       src="https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?auto=format&fit=crop&w=600&q=80"
                       alt="Bilona Cow Ghee Kitchens"
+                      width="210"
+                      height="280"
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
@@ -512,6 +537,10 @@ export const HomePage: React.FC<HomePageProps> = ({
                     <img
                       src="https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=600&q=80"
                       alt="Artisanal Chhena & Namkeen Counter"
+                      width="210"
+                      height="280"
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
@@ -603,7 +632,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
 
         {/* Customer Testimonials (Authentic Barabanki Patrons) */}
-        {reviews.length > 0 && (
+        {(loading || reviews.length > 0) && (
           <section>
             <SectionHeader
               eyebrow="Cherished Words"
@@ -612,9 +641,13 @@ export const HomePage: React.FC<HomePageProps> = ({
             />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6">
-              {reviews.map((rev) => (
-                <ReviewCard key={rev.id} review={rev} />
-              ))}
+              {loading && reviews.length === 0
+                ? Array.from({ length: 3 }).map((_, i) => (
+                    <ReviewCardSkeleton key={i} />
+                  ))
+                : reviews.map((rev) => (
+                    <ReviewCard key={rev.id} review={rev} />
+                  ))}
             </div>
           </section>
         )}

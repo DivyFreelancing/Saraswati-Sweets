@@ -27,6 +27,8 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
         <img
           src={category.image_url || 'https://images.unsplash.com/photo-1505253758473-96b7015fcd40?auto=format&fit=crop&w=300&q=80'}
           alt={category.name}
+          width="96"
+          height="96"
           loading="lazy"
           className="w-full h-full object-cover"
         />

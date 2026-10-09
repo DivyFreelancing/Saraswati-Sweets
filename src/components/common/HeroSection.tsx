@@ -23,7 +23,7 @@ interface HeroSlide {
 const HERO_SLIDES: HeroSlide[] = [
   {
     id: 1,
-    image: '/images/1.png',
+    image: '/images/1.webp',
     eyebrow: 'Since 1989 · Barabanki',
     titlePrefix: 'Authentic Mithai,',
     titleHighlight: 'Crafted Fresh Daily.',
@@ -35,7 +35,7 @@ const HERO_SLIDES: HeroSlide[] = [
   },
   {
     id: 2,
-    image: '/images/2.png',
+    image: '/images/2.webp',
     eyebrow: 'Festive Celebrations',
     titlePrefix: 'Pure Desi Ghee,',
     titleHighlight: 'Pure Celebrations.',
@@ -47,7 +47,7 @@ const HERO_SLIDES: HeroSlide[] = [
   },
   {
     id: 3,
-    image: '/images/3.png',
+    image: '/images/3.webp',
     eyebrow: 'Royal Keepsakes',
     titlePrefix: 'Handcrafted',
     titleHighlight: 'Gift Hampers.',
@@ -124,12 +124,22 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                 isActive ? 'opacity-100 z-0' : 'opacity-0 -z-10 pointer-events-none'
               }`}
             >
-              <img
-                src={slide.image}
-                alt={slide.titlePrefix}
-                className="w-full h-full object-cover object-center scale-102 transition-transform duration-7000 ease-out"
-                loading={index === 0 ? 'eager' : 'lazy'}
-              />
+              <picture>
+                {index === 0 && (
+                  <source media="(max-width: 640px)" srcSet="/images/1-mobile.webp" type="image/webp" />
+                )}
+                <source srcSet={slide.image} type="image/webp" />
+                <img
+                  src={slide.image}
+                  alt={slide.titlePrefix}
+                  width="1920"
+                  height="731"
+                  className="w-full h-full object-cover object-center scale-102 transition-transform duration-7000 ease-out"
+                  loading={index === 0 ? 'eager' : 'lazy'}
+                  decoding={index === 0 ? 'sync' : 'async'}
+                  fetchPriority={index === 0 ? 'high' : 'low'}
+                />
+              </picture>
             </div>
           );
         })}

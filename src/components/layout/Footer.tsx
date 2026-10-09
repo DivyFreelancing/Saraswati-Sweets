@@ -31,7 +31,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
         <div
           className="w-full h-10 sm:h-14 md:h-16 overflow-hidden relative opacity-45 sm:opacity-55 select-none pointer-events-none mb-8 sm:mb-10"
           style={{
-            backgroundImage: `url('/images/saraswati-heritage-border.png')`,
+            backgroundImage: `url('/images/saraswati-heritage-border.webp')`,
             backgroundPosition: 'center bottom',
             backgroundSize: 'cover',
             backgroundRepeat: 'no-repeat',
@@ -258,9 +258,13 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               title="Saraswati Sweets Since 1989"
             >
               <img
-                src="/images/logo.png"
+                src="/images/logo.webp"
                 alt="Saraswati Sweets Since 1989"
+                width="180"
+                height="64"
                 className="h-14 sm:h-16 w-auto mx-auto object-contain group-hover:scale-105 transition-transform drop-shadow-xs"
+                loading="lazy"
+                decoding="async"
               />
             </div>
 
@@ -411,10 +415,13 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             }}
           >
             <img
-              src="/images/bottom_banner.png"
+              src="/images/bottom_banner.webp"
               alt="Historic Barabanki Ghantaghar & Saraswati Sweets Landmark Panorama - Mithas Ki Purani Dukan"
-              className="w-full h-auto min-h-[160px] sm:min-h-[220px] md:min-h-[280px] lg:min-h-[360px] xl:min-h-[420px] max-h-[520px] object-cover object-bottom"
+              width="1920"
+              height="640"
+              className="w-full h-auto min-h-[160px] sm:min-h-[220px] md:min-h-[280px] lg:min-h-[360px] xl:min-h-[420px] max-h-[520px] object-cover object-bottom aspect-[3/1]"
               loading="lazy"
+              decoding="async"
             />
           </div>
 

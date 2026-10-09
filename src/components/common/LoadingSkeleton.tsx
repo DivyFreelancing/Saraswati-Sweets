@@ -51,3 +51,36 @@ export const BannerSkeleton: React.FC = () => {
     <div className="w-full h-64 sm:h-80 rounded-3xl bg-[#F5EAD9] border border-[#E8DCC8] animate-pulse" />
   );
 };
+
+export const HamperCardSkeleton: React.FC = () => {
+  return (
+    <div className="flex flex-col bg-white rounded-2xl border border-[#E8DCC8] overflow-hidden animate-pulse shadow-xs">
+      <div className="aspect-[16/10] bg-[#F5EAD9]" />
+      <div className="p-5 sm:p-6 space-y-3 flex-1 flex flex-col">
+        <div className="h-3 w-28 bg-[#E8DCC8]/60 rounded-full" />
+        <div className="h-5 w-3/4 bg-[#E8DCC8] rounded-md" />
+        <div className="h-4 w-full bg-[#E8DCC8]/50 rounded-md" />
+        <div className="mt-auto pt-5 border-t border-[#E8DCC8]/50 flex justify-between items-center">
+          <div className="h-6 w-20 bg-[#E8DCC8] rounded-md" />
+          <div className="h-10 w-28 bg-[#E8DCC8] rounded-full" />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export const ReviewCardSkeleton: React.FC = () => {
+  return (
+    <div className="bg-white rounded-2xl border border-[#E8DCC8] p-5 sm:p-6 space-y-3 animate-pulse shadow-xs">
+      <div className="flex items-center gap-2">
+        <div className="w-10 h-10 rounded-full bg-[#F5EAD9]" />
+        <div className="space-y-1.5 flex-1">
+          <div className="h-4 w-28 bg-[#E8DCC8] rounded-md" />
+          <div className="h-3 w-20 bg-[#E8DCC8]/60 rounded-md" />
+        </div>
+      </div>
+      <div className="h-3.5 w-full bg-[#E8DCC8]/50 rounded-md" />
+      <div className="h-3.5 w-4/5 bg-[#E8DCC8]/50 rounded-md" />
+    </div>
+  );
+};
