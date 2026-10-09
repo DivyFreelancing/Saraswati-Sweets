@@ -1,0 +1,9 @@
+# Nixpacks build and runtime configuration for Saraswati Sweets
+[variables]
+NODE_ENV = "production"
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "node node_modules/tsx/dist/cli.mjs server.ts"

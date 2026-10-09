@@ -4,6 +4,7 @@ import rateLimit from 'express-rate-limit';
 
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 
@@ -26,8 +27,39 @@ async function startServer() {
   await loadStoreState();
   const app = express();
   app.set('trust proxy', 1);
-  const PORT = parseInt(process.env.PORT || '3000', 10);
-  const isDev = process.env.NODE_ENV !== 'production';
+
+  // Dynamic port resolution: prioritizes process.env.PORT, fallback to 3000
+  const port = Number(process.env.PORT) || 3000;
+
+  // Environment detection:
+  // In production if explicitly NODE_ENV=production, or in Railway environment,
+  // or when started via 'npm start' with a compiled dist directory.
+  const isRailway = Boolean(
+    process.env.RAILWAY_ENVIRONMENT ||
+    process.env.RAILWAY_PROJECT_ID ||
+    process.env.RAILWAY_SERVICE_ID ||
+    process.env.RAILWAY_STATIC_URL
+  );
+  const isNpmStart = process.env.npm_lifecycle_event === 'start';
+  const distDir = path.resolve(__dirname, 'dist');
+  const distIndexHtml = path.resolve(distDir, 'index.html');
+  const hasDist = fs.existsSync(distIndexHtml);
+
+  // In Railway or when running via npm start with pre-built dist, force production mode
+  const isProduction =
+    process.env.NODE_ENV === 'production' ||
+    isRailway ||
+    (isNpmStart && hasDist);
+
+  const isDev = !isProduction;
+
+  if (isProduction && process.env.NODE_ENV !== 'production') {
+    process.env.NODE_ENV = 'production';
+  }
+
+  if (isRailway) {
+    console.log(`[Railway Deployment] Detected Railway environment. NODE_ENV=${process.env.NODE_ENV}, PORT=${port}`);
+  }
 
   // Body parser for JSON API requests - captures rawBody for Cashfree webhook HMAC validation
   app.use(
@@ -114,15 +146,40 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
+    // In production, ensure dist exists before serving
+    if (!hasDist) {
+      console.warn(`[Saraswati Sweets Server] WARNING: 'dist/index.html' not found at ${distIndexHtml}. Ensure 'npm run build' was executed during build phase.`);
+    }
+
+    // Fallback 404 for unmatched /api routes so unknown API requests return JSON 404 instead of SPA index.html
+    app.all('/api/*', (_req, res) => {
+      res.status(404).json({ error: 'NotFound', message: 'API route not found' });
+    });
+
     // In production, serve static files from dist
-    app.use(express.static(path.resolve(__dirname, 'dist')));
+    app.use(
+      express.static(distDir, {
+        maxAge: '1d',
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('.html')) {
+            // Never cache index.html to ensure users receive the latest release
+            res.setHeader('Cache-Control', 'no-cache');
+          } else if (filePath.includes('/assets/')) {
+            // Cache Vite-hashed assets immutably
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          }
+        },
+      })
+    );
+
+    // SPA wildcard fallback: serve index.html for all non-API paths
     app.get('*', (_req, res) => {
-      res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
+      res.sendFile(distIndexHtml);
     });
   }
 
-    app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[Saraswati Sweets Server] Running at http://0.0.0.0:${PORT} (${isDev ? 'development' : 'production'})`);
+  app.listen(port, '0.0.0.0', () => {
+    console.log(`[Saraswati Sweets Server] Running at http://0.0.0.0:${port} (${isDev ? 'development' : 'production'})`);
   });
 }
 
