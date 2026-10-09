@@ -15,7 +15,17 @@ export default defineConfig(({ command }) => {
       VitePWA({
         injectRegister: null,
         registerType: 'autoUpdate',
-        includeAssets: ['icon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png', 'pwa-maskable-512x512.png'],
+        includeAssets: [
+          'favicon.ico',
+          'icon.svg',
+          'apple-touch-icon.png',
+          'pwa-192x192.png',
+          'pwa-512x512.png',
+          'pwa-maskable-512x512.png',
+          'favicon-48x48.png',
+          'favicon-32x32.png',
+          'favicon-16x16.png'
+        ],
         manifest: {
           id: '/',
           name: 'Saraswati Sweets - Artisanal Mithai & Namkeen',
