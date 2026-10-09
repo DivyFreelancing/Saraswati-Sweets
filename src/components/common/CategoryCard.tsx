@@ -1,5 +1,6 @@
 import React from 'react';
 import { Category } from '../../types/database';
+import { getOptimizedImageUrl } from '../../utils/imageUtils';
 
 interface CategoryCardProps {
   category: Category;
@@ -12,6 +13,12 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
   onClick,
   isSelected = false,
 }) => {
+  const optimizedImage = getOptimizedImageUrl(
+    category.image_url || 'https://images.unsplash.com/photo-1505253758473-96b7015fcd40',
+    200,
+    80
+  );
+
   return (
     <button
       type="button"
@@ -25,11 +32,12 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
       {/* Centered Circular Product / Category Photo inside Arch */}
       <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden bg-white mb-3 border-2 border-white shadow-xs shrink-0 ring-1 ring-[#E8DCC8]/60 transition-transform duration-300 group-hover:scale-105">
         <img
-          src={category.image_url || 'https://images.unsplash.com/photo-1505253758473-96b7015fcd40?auto=format&fit=crop&w=300&q=80'}
+          src={optimizedImage}
           alt={category.name}
           width="96"
           height="96"
           loading="lazy"
+          decoding="async"
           className="w-full h-full object-cover"
         />
       </div>

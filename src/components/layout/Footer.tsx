@@ -7,9 +7,9 @@ import {
   X,
   CreditCard,
   Truck,
-  Instagram,
   Facebook,
   Youtube,
+  Instagram,
 } from 'lucide-react';
 import { PWAInstallButton } from '../common/PWAInstallButton';
 
@@ -26,7 +26,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
 
   return (
     <>
-      <footer id="footer" className="bg-[#FBF6EF] text-[#221A14] pt-0 pb-0 overflow-hidden relative border-t border-[#E8DCC8]/60">
+      <footer id="footer" className="bg-[#FBF6EF] text-[#221A14] pt-0 pb-0 overflow-hidden relative border-t border-[#E8DCC8]/60 content-visibility-auto">
         {/* Subtle Darker/Cropped Heritage Ornamental Border Strip along Footer Top Edge */}
         <div
           className="w-full h-10 sm:h-14 md:h-16 overflow-hidden relative opacity-45 sm:opacity-55 select-none pointer-events-none mb-8 sm:mb-10"
@@ -304,7 +304,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             {/* Social Media Circles */}
             <div className="flex items-center justify-center gap-3 pt-2">
               <a
-                href="https://instagram.com"
+                href="https://www.instagram.com/saraswati.sweets/"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Instagram"
@@ -313,7 +313,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 <Instagram className="w-4 h-4" />
               </a>
               <a
-                href="https://facebook.com"
+                href="https://www.facebook.com/vishwanathsweets"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Facebook"

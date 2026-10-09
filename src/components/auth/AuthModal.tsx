@@ -169,8 +169,10 @@ export const AuthModal: React.FC = () => {
               {/* Official Saraswati Sweets Brand Logo */}
               <div className="flex items-center justify-center">
                 <img
-                  src="/images/logo.png"
+                  src="/images/logo.webp"
                   alt="Saraswati Sweets"
+                  width="240"
+                  height="80"
                   className="h-16 sm:h-20 w-auto object-contain drop-shadow-sm select-none"
                 />
               </div>

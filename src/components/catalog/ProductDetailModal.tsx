@@ -7,6 +7,7 @@ import { QuantitySelector } from '../common/QuantitySelector';
 import { AddToCartButton } from '../common/AddToCartButton';
 import { ReviewCard } from '../common/ReviewCard';
 import { ProductImagePlaceholder } from '../common/ProductImagePlaceholder';
+import { getOptimizedImageUrl } from '../../utils/imageUtils';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -161,8 +162,11 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-white border border-[#E8DFD2] shadow-xs flex items-center justify-center">
                 {currentImage ? (
                   <img
-                    src={currentImage.image_url}
+                    src={getOptimizedImageUrl(currentImage.image_url, 600, 80)}
                     alt={currentImage.alt_text || product.name}
+                    width="600"
+                    height="600"
+                    decoding="async"
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -202,7 +206,15 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                           : 'border-white opacity-70 hover:opacity-100'
                       }`}
                     >
-                      <img src={img.image_url} alt="" className="w-full h-full object-cover" />
+                      <img
+                        src={getOptimizedImageUrl(img.image_url, 120, 75)}
+                        alt=""
+                        width="64"
+                        height="64"
+                        loading="lazy"
+                        decoding="async"
+                        className="w-full h-full object-cover"
+                      />
                     </button>
                   ))}
                 </div>
@@ -428,8 +440,12 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                         <div className="aspect-square rounded-md overflow-hidden bg-[#F5EAD9] mb-1.5 flex items-center justify-center">
                           {rel.images?.[0]?.image_url ? (
                             <img
-                              src={rel.images[0].image_url}
+                              src={getOptimizedImageUrl(rel.images[0].image_url, 160, 75)}
                               alt={rel.name}
+                              width="80"
+                              height="80"
+                              loading="lazy"
+                              decoding="async"
                               className="w-full h-full object-cover"
                             />
                           ) : (

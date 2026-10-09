@@ -97,3 +97,10 @@ h1, h2, h3, .font-display {
     scroll-behavior: auto !important;
   }
 }
+
+/* Defer layout and rendering for below-the-fold content to minimize initial DOM calculation, layout thrashing, and main-thread tasks */
+.content-visibility-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 450px;
+}
+

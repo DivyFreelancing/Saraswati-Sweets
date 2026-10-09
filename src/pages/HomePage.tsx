@@ -202,7 +202,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         <section
           id="promise"
           aria-label="The Saraswati Promise"
-          className="relative rounded-3xl overflow-hidden shadow-[0_12px_40px_-6px_rgba(74,8,14,0.35)] border border-[#C79A3D]/40 text-white"
+          className="relative rounded-3xl overflow-hidden shadow-[0_12px_40px_-6px_rgba(74,8,14,0.35)] border border-[#C79A3D]/40 text-white content-visibility-auto"
           style={{ backgroundColor: '#4a080e' }}
         >
           {/* Top Scalloped Border Trim (from Reference Image 3) */}
@@ -305,7 +305,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         </section>
 
         {/* 8. "Order Now or Plan Ahead" — Two-Card Split Section */}
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-6 content-visibility-auto">
           {/* Card A: Order for Today (Retail Fast Checkout) */}
           <div className="bg-white rounded-2xl border border-[#E8DCC8] p-6 sm:p-8 flex flex-col justify-between shadow-[0_2px_12px_-2px_rgba(34,26,20,0.04)] relative overflow-hidden group">
             <div className="space-y-3">
@@ -391,7 +391,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         <section
           id="gift-hampers"
           aria-label="Handcrafted Gift Hampers"
-          className="relative rounded-3xl overflow-hidden border border-[#E8DCC8] bg-[#F5EAD9]/70 shadow-[0_4px_24px_-4px_rgba(34,26,20,0.04)]"
+          className="relative rounded-3xl overflow-hidden border border-[#E8DCC8] bg-[#F5EAD9]/70 shadow-[0_4px_24px_-4px_rgba(34,26,20,0.04)] content-visibility-auto"
         >
           {/* Subtle heritage background decorative border positioned at center bottom */}
           <div
@@ -444,7 +444,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         <section
           id="heritage-stores"
           aria-label="Our Barabanki Heritage & Sweet Shops"
-          className="relative rounded-3xl overflow-hidden shadow-[0_12px_40px_-6px_rgba(122,17,41,0.25)] border border-[#C79A3D]/40 text-white"
+          className="relative rounded-3xl overflow-hidden shadow-[0_12px_40px_-6px_rgba(122,17,41,0.25)] border border-[#C79A3D]/40 text-white content-visibility-auto"
           style={{ backgroundColor: '#7A1129' }}
         >
           {/* Top Scalloped Border (from Reference Image 3) */}
@@ -576,7 +576,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         </section>
 
         {/* 12. Trust / Certification Badge Strip (Verifiable claims only) */}
-        <section className="rounded-3xl border border-[#E8DCC8] py-8 sm:py-10 bg-[#F5EAD9]/60 px-6 sm:px-8 shadow-xs overflow-hidden">
+        <section className="rounded-3xl border border-[#E8DCC8] py-8 sm:py-10 bg-[#F5EAD9]/60 px-6 sm:px-8 shadow-xs overflow-hidden content-visibility-auto">
           <div className="max-w-7xl mx-auto flex flex-wrap justify-around items-center gap-6 text-center">
             <div className="flex items-center gap-3 text-left">
               <div className="w-10 h-10 rounded-full bg-white border border-[#E8DCC8] flex items-center justify-center text-[#7A1129] shrink-0 shadow-xs">
@@ -634,7 +634,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
         {/* Customer Testimonials (Authentic Barabanki Patrons) */}
         {(loading || reviews.length > 0) && (
-          <section>
+          <section className="content-visibility-auto">
             <SectionHeader
               eyebrow="Cherished Words"
               title="From Our Barabanki Patrons"

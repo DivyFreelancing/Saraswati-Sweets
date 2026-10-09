@@ -72,7 +72,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   useEffect(() => {
     const timer = setTimeout(() => {
       setLoadSecondarySlides(true);
-    }, 2500);
+    }, 4500);
     return () => clearTimeout(timer);
   }, []);
 
@@ -81,6 +81,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
     if (isPaused) return;
 
     const timer = setInterval(() => {
+      setLoadSecondarySlides(true);
       setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
     }, 5500);
 
@@ -88,15 +89,18 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   }, [isPaused]);
 
   const handlePrev = () => {
+    setLoadSecondarySlides(true);
     setCurrentSlide((prev) => (prev === 0 ? HERO_SLIDES.length - 1 : prev - 1));
   };
 
   const handleNext = () => {
+    setLoadSecondarySlides(true);
     setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
   };
 
   // Touch swipe support for mobile
   const handleTouchStart = (e: React.TouchEvent) => {
+    setLoadSecondarySlides(true);
     touchStartXRef.current = e.touches[0].clientX;
   };
 
@@ -117,7 +121,10 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
     <section
       aria-label="Featured Sweet Collections and Banners"
       className="relative overflow-hidden w-full min-h-[380px] sm:min-h-[520px] md:min-h-[600px] flex items-end sm:items-center bg-[#2A0E14] select-none"
-      onMouseEnter={() => setIsPaused(true)}
+      onMouseEnter={() => {
+        setIsPaused(true);
+        setLoadSecondarySlides(true);
+      }}
       onMouseLeave={() => setIsPaused(false)}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
@@ -126,6 +133,13 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
       <div className="absolute inset-0 w-full h-full overflow-hidden">
         {HERO_SLIDES.map((slide, index) => {
           const isActive = index === currentSlide;
+          const mobileSrc =
+            index === 0
+              ? '/images/1-mobile.webp'
+              : index === 1
+              ? '/images/2-mobile.webp'
+              : '/images/3-mobile.webp';
+
           return (
             <div
               key={slide.id}
@@ -135,15 +149,13 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
             >
               {(index === 0 || loadSecondarySlides || isActive) && (
                 <picture>
-                  {index === 0 && (
-                    <source media="(max-width: 640px)" srcSet="/images/1-mobile.webp" type="image/webp" />
-                  )}
+                  <source media="(max-width: 640px)" srcSet={mobileSrc} type="image/webp" />
                   <source srcSet={slide.image} type="image/webp" />
                   <img
                     src={slide.image}
                     alt={slide.titlePrefix}
-                    width="1920"
-                    height="731"
+                    width={index === 0 ? '800' : '1920'}
+                    height={index === 0 ? '305' : '731'}
                     className="w-full h-full object-cover object-center scale-102 transition-transform duration-7000 ease-out"
                     loading={index === 0 ? 'eager' : 'lazy'}
                     decoding="async"

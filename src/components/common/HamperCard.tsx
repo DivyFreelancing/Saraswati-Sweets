@@ -4,6 +4,7 @@ import { GiftHamper } from '../../types/database';
 import { PriceDisplay } from './PriceDisplay';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
+import { getOptimizedImageUrl } from '../../utils/imageUtils';
 
 interface HamperCardProps {
   hamper: GiftHamper;
@@ -41,7 +42,7 @@ export const HamperCard: React.FC<HamperCardProps> = ({ hamper, onViewDetails })
           decoding="async"
           width="400"
           height="250"
-          src={hamper.image_url}
+          src={getOptimizedImageUrl(hamper.image_url, 480, 80)}
           alt={hamper.name}
           className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
         />

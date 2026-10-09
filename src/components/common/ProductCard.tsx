@@ -5,6 +5,7 @@ import { formatINR } from '../../utils/formatters';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
 import { ProductImagePlaceholder } from './ProductImagePlaceholder';
+import { getOptimizedImageUrl } from '../../utils/imageUtils';
 
 interface ProductCardProps {
   product: Product;
@@ -16,10 +17,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenDetail 
   const { showToast } = useToast();
   const [imageFailed, setImageFailed] = useState(false);
 
-  const primaryImage =
+  const rawPrimaryImage =
     product.images?.find((i) => i.is_primary)?.image_url ||
     product.images?.[0]?.image_url ||
     '';
+  const primaryImage = getOptimizedImageUrl(rawPrimaryImage, 360, 80);
 
   // Find first in-stock variant by default
   const defaultVariant =

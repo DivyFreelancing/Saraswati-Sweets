@@ -117,8 +117,10 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
         <div className="text-center space-y-3">
           <div className="flex items-center justify-center">
             <img
-              src="/images/logo.png"
+              src="/images/logo.webp"
               alt="Saraswati Sweets"
+              width="240"
+              height="64"
               className="h-16 w-auto object-contain drop-shadow-xs select-none"
             />
           </div>

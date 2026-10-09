@@ -249,7 +249,7 @@ async function startServer() {
     // In production, serve static files from dist
     app.use(
       express.static(distDir, {
-        maxAge: '1d',
+        maxAge: '30d',
         setHeaders: (res, filePath) => {
           if (filePath.endsWith('.html')) {
             // Never cache index.html to ensure users receive the latest release
@@ -257,6 +257,15 @@ async function startServer() {
           } else if (filePath.includes('/assets/')) {
             // Cache Vite-hashed assets immutably
             res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          } else if (/\.(woff2?|ttf|otf|eot)$/i.test(filePath)) {
+            // Font files are immutable
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          } else if (/\.(webp|png|jpe?g|svg|ico)$/i.test(filePath)) {
+            // Static images, branding assets, and favicons: 30 days cache with stale-while-revalidate
+            res.setHeader('Cache-Control', 'public, max-age=2592000, stale-while-revalidate=86400');
+          } else if (filePath.endsWith('.webmanifest')) {
+            // Web app manifest
+            res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=86400');
           }
         },
       })

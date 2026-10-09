@@ -2,6 +2,7 @@ import React from 'react';
 import { Banner } from '../../types/database';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { OrnateCardFrame } from './DecorativeBorders';
+import { getOptimizedImageUrl } from '../../utils/imageUtils';
 
 interface PromoBannerProps {
   banner: Banner;
@@ -61,8 +62,10 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({ banner, onCtaClick }) 
         <div className="md:col-span-5 h-56 md:h-72 relative overflow-hidden rounded-2xl p-2">
           <div className="w-full h-full rounded-xl overflow-hidden border border-[#C79A3D]/40 shadow-inner relative">
             <img
-              src={banner.image_url}
+              src={getOptimizedImageUrl(banner.image_url, 600, 80)}
               alt={banner.title}
+              width="600"
+              height="320"
               loading="lazy"
               decoding="async"
               className="w-full h-full object-cover opacity-95 hover:scale-105 transition-transform duration-500"

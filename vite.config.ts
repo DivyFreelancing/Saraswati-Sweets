@@ -118,6 +118,20 @@ export default defineConfig(({ command }) => {
                 },
               },
             },
+            {
+              urlPattern: /^https:\/\/pdovuxqbymgqzvaxcwuk\.supabase\.co\/storage\/v1\/.*/i,
+              handler: 'StaleWhileRevalidate',
+              options: {
+                cacheName: 'supabase-images-cache',
+                expiration: {
+                  maxEntries: 100,
+                  maxAgeSeconds: 60 * 60 * 24 * 30,
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
           ],
         },
         devOptions: {

@@ -4,6 +4,7 @@ import { CartItemType } from '../../context/CartContext';
 import { QuantitySelector } from './QuantitySelector';
 import { formatINR } from '../../utils/formatters';
 import { ProductImagePlaceholder } from './ProductImagePlaceholder';
+import { getOptimizedImageUrl } from '../../utils/imageUtils';
 
 interface CartItemProps {
   item: CartItemType;
@@ -22,8 +23,12 @@ export const CartItem: React.FC<CartItemProps> = ({
       <div className="w-20 h-20 rounded-xl overflow-hidden bg-[#F3EBE0] shrink-0 border border-[#E8DFD2] flex items-center justify-center">
         {item.imageUrl ? (
           <img
-            src={item.imageUrl}
+            src={getOptimizedImageUrl(item.imageUrl, 160, 75)}
             alt={item.productName}
+            width="80"
+            height="80"
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover"
           />
         ) : (

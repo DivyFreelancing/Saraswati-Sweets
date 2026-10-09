@@ -1346,7 +1346,7 @@ export const SEED_BANNERS: Banner[] = [
     id: 'b-1',
     title: 'Grand Festive & Wedding Collections',
     subtitle: 'Pure Cow Desi Ghee Mithai Crafted Fresh Every Morning for Auspicious Moments',
-    image_url: '/images/2.png',
+    image_url: '/images/2.webp',
     cta_text: 'Explore Sweets',
     cta_link: '/catalog',
     badge: 'Heritage Since 1989',
