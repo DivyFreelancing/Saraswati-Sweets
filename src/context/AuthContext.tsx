@@ -27,6 +27,8 @@ interface AuthContextType {
   closeAuthModal: () => void;
   isAuthModalOpen: boolean;
   getAuthHeaders: () => Record<string, string>;
+  getValidAuthHeaders: () => Promise<Record<string, string>>;
+  refreshAuthSession: () => Promise<Record<string, string>>;
   updateUserProfile: (updates: { full_name?: string; phone?: string }) => Promise<{ success: boolean; message?: string }>;
 }
 
@@ -34,18 +36,93 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const AUTH_STORAGE_KEY = 'saraswati_session_v2';
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(() => {
+    try {
+      const stored = localStorage.getItem(AUTH_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed?.user) return parsed.user;
+      }
+    } catch {}
+    return null;
+  });
+  const [token, setToken] = useState<string | null>(() => {
+    try {
+      const stored = localStorage.getItem(AUTH_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed?.token) return parsed.token;
+      }
+    } catch {}
+    return null;
+  });
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const { showToast } = useToast();
 
   const getAuthHeaders = useCallback((): Record<string, string> => {
-    if (!token) return {};
-    return {
-      Authorization: `Bearer ${token}`,
-    };
+    if (token) {
+      return { Authorization: `Bearer ${token}` };
+    }
+    // Synchronous fallback to localStorage if React state has not committed yet
+    try {
+      const stored = localStorage.getItem(AUTH_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed?.token) return { Authorization: `Bearer ${parsed.token}` };
+      }
+    } catch {}
+    return {};
   }, [token]);
+
+  const refreshAuthSession = useCallback(async (): Promise<Record<string, string>> => {
+    try {
+      if (isSupabaseConfigured() && supabase) {
+        const { data, error } = await supabase.auth.refreshSession();
+        if (!error && data.session?.access_token) {
+          const freshJwt = data.session.access_token;
+          setToken(freshJwt);
+          if (data.session.user) {
+            const effectiveEmail = data.session.user.email || user?.email;
+            const updatedUser: UserProfile = {
+              id: data.session.user.id,
+              email: effectiveEmail,
+              full_name: (data.session.user.user_metadata?.full_name as string) || user?.full_name || '',
+              role: (data.session.user.user_metadata?.role as any) || user?.role || 'CUSTOMER',
+            };
+            setUser(updatedUser);
+            localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: freshJwt, user: updatedUser }));
+          }
+          return { Authorization: `Bearer ${freshJwt}` };
+        }
+      }
+    } catch (err) {
+      console.warn('Session refresh warning:', err);
+    }
+
+    return getAuthHeaders();
+  }, [user, getAuthHeaders]);
+
+  const getValidAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
+    try {
+      if (isSupabaseConfigured() && supabase) {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (!error && session?.access_token) {
+          // If session expires within 15 seconds, refresh it proactively
+          if (session.expires_at && session.expires_at * 1000 < Date.now() + 15000) {
+            return await refreshAuthSession();
+          }
+          const jwt = session.access_token;
+          setToken(jwt);
+          return { Authorization: `Bearer ${jwt}` };
+        }
+      }
+    } catch (err) {
+      console.warn('getValidAuthHeaders error:', err);
+    }
+
+    return getAuthHeaders();
+  }, [refreshAuthSession, getAuthHeaders]);
 
   // Sync profile on login
   const syncProfileOnServer = useCallback(async (profile: UserProfile, jwtToken: string) => {
@@ -72,76 +149,122 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return profile;
   }, []);
 
-  // Restore session on mount
+  // Restore session on mount & subscribe to auth changes
   useEffect(() => {
+    let isMounted = true;
+
     async function restoreSession() {
       setIsLoading(true);
       try {
-        // 1. Check Supabase Auth session if configured
+        // 1. Authoritative check with Supabase Auth session if configured
         if (isSupabaseConfigured() && supabase) {
           const { data: { session } } = await supabase.auth.getSession();
-          if (session) {
+          if (session && isMounted) {
             const jwt = session.access_token;
             setToken(jwt);
 
-            // Fetch profile
-            const res = await fetch('/api/auth/profile', {
-              headers: { Authorization: `Bearer ${jwt}` },
-            });
-            if (res.ok) {
-              const { profile } = await res.json();
-              if (profile) {
-                const effectiveEmail = session.user?.email || profile.email;
-                const mergedProfile = { ...profile, email: effectiveEmail };
-                setUser(mergedProfile);
-                localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: jwt, user: mergedProfile }));
+            // Fetch server profile
+            try {
+              const res = await fetch('/api/auth/profile', {
+                headers: { Authorization: `Bearer ${jwt}` },
+              });
+              if (res.ok) {
+                const { profile } = await res.json();
+                if (profile && isMounted) {
+                  const effectiveEmail = session.user?.email || profile.email;
+                  const mergedProfile = { ...profile, email: effectiveEmail };
+                  setUser(mergedProfile);
+                  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: jwt, user: mergedProfile }));
+                }
+              } else if (session.user && isMounted) {
+                const fallbackProfile: UserProfile = {
+                  id: session.user.id,
+                  email: session.user.email,
+                  full_name: (session.user.user_metadata?.full_name as string) || '',
+                  role: 'CUSTOMER',
+                };
+                setUser(fallbackProfile);
+                localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: jwt, user: fallbackProfile }));
               }
-            } else if (session.user) {
-              const fallbackProfile: UserProfile = {
-                id: session.user.id,
-                email: session.user.email,
-                full_name: (session.user.user_metadata?.full_name as string) || '',
-                role: 'CUSTOMER',
-              };
-              setUser(fallbackProfile);
+            } catch (err) {
+              console.warn('Profile fetch warning during session restore:', err);
             }
-            setIsLoading(false);
+            if (isMounted) {
+              setIsLoading(false);
+            }
             return;
           }
         }
 
-        // 2. Fallback to localStorage session
+        // 2. Fallback to localStorage session if Supabase has no active session
         const stored = localStorage.getItem(AUTH_STORAGE_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (parsed && parsed.token && parsed.user) {
-            setToken(parsed.token);
-            setUser(parsed.user);
+        if (stored && isMounted) {
+          try {
+            const parsed = JSON.parse(stored);
+            if (parsed && parsed.token && parsed.user) {
+              setToken(parsed.token);
+              setUser(parsed.user);
 
-            // Verify with server in background
-            fetch('/api/auth/profile', {
-              headers: { Authorization: `Bearer ${parsed.token}` },
-            })
-              .then((r) => (r.ok ? r.json() : null))
-              .then((data) => {
-                if (data?.profile) {
-                  const effectiveEmail = parsed.user?.email || data.profile.email;
-                  const merged = { ...data.profile, email: effectiveEmail };
-                  setUser(merged);
-                  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: parsed.token, user: merged }));
-                }
+              // Verify with server in background
+              fetch('/api/auth/profile', {
+                headers: { Authorization: `Bearer ${parsed.token}` },
               })
-              .catch(() => {});
-          }
+                .then((r) => (r.ok ? r.json() : null))
+                .then((data) => {
+                  if (data?.profile && isMounted) {
+                    const effectiveEmail = parsed.user?.email || data.profile.email;
+                    const merged = { ...data.profile, email: effectiveEmail };
+                    setUser(merged);
+                    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: parsed.token, user: merged }));
+                  }
+                })
+                .catch(() => {});
+            }
+          } catch {}
         }
       } catch (err) {
         console.error('Session restore error:', err);
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     }
 
     restoreSession();
+
+    // Listen to Supabase auth events (e.g. background token refresh)
+    let authSubscription: { unsubscribe: () => void } | null = null;
+    if (isSupabaseConfigured() && supabase) {
+      const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (!isMounted) return;
+        if (session) {
+          setToken(session.access_token);
+          if (session.user) {
+            setUser((prev) => {
+              const updated: UserProfile = {
+                id: session.user.id,
+                email: session.user.email || prev?.email,
+                full_name: (session.user.user_metadata?.full_name as string) || prev?.full_name || '',
+                role: (session.user.user_metadata?.role as any) || prev?.role || 'CUSTOMER',
+              };
+              localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: session.access_token, user: updated }));
+              return updated;
+            });
+          }
+        } else if (event === 'SIGNED_OUT') {
+          setToken(null);
+          setUser(null);
+          localStorage.removeItem(AUTH_STORAGE_KEY);
+        }
+      });
+      authSubscription = data.subscription;
+    }
+
+    return () => {
+      isMounted = false;
+      authSubscription?.unsubscribe();
+    };
   }, []);
 
   // Send Email OTP
@@ -325,6 +448,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         closeAuthModal: () => setIsAuthModalOpen(false),
         isAuthModalOpen,
         getAuthHeaders,
+        getValidAuthHeaders,
+        refreshAuthSession,
         updateUserProfile,
       }}
     >

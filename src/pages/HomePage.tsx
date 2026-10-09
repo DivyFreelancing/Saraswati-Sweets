@@ -30,7 +30,7 @@ import {
 } from '../components/common/LoadingSkeleton';
 import { Category, Product, GiftHamper, Banner, Review, Offer } from '../types/database';
 import { catalogService } from '../services/catalogService';
-import { SEED_CATEGORIES } from '../data/seedData';
+import { SEED_CATEGORIES } from '../data/seedCategories';
 
 interface HomePageProps {
   onNavigate: (path: string) => void;
@@ -81,7 +81,8 @@ export const HomePage: React.FC<HomePageProps> = ({
           return !savoryCategoryIds.includes(p.category_id);
         });
 
-        setBestsellers(sweetsOnly);
+        // Cap to top curated 12 sweets to prevent rendering 60 heavy cards in initial carousel
+        setBestsellers(sweetsOnly.slice(0, 12));
         setHampers(hamps);
         setBanners(bans.filter((b) => b.is_active));
         setOffers(offs.filter((o) => o.is_active));

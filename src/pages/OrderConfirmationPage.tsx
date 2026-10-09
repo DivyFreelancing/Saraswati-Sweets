@@ -18,9 +18,11 @@ export const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
 }) => {
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const { isAuthenticated, openAuthModal, getAuthHeaders } = useAuth();
+  const { isAuthenticated, isLoading: isAuthLoading, openAuthModal, getValidAuthHeaders } = useAuth();
 
   useEffect(() => {
+    if (isAuthLoading) return;
+
     async function loadOrder() {
       if (!isAuthenticated) {
         setLoading(false);
@@ -29,8 +31,9 @@ export const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
       
       try {
         setLoading(true);
+        const headers = await getValidAuthHeaders();
         const res = await fetch(`/api/orders/${orderNumber}`, {
-          headers: getAuthHeaders(),
+          headers,
         });
         if (res.ok) {
           const data = await res.json();
@@ -45,23 +48,32 @@ export const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
       }
     }
     loadOrder();
-  }, [orderNumber, isAuthenticated, getAuthHeaders]);
+  }, [orderNumber, isAuthenticated, isAuthLoading, getValidAuthHeaders]);
+
+  if (isAuthLoading || loading) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center space-y-4">
+        <div className="w-12 h-12 border-3 border-[#7A1129] border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-sm text-[#6E6259]">Loading order confirmation details...</p>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return (
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center space-y-6">
-        <div className="w-20 h-20 rounded-full bg-[#F3EBE0] text-[#8A1538] flex items-center justify-center mx-auto">
+        <div className="w-20 h-20 rounded-full bg-[#FAF4DE] text-[#7A1129] flex items-center justify-center mx-auto border border-[#C79A3D]/40 shadow-xs">
           <Lock className="w-10 h-10" />
         </div>
-        <h1 className="font-display font-bold text-3xl text-[#1F1B16]">
+        <h1 className="font-display font-bold text-3xl text-[#221A14]">
           Authentication Required
         </h1>
-        <p className="text-[#6B6258] max-w-md mx-auto">
+        <p className="text-[#6E6259] max-w-md mx-auto">
           Please log in to view the details for order #{orderNumber}. This protects your personal information.
         </p>
         <button
           onClick={openAuthModal}
-          className="px-8 py-3 rounded-xl bg-[#8A1538] hover:bg-[#701029] text-white font-semibold transition-colors shadow-sm"
+          className="px-8 py-3 rounded-full bg-[#7A1129] hover:bg-[#5E0D20] text-white font-semibold transition-colors shadow-sm"
         >
           Log in to view order
         </button>

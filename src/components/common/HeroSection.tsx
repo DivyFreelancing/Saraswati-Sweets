@@ -65,7 +65,16 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
 }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [loadSecondarySlides, setLoadSecondarySlides] = useState(false);
   const touchStartXRef = useRef<number | null>(null);
+
+  // Defer downloading slide 2 and 3 images until after initial render and FCP/LCP
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLoadSecondarySlides(true);
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Auto-advance carousel every 5.5 seconds
   useEffect(() => {
@@ -124,22 +133,24 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                 isActive ? 'opacity-100 z-0' : 'opacity-0 -z-10 pointer-events-none'
               }`}
             >
-              <picture>
-                {index === 0 && (
-                  <source media="(max-width: 640px)" srcSet="/images/1-mobile.webp" type="image/webp" />
-                )}
-                <source srcSet={slide.image} type="image/webp" />
-                <img
-                  src={slide.image}
-                  alt={slide.titlePrefix}
-                  width="1920"
-                  height="731"
-                  className="w-full h-full object-cover object-center scale-102 transition-transform duration-7000 ease-out"
-                  loading={index === 0 ? 'eager' : 'lazy'}
-                  decoding={index === 0 ? 'sync' : 'async'}
-                  fetchPriority={index === 0 ? 'high' : 'low'}
-                />
-              </picture>
+              {(index === 0 || loadSecondarySlides || isActive) && (
+                <picture>
+                  {index === 0 && (
+                    <source media="(max-width: 640px)" srcSet="/images/1-mobile.webp" type="image/webp" />
+                  )}
+                  <source srcSet={slide.image} type="image/webp" />
+                  <img
+                    src={slide.image}
+                    alt={slide.titlePrefix}
+                    width="1920"
+                    height="731"
+                    className="w-full h-full object-cover object-center scale-102 transition-transform duration-7000 ease-out"
+                    loading={index === 0 ? 'eager' : 'lazy'}
+                    decoding="async"
+                    fetchPriority={index === 0 ? 'high' : 'low'}
+                  />
+                </picture>
+              )}
             </div>
           );
         })}

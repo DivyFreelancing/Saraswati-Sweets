@@ -6,6 +6,7 @@ import { useToast } from '../context/ToastContext';
 import { DeliverySlotSelector, ClientDeliverySlot } from '../components/common/DeliverySlotSelector';
 import { PriceDisplay } from '../components/common/PriceDisplay';
 import { formatINR } from '../utils/formatters';
+import { loadCashfreeScript } from '../utils/cashfreeLoader';
 import {
   MapPin,
   Clock,
@@ -30,7 +31,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
 }) => {
   const { items, subtotal, savings, deliveryCharge, total, clearCart } = useCart();
   const { addresses, defaultAddress, addAddress } = useAddresses();
-  const { user, isAuthenticated, openAuthModal, getAuthHeaders } = useAuth();
+  const { user, isAuthenticated, isLoading: isAuthLoading, openAuthModal, getAuthHeaders, getValidAuthHeaders, refreshAuthSession } = useAuth();
   const { showToast } = useToast();
 
   const [selectedAddressId, setSelectedAddressId] = useState<string>('');
@@ -44,6 +45,13 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<'ONLINE' | 'COD'>('ONLINE');
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [searchParams] = useState(() => new URLSearchParams(window.location.search));
+  const orderIdFromUrl = searchParams.get('order_id');
+  const isPaymentReturn = Boolean(orderIdFromUrl);
+  const [isVerifyingPayment, setIsVerifyingPayment] = useState<boolean>(isPaymentReturn);
+  const [verificationStatus, setVerificationStatus] = useState<'verifying' | 'success' | 'pending' | 'failed' | null>(
+    isPaymentReturn ? 'verifying' : null
+  );
 
   // Inline address creation state (for guest or when user has no saved address)
   const [guestAddress, setGuestAddress] = useState({
@@ -78,6 +86,11 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
       setSelectedAddressId(addresses[0].id);
     }
   }, [defaultAddress, addresses]);
+
+  // Proactively preload Cashfree SDK on Checkout mount without blocking initial page render
+  useEffect(() => {
+    loadCashfreeScript().catch(() => {});
+  }, []);
 
   // Handle Coupon Apply via Server-side Validation
   const handleApplyCoupon = async (codeToApply?: string) => {
@@ -168,7 +181,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
         headers: {
           'Content-Type': 'application/json',
           'Idempotency-Key': idempotencyKey,
-          ...getAuthHeaders(),
+          ...(await getValidAuthHeaders()),
         },
         body: JSON.stringify({
           items: items.map((i) => ({
@@ -211,15 +224,16 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
 
       // If Online Payment, launch Cashfree Checkout modal
       if (data.cashfree) {
-        if (typeof (window as any).Cashfree !== 'undefined') {
-          const cashfree = await (window as any).Cashfree({
+        try {
+          const CashfreeFactory = await loadCashfreeScript();
+          const cashfree = await CashfreeFactory({
             mode: "sandbox" // Change to production in live
           });
           cashfree.checkout({
             paymentSessionId: data.cashfree.payment_session_id,
             returnUrl: window.location.origin + "/checkout?order_id={order_id}"
           });
-        } else {
+        } catch (sdkErr: any) {
           showToast('Cashfree script failed to load. Please refresh.', 'error');
           setIsPlacingOrder(false);
         }
@@ -236,41 +250,124 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
 
   // Cashfree redirect handler
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const order_id = params.get('order_id');
-    if (order_id) {
-      setIsPlacingOrder(true);
-      fetch('/api/payments/verify', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify({ cashfree_order_id: order_id }),
-      })
-      .then(res => res.json())
-      .then(async data => {
+    if (!orderIdFromUrl) return;
+
+    // Must wait until Supabase auth initialization completes
+    if (isAuthLoading) return;
+
+    let isMounted = true;
+
+    async function verifyReturnPayment() {
+      setIsVerifyingPayment(true);
+      setVerificationStatus('verifying');
+      setErrorMessage('');
+
+      try {
+        // 1. Retrieve guaranteed valid auth headers (auto-refreshed if needed)
+        let headers = await getValidAuthHeaders();
+
+        // 2. If completely unauthenticated after auth loading finished
+        if (!headers.Authorization) {
+          if (isMounted) {
+            setErrorMessage('Authentication required. Please sign in with your phone or email to verify your order.');
+            setIsVerifyingPayment(false);
+            setVerificationStatus('failed');
+            openAuthModal();
+          }
+          return;
+        }
+
+        // 3. Call backend verify endpoint
+        let res = await fetch('/api/payments/verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...headers,
+          },
+          body: JSON.stringify({ cashfree_order_id: orderIdFromUrl }),
+        });
+
+        // 4. If 401 Unauthorized, token may have expired while completing OTP verification on Cashfree.
+        // Attempt safe session refresh and retry once.
+        if (res.status === 401) {
+          console.log('[Checkout] Verify received 401, attempting token refresh...');
+          const freshHeaders = await refreshAuthSession();
+          if (freshHeaders?.Authorization) {
+            res = await fetch('/api/payments/verify', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...freshHeaders,
+              },
+              body: JSON.stringify({ cashfree_order_id: orderIdFromUrl }),
+            });
+          }
+        }
+
+        const data = await res.json();
+        if (!isMounted) return;
+
+        if (res.status === 401) {
+          setErrorMessage('Your session has expired. Please sign in to verify your payment.');
+          setIsVerifyingPayment(false);
+          setVerificationStatus('failed');
+          openAuthModal();
+          return;
+        }
+
         if (data.success || data.idempotent) {
+          setVerificationStatus('success');
           await clearCart();
           showToast('Payment verified successfully! Fresh sweets are being prepared.', 'success');
-          onOrderSuccess(data.order?.order_number || order_id);
+          window.history.replaceState({}, '', '/checkout');
+          onOrderSuccess(data.order?.order_number || orderIdFromUrl);
         } else if (data.pending) {
-          setErrorMessage('Payment verification is pending. Please check your order history in a few minutes.');
-          setIsPlacingOrder(false);
-          window.history.replaceState({}, '', '/checkout');
+          setVerificationStatus('pending');
+          setErrorMessage('Payment verification is pending confirmation from Cashfree. Please check your order history in a few minutes.');
+          setIsVerifyingPayment(false);
         } else {
-          setErrorMessage(data.message || 'Payment verification failed.');
-          setIsPlacingOrder(false);
-          window.history.replaceState({}, '', '/checkout');
+          setVerificationStatus('failed');
+          setErrorMessage(data.message || 'Payment was not successful or was cancelled.');
+          setIsVerifyingPayment(false);
         }
-      })
-      .catch(err => {
-        setErrorMessage('Error verifying payment.');
-        setIsPlacingOrder(false);
-        window.history.replaceState({}, '', '/checkout');
-      });
+      } catch (err: any) {
+        if (isMounted) {
+          setVerificationStatus('failed');
+          setErrorMessage(err.message || 'Network error communicating with payment verification server.');
+          setIsVerifyingPayment(false);
+        }
+      }
     }
-  }, []);
+
+    verifyReturnPayment();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [orderIdFromUrl, isAuthLoading, getValidAuthHeaders, refreshAuthSession, clearCart, showToast, onOrderSuccess, openAuthModal]);
+
+  if (isVerifyingPayment) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center space-y-6">
+        <div className="w-20 h-20 rounded-full bg-[#FAF4DE] border-2 border-[#C79A3D]/40 flex items-center justify-center mx-auto shadow-sm">
+          <div className="w-10 h-10 border-3 border-[#7A1129] border-t-transparent rounded-full animate-spin" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="font-display font-bold text-2xl sm:text-3xl text-[#221A14]">
+            Verifying Payment
+          </h2>
+          <p className="text-sm sm:text-base text-[#6E6259] max-w-md mx-auto leading-relaxed">
+            Confirming your transaction with Cashfree and locking your fresh sweets batch. Please do not close or refresh this page...
+          </p>
+        </div>
+        {orderIdFromUrl && (
+          <div className="inline-block px-4 py-2 rounded-xl bg-[#FAF4DE] border border-[#C79A3D]/40 text-xs text-[#7A1129] font-medium">
+            Order Reference: <span className="font-mono font-bold">{orderIdFromUrl}</span>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -285,7 +382,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
       </div>
 
       {/* Authentication Required Banner if guest */}
-      {!isAuthenticated && (
+      {!isAuthLoading && !isAuthenticated && !isPaymentReturn && (
         <div className="p-5 rounded-2xl bg-gradient-to-r from-[#FAF4DE] to-[#F5EAD9] border border-[#C79A3D]/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-full bg-[#7A1129] text-white flex items-center justify-center shrink-0 mt-0.5">
@@ -311,9 +408,26 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
       )}
 
       {errorMessage && (
-        <div className="p-4 rounded-xl bg-[#FAF4DE] border border-[#B3261E]/40 text-sm text-[#8A1538] font-medium flex items-start gap-2">
-          <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-[#B3261E]" />
-          <span>{errorMessage}</span>
+        <div className="p-4 rounded-xl bg-[#FAF4DE] border border-[#B3261E]/40 text-sm text-[#8A1538] font-medium flex items-start justify-between gap-3 shadow-xs">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-[#B3261E]" />
+            <div>
+              <div className="font-bold">Payment Notice</div>
+              <p className="mt-0.5">{errorMessage}</p>
+            </div>
+          </div>
+          {isPaymentReturn && (
+            <button
+              type="button"
+              onClick={() => {
+                setErrorMessage('');
+                window.history.replaceState({}, '', '/checkout');
+              }}
+              className="text-xs font-semibold underline text-[#7A1129] hover:text-[#5E0D20] shrink-0"
+            >
+              Dismiss
+            </button>
+          )}
         </div>
       )}
 

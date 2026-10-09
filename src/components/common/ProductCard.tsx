@@ -160,6 +160,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenDetail 
               width="160"
               height="160"
               loading="lazy"
+              decoding="async"
               onError={() => setImageFailed(true)}
               className={`w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105 ${
                 isAllOutOfStock ? 'opacity-70 contrast-90 grayscale-[25%]' : ''

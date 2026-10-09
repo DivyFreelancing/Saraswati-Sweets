@@ -1,4 +1,5 @@
 import express from 'express';
+import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 
 
@@ -27,6 +28,14 @@ async function startServer() {
   await loadStoreState();
   const app = express();
   app.set('trust proxy', 1);
+
+  // Enable HTTP response compression (gzip / deflate) for all responses > 1KB
+  app.use(
+    compression({
+      threshold: 1024,
+      level: 6,
+    })
+  );
 
   // Dynamic port resolution: prioritizes process.env.PORT, fallback to 3000
   const port = Number(process.env.PORT) || 3000;

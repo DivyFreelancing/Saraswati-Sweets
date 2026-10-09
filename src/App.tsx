@@ -14,11 +14,11 @@ import { ToastContainer } from './components/common/Toast';
 import { OfflineIndicator } from './components/common/OfflineIndicator';
 
 import { HomePage } from './pages/HomePage';
-import { CatalogPage } from './pages/CatalogPage';
-import { CategoriesPage } from './pages/CategoriesPage';
-import { HampersPage } from './pages/HampersPage';
 
-// Code-split secondary routes so initial homepage load is ultra-light
+// Code-split all secondary routes so initial homepage load contains only essential components
+const CatalogPage = React.lazy(() => import('./pages/CatalogPage').then(m => ({ default: m.CatalogPage })));
+const CategoriesPage = React.lazy(() => import('./pages/CategoriesPage').then(m => ({ default: m.CategoriesPage })));
+const HampersPage = React.lazy(() => import('./pages/HampersPage').then(m => ({ default: m.HampersPage })));
 const BulkEnquiryPage = React.lazy(() => import('./pages/BulkEnquiryPage').then(m => ({ default: m.BulkEnquiryPage })));
 const ContactPage = React.lazy(() => import('./pages/ContactPage').then(m => ({ default: m.ContactPage })));
 const CartPage = React.lazy(() => import('./pages/CartPage').then(m => ({ default: m.CartPage })));

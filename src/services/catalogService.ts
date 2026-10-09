@@ -9,15 +9,7 @@ import {
   Review,
   BulkOrderEnquiry,
 } from '../types/database';
-import {
-  SEED_CATEGORIES,
-  SEED_PRODUCTS,
-  SEED_GIFT_HAMPERS,
-  SEED_BANNERS,
-  SEED_OFFERS,
-  SEED_STORE_SETTINGS,
-  SEED_REVIEWS,
-} from '../data/seedData';
+import { SEED_CATEGORIES } from '../data/seedCategories';
 
 export interface CatalogFilterOptions {
   categorySlug?: string;
@@ -98,7 +90,14 @@ export const catalogService = {
     }
 
     if (!fetchedFromServer) {
-      products = [...SEED_PRODUCTS];
+      if (isSupabaseConfigured() && supabase) {
+        try {
+          const { data } = await supabase.from('products').select('*');
+          if (data && data.length > 0) {
+            products = data as any;
+          }
+        } catch {}
+      }
     }
 
     // Perform filtering synchronously on the (cached) raw list
