@@ -61,8 +61,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (res.ok) {
         const data = await res.json();
         if (data.profile) {
-          setUser(data.profile);
-          return data.profile;
+          const merged = { ...data.profile, email: profile.email || data.profile.email };
+          setUser(merged);
+          return merged;
         }
       }
     } catch (err) {
@@ -89,7 +90,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             });
             if (res.ok) {
               const { profile } = await res.json();
-              if (profile) setUser(profile);
+              if (profile) {
+                const effectiveEmail = session.user?.email || profile.email;
+                const mergedProfile = { ...profile, email: effectiveEmail };
+                setUser(mergedProfile);
+                localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: jwt, user: mergedProfile }));
+              }
+            } else if (session.user) {
+              const fallbackProfile: UserProfile = {
+                id: session.user.id,
+                email: session.user.email,
+                full_name: (session.user.user_metadata?.full_name as string) || '',
+                role: 'CUSTOMER',
+              };
+              setUser(fallbackProfile);
             }
             setIsLoading(false);
             return;
@@ -111,8 +125,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               .then((r) => (r.ok ? r.json() : null))
               .then((data) => {
                 if (data?.profile) {
-                  setUser(data.profile);
-                  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: parsed.token, user: data.profile }));
+                  const effectiveEmail = parsed.user?.email || data.profile.email;
+                  const merged = { ...data.profile, email: effectiveEmail };
+                  setUser(merged);
+                  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: parsed.token, user: merged }));
                 }
               })
               .catch(() => {});
@@ -271,9 +287,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (res.ok) {
         const data = await res.json();
         if (data.profile) {
-          setUser(data.profile);
+          const effectiveEmail = user?.email || data.profile.email;
+          const merged = { ...data.profile, email: effectiveEmail };
+          setUser(merged);
           if (token) {
-            localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token, user: data.profile }));
+            localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token, user: merged }));
           }
           showToast('Profile updated successfully', 'success');
           return { success: true };

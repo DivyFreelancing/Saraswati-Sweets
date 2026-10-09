@@ -15,6 +15,8 @@ export interface EmailMessage {
   subject: string;
   html: string;
   text?: string;
+  recipientName?: string;
+  notificationType?: string;
   isPromotional?: boolean;
 }
 
@@ -78,22 +80,46 @@ export class FcmPushNotificationStub implements IFcmPushService {
 }
 
 /**
- * Resend Email Provider with Respect for Promotional Opt-Out & Never Blocking Transactional
+ * Extracts raw Send Mail token securely from ZEPTOMAIL_API_KEY
  */
-export class ResendEmailProvider implements IEmailProvider {
+export function extractZeptoMailToken(apiKey: string): string {
+  const trimmed = (apiKey || '').trim();
+  return trimmed.replace(/^Zoho-enczapikey\s*/i, '').trim();
+}
+
+/**
+ * Helper to ensure ZeptoMail Authorization header follows official format:
+ * "Authorization: Zoho-enczapikey YOUR_SEND_MAIL_TOKEN"
+ * Guarantees exactly one space after colon and no duplicated token prefix.
+ */
+export function formatZeptoAuthHeader(apiKey: string): string {
+  const token = extractZeptoMailToken(apiKey);
+  return `Zoho-enczapikey ${token}`;
+}
+
+/**
+ * Zoho ZeptoMail Provider with Exact cURL Payload Format & Non-Blocking Delivery
+ */
+export class ZeptoMailProvider implements IEmailProvider {
   private apiKey: string;
-  private fromEmail: string;
+  private fromAddress: string;
+  private fromName: string;
+  private baseUrl: string;
 
   constructor() {
-    this.apiKey = process.env.RESEND_API_KEY || '';
-    this.fromEmail = process.env.RESEND_FROM_EMAIL || 'Saraswati Sweets <order@saraswatisweets.in>';
+    this.apiKey = process.env.ZEPTOMAIL_API_KEY || '';
+    this.fromAddress = process.env.ZEPTOMAIL_FROM_ADDRESS || 'order@saraswatisweets.in';
+    this.fromName = process.env.ZEPTOMAIL_FROM_NAME || 'Saraswati Sweets';
+    this.baseUrl = process.env.ZEPTOMAIL_BASE_URL || 'https://cpaas.zoho.in';
   }
 
   async sendEmail(message: EmailMessage, recipientProfile?: ServerProfile): Promise<EmailSendResult> {
+    const typeTag = message.notificationType || 'TRANSACTIONAL';
+
     // 1. Check Promotional Opt-out (transactional never blocked!)
     if (message.isPromotional) {
       if (recipientProfile && recipientProfile.promotional_emails_opt_in === false) {
-        console.log(`[Email Service] Promotional email skipped for ${message.to}: User opted out.`);
+        console.log(`[Email Service] Promotional email skipped: User opted out.`);
         return {
           success: false,
           skipped: true,
@@ -102,45 +128,77 @@ export class ResendEmailProvider implements IEmailProvider {
       }
     }
 
-    // 2. If live Resend API key is present and not placeholder, call Resend API
-    if (this.apiKey && !this.apiKey.includes('placeholder') && this.apiKey.startsWith('re_')) {
+    // 2. If live ZeptoMail API key is present and not placeholder, call ZeptoMail Send Mail API
+    const token = extractZeptoMailToken(this.apiKey);
+    if (token && !token.includes('placeholder')) {
       try {
-        const response = await fetch('https://api.resend.com/emails', {
+        const authHeader = formatZeptoAuthHeader(this.apiKey);
+        const payload = {
+          from: {
+            address: this.fromAddress,
+          },
+          to: [
+            {
+              email_address: {
+                address: message.to,
+                name: message.recipientName || this.fromName,
+              },
+            },
+          ],
+          subject: message.subject,
+          htmlbody: message.html,
+          ...(message.text ? { textbody: message.text } : {}),
+        };
+
+        const response = await fetch(`${this.baseUrl}/v1.1/email`, {
           method: 'POST',
           headers: {
+            'Accept': 'application/json',
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${this.apiKey}`,
+            'Authorization': authHeader,
           },
-          body: JSON.stringify({
-            from: this.fromEmail,
-            to: [message.to],
-            subject: message.subject,
-            html: message.html,
-            text: message.text || undefined,
-          }),
+          body: JSON.stringify(payload),
         });
 
-        const data: any = await response.json();
+        const data: any = await response.json().catch(() => null);
         if (!response.ok) {
-          console.warn('[Resend API Error]:', data);
-          return { success: false, error: data.message || 'Resend API call failed' };
+          const sanitizedError = {
+            code: data?.error?.code || 'UNKNOWN_ERROR',
+            message: data?.error?.message || data?.message || response.statusText,
+            details: data?.error?.details?.map((d: any) => ({
+              code: d?.code,
+              message: d?.message,
+              target: d?.target,
+            })) || undefined,
+          };
+          console.warn(
+            `[ZeptoMail API Error] [${typeTag}] HTTP ${response.status}:`,
+            JSON.stringify(sanitizedError)
+          );
+          const detailMsg = sanitizedError.details?.map((d: any) => d.message).join(', ');
+          return {
+            success: false,
+            error: `ZeptoMail HTTP ${response.status}: ${sanitizedError.message || 'Request failed'}${detailMsg ? ` (${detailMsg})` : ''}`,
+          };
         }
 
-        return { success: true, id: data.id };
+        console.log(`[ZeptoMail] [${typeTag}] email dispatched successfully (HTTP ${response.status})`);
+        return { success: true, id: data?.data?.[0]?.message_id || `zepto_${Date.now()}` };
       } catch (err: any) {
-        console.error('[Resend Network Error]:', err.message);
+        console.error(`[ZeptoMail Network Error] [${typeTag}]:`, err.message);
         return { success: false, error: err.message };
       }
     }
 
     // 3. Fallback simulated transactional dispatch in test / dev mode
-    const simulatedId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const simulatedId = `zepto_sim_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const maskedTo = message.to.replace(/(?<=.{2}).(?=[^@]*?@)/g, '*');
     console.log(`\n======================================================`);
-    console.log(`[TRANSACTIONAL EMAIL DISPATCHED via Resend Provider]`);
+    console.log(`[TRANSACTIONAL EMAIL DISPATCHED via ZeptoMail Provider (Simulated)]`);
     console.log(`ID:      ${simulatedId}`);
-    console.log(`To:      ${message.to}`);
+    console.log(`To:      ${maskedTo}`);
     console.log(`Subject: ${message.subject}`);
-    console.log(`Type:    ${message.isPromotional ? 'PROMOTIONAL' : 'TRANSACTIONAL (MANDATORY)'}`);
+    console.log(`Type:    ${typeTag}`);
     console.log(`Preview: ${message.text || message.subject}`);
     console.log(`======================================================\n`);
 
@@ -151,7 +209,7 @@ export class ResendEmailProvider implements IEmailProvider {
   }
 }
 
-export const emailProvider: IEmailProvider = new ResendEmailProvider();
+export const emailProvider: IEmailProvider = new ZeptoMailProvider();
 export const fcmPushStub: IFcmPushService = new FcmPushNotificationStub();
 
 /**
@@ -233,55 +291,114 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
   // Send transactional email to customer only if we have a real email address.
   // Phone-only users won't have an email — skip rather than sending to a fake address.
   if (realCustomerEmail) {
-    await emailProvider.sendEmail({
-      to: realCustomerEmail,
-    subject: `Order Confirmation #${order.order_number} - Saraswati Sweets (Barabanki)`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1F1B16;">
-        <div style="background-color: #8A1538; color: #fff; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-          <h1 style="margin: 0; font-size: 22px;">Saraswati Sweets</h1>
-          <p style="margin: 4px 0 0; font-size: 13px; color: #F6E08B;">Pure Desi Ghee Mithai Since 1978 • Barabanki</p>
-        </div>
-        <div style="padding: 24px; border: 1px solid #e8dfd2; border-top: none; border-radius: 0 0 8px 8px; background: #fff;">
-          <h2 style="color: #8A1538; margin-top: 0;">Order #${order.order_number} Confirmed</h2>
-          <p>Dear ${order.address_snapshot.recipient_name},</p>
-          <p>Thank you for choosing Saraswati Sweets. Our master sweetmakers have begun preparing your fresh mithai with 100% cow desi ghee.</p>
-          
-          <div style="background-color: #fbf7f1; padding: 12px 16px; border-radius: 6px; margin: 16px 0;">
-            <p style="margin: 0; font-size: 14px;"><strong>Delivery Window:</strong> ${order.slot_snapshot.slot_date} (${order.slot_snapshot.start_time} - ${order.slot_snapshot.end_time})</p>
-            <p style="margin: 4px 0 0; font-size: 14px;"><strong>Delivery Address:</strong> ${order.address_snapshot.street_address}, Barabanki - ${order.address_snapshot.pincode}</p>
-            <p style="margin: 4px 0 0; font-size: 14px;"><strong>Payment Method:</strong> ${order.payment_method} (${order.payment_status})</p>
-          </div>
+    const zeptoMailApiKey = process.env.ZEPTOMAIL_API_KEY;
+    const zeptoMailTemplateKey = process.env.ZEPTOMAIL_TEMPLATE_KEY;
+    const baseUrl = process.env.ZEPTOMAIL_BASE_URL || 'https://cpaas.zoho.in';
+    const fromAddress = process.env.ZEPTOMAIL_FROM_ADDRESS || 'order@saraswatisweets.in';
 
-          <table style="width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px;">
-            <thead>
-              <tr style="background: #f3ebe0;">
-                <th style="padding: 8px; text-align: left;">Item</th>
-                <th style="padding: 8px; text-align: center;">Qty</th>
-                <th style="padding: 8px; text-align: right;">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${itemsHtml}
-            </tbody>
-            <tfoot>
-              ${order.discount_amount > 0 ? `<tr><td colspan="2" style="padding: 8px; text-align: right; color: #2E7D4F;">Discount (${order.coupon_code || 'Promo'}):</td><td style="padding: 8px; text-align: right; color: #2E7D4F;">-₹${order.discount_amount}</td></tr>` : ''}
-              <tr>
-                <td colspan="2" style="padding: 8px; text-align: right; font-weight: bold;">Grand Total:</td>
-                <td style="padding: 8px; text-align: right; font-weight: bold; font-size: 16px; color: #8A1538;">₹${order.total_amount}</td>
-              </tr>
-            </tfoot>
-          </table>
-          <p style="font-size: 13px; color: #6b6258;">Need assistance? Call our Barabanki shop at ${STORE_SETTINGS.store_phone} or WhatsApp ${STORE_SETTINGS.whatsapp}.</p>
+    if (zeptoMailApiKey && !zeptoMailApiKey.includes('placeholder') && zeptoMailTemplateKey) {
+      try {
+        const payload = {
+          mail_template_key: zeptoMailTemplateKey,
+          from: { address: fromAddress },
+          to: [{ email_address: { address: realCustomerEmail, name: order.address_snapshot.recipient_name } }],
+          merge_info: {
+            customer_name: order.address_snapshot.recipient_name,
+            order_id: order.order_number,
+            payment_method: order.payment_method,
+            total_amount: `₹${order.total_amount}`,
+            delivery_address: `${order.address_snapshot.street_address}, Barabanki - ${order.address_snapshot.pincode}`,
+            order_tracking_url: `${process.env.APP_URL || 'http://localhost:3000'}/order-confirmation/${order.order_number}`
+          }
+        };
+
+        const response = await fetch(`${baseUrl}/v1.1/email/template`, {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': formatZeptoAuthHeader(zeptoMailApiKey),
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const data: any = await response.json().catch(() => null);
+        if (!response.ok) {
+          const sanitizedError = {
+            code: data?.error?.code || 'UNKNOWN_ERROR',
+            message: data?.error?.message || data?.message || response.statusText,
+            details: data?.error?.details?.map((d: any) => ({
+              code: d?.code,
+              message: d?.message,
+              target: d?.target,
+            })) || undefined,
+          };
+          console.warn(
+            `[ZeptoMail API Error] [ORDER_CONFIRMATION_TEMPLATE] HTTP ${response.status}:`,
+            JSON.stringify(sanitizedError)
+          );
+        } else {
+          console.log(`[ZeptoMail] [ORDER_CONFIRMATION_TEMPLATE] dispatched successfully (HTTP ${response.status})`);
+        }
+      } catch (err: any) {
+        console.error('[ZeptoMail Network Error] [ORDER_CONFIRMATION_TEMPLATE]:', err.message);
+      }
+    } else {
+      console.log(`[ZeptoMail] Template key not configured; sending styled HTML confirmation via direct ZeptoMail API.`);
+      await emailProvider.sendEmail({
+        to: realCustomerEmail,
+        recipientName: order.address_snapshot.recipient_name,
+        notificationType: 'ORDER_CONFIRMATION_DIRECT',
+        subject: `Order Confirmation #${order.order_number} - Saraswati Sweets (Barabanki)`,
+        html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1F1B16;">
+          <div style="background-color: #8A1538; color: #fff; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+            <h1 style="margin: 0; font-size: 22px;">Saraswati Sweets</h1>
+            <p style="margin: 4px 0 0; font-size: 13px; color: #F6E08B;">Pure Desi Ghee Mithai Since 1978 • Barabanki</p>
+          </div>
+          <div style="padding: 24px; border: 1px solid #e8dfd2; border-top: none; border-radius: 0 0 8px 8px; background: #fff;">
+            <h2 style="color: #8A1538; margin-top: 0;">Order #${order.order_number} Confirmed</h2>
+            <p>Dear ${order.address_snapshot.recipient_name},</p>
+            <p>Thank you for choosing Saraswati Sweets. Our master sweetmakers have begun preparing your fresh mithai with 100% cow desi ghee.</p>
+            
+            <div style="background-color: #fbf7f1; padding: 12px 16px; border-radius: 6px; margin: 16px 0;">
+              <p style="margin: 0; font-size: 14px;"><strong>Delivery Window:</strong> ${order.slot_snapshot.slot_date} (${order.slot_snapshot.start_time} - ${order.slot_snapshot.end_time})</p>
+              <p style="margin: 4px 0 0; font-size: 14px;"><strong>Delivery Address:</strong> ${order.address_snapshot.street_address}, Barabanki - ${order.address_snapshot.pincode}</p>
+              <p style="margin: 4px 0 0; font-size: 14px;"><strong>Payment Method:</strong> ${order.payment_method} (${order.payment_status})</p>
+            </div>
+  
+            <table style="width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px;">
+              <thead>
+                <tr style="background: #f3ebe0;">
+                  <th style="padding: 8px; text-align: left;">Item</th>
+                  <th style="padding: 8px; text-align: center;">Qty</th>
+                  <th style="padding: 8px; text-align: right;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsHtml}
+              </tbody>
+              <tfoot>
+                ${order.discount_amount > 0 ? `<tr><td colspan="2" style="padding: 8px; text-align: right; color: #2E7D4F;">Discount (${order.coupon_code || 'Promo'}):</td><td style="padding: 8px; text-align: right; color: #2E7D4F;">-₹${order.discount_amount}</td></tr>` : ''}
+                <tr>
+                  <td colspan="2" style="padding: 8px; text-align: right; font-weight: bold;">Grand Total:</td>
+                  <td style="padding: 8px; text-align: right; font-weight: bold; font-size: 16px; color: #8A1538;">₹${order.total_amount}</td>
+                </tr>
+              </tfoot>
+            </table>
+            <p style="font-size: 13px; color: #6b6258;">Need assistance? Call our Barabanki shop at ${STORE_SETTINGS.store_phone} or WhatsApp ${STORE_SETTINGS.whatsapp}.</p>
+          </div>
         </div>
-      </div>
-    `,
-    });
+      `,
+      });
+    }
   } // end if (realCustomerEmail)
 
   // Transactional Email to Store Owner — always fires regardless of customer email availability
   await emailProvider.sendEmail({
     to: STORE_SETTINGS.store_email || 'order@saraswatisweets.in',
+    recipientName: 'Saraswati Sweets Store Owner',
+    notificationType: 'ADMIN_NEW_ORDER_ALERT',
     subject: `[NEW ORDER ALERT] #${order.order_number} - ₹${order.total_amount} (${order.payment_method})`,
     html: `
       <div style="font-family: Arial, sans-serif; padding: 20px;">
@@ -308,7 +425,7 @@ export async function notifyOrderStatusChanged(
   newStatus: string
 ): Promise<void> {
   const targetUserId = order.user_id || order.guest_phone || order.address_snapshot.recipient_phone;
-  const targetEmail = order.guest_email || 'customer@saraswatisweets.in';
+  const targetEmail = order.guest_email || undefined;
 
   const statusLabels: Record<string, string> = {
     CONFIRMED: 'Order Confirmed by Store',
@@ -333,27 +450,36 @@ export async function notifyOrderStatusChanged(
     });
   }
 
-  // Email notification
-  await emailProvider.sendEmail({
-    to: targetEmail,
-    subject: `Order Update #${order.order_number}: ${statusLabel}`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e8dfd2; border-radius: 8px;">
-        <h2 style="color: #8A1538;">Order #${order.order_number} Update</h2>
-        <p>Dear ${order.address_snapshot.recipient_name},</p>
-        <p>Your order status has changed to: <strong>${statusLabel}</strong></p>
-        ${
-          order.delivery_partner_name
-            ? `<div style="background: #fbf7f1; padding: 12px; border-radius: 6px; margin: 12px 0;">
-                <p style="margin: 0;"><strong>Delivery Partner:</strong> ${order.delivery_partner_name} (${order.delivery_partner_phone || ''})</p>
-               </div>`
-            : ''
-        }
-        <p>Expected delivery window: ${order.slot_snapshot.slot_date} (${order.slot_snapshot.start_time} - ${order.slot_snapshot.end_time})</p>
-        <p style="margin-top: 20px; font-size: 13px; color: #6B6258;">Thank you for trusting Saraswati Sweets (Barabanki).</p>
-      </div>
-    `,
-  });
+  // Email notification via ZeptoMail
+  if (targetEmail) {
+    const isCancelled = newStatus === 'CANCELLED';
+    await emailProvider.sendEmail({
+      to: targetEmail,
+      recipientName: order.address_snapshot.recipient_name,
+      notificationType: isCancelled ? 'ORDER_CANCELLED' : 'ORDER_STATUS_CHANGED',
+      subject: isCancelled
+        ? `Order #${order.order_number} Cancelled - Saraswati Sweets`
+        : `Order Update #${order.order_number}: ${statusLabel}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e8dfd2; border-radius: 8px;">
+          <h2 style="color: ${isCancelled ? '#B3261E' : '#8A1538'};">Order #${order.order_number} ${isCancelled ? 'Cancelled' : 'Update'}</h2>
+          <p>Dear ${order.address_snapshot.recipient_name},</p>
+          <p>${isCancelled
+            ? `Your order <strong>#${order.order_number}</strong> has been cancelled. If payment was completed, any refund due will be credited to your source account within 5-7 business days.`
+            : `Your order status has changed to: <strong>${statusLabel}</strong>`}</p>
+          ${
+            order.delivery_partner_name && !isCancelled
+              ? `<div style="background: #fbf7f1; padding: 12px; border-radius: 6px; margin: 12px 0;">
+                  <p style="margin: 0;"><strong>Delivery Partner:</strong> ${order.delivery_partner_name} (${order.delivery_partner_phone || ''})</p>
+                 </div>`
+              : ''
+          }
+          ${!isCancelled ? `<p>Expected delivery window: ${order.slot_snapshot.slot_date} (${order.slot_snapshot.start_time} - ${order.slot_snapshot.end_time})</p>` : ''}
+          <p style="margin-top: 20px; font-size: 13px; color: #6B6258;">Need assistance? Call our Barabanki shop at ${STORE_SETTINGS.store_phone} or WhatsApp ${STORE_SETTINGS.whatsapp}.</p>
+        </div>
+      `,
+    });
+  }
 }
 
 /**
@@ -361,7 +487,7 @@ export async function notifyOrderStatusChanged(
  */
 export async function notifyPaymentFailed(order: ServerOrder, reason?: string): Promise<void> {
   const targetUserId = order.user_id || order.guest_phone || order.address_snapshot.recipient_phone;
-  const targetEmail = order.guest_email || 'customer@saraswatisweets.in';
+  const targetEmail = order.guest_email || undefined;
 
   if (targetUserId) {
     addInAppNotification({
@@ -373,19 +499,23 @@ export async function notifyPaymentFailed(order: ServerOrder, reason?: string): 
     });
   }
 
-  await emailProvider.sendEmail({
-    to: targetEmail,
-    subject: `Payment Incomplete for Order #${order.order_number} - Saraswati Sweets`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e8dfd2; border-radius: 8px;">
-        <h2 style="color: #B3261E;">Payment Could Not Be Completed</h2>
-        <p>Dear ${order.address_snapshot.recipient_name},</p>
-        <p>We noticed your online payment of ₹${order.total_amount} for order <strong>#${order.order_number}</strong> was not completed (${reason || 'Payment failed'}).</p>
-        <p>Your selected delivery slot (${order.slot_snapshot.slot_date} ${order.slot_snapshot.start_time}) is reserved for 15 minutes. You can retry paying online or choose Cash on Delivery.</p>
-        <p>If you need assistance, please call our Barabanki counter at ${STORE_SETTINGS.store_phone}.</p>
-      </div>
-    `,
-  });
+  if (targetEmail) {
+    await emailProvider.sendEmail({
+      to: targetEmail,
+      recipientName: order.address_snapshot.recipient_name,
+      notificationType: 'PAYMENT_FAILED',
+      subject: `Payment Incomplete for Order #${order.order_number} - Saraswati Sweets`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e8dfd2; border-radius: 8px;">
+          <h2 style="color: #B3261E;">Payment Could Not Be Completed</h2>
+          <p>Dear ${order.address_snapshot.recipient_name},</p>
+          <p>We noticed your online payment of ₹${order.total_amount} for order <strong>#${order.order_number}</strong> was not completed (${reason || 'Payment failed'}).</p>
+          <p>Your selected delivery slot (${order.slot_snapshot.slot_date} ${order.slot_snapshot.start_time}) is reserved for 15 minutes. You can retry paying online or choose Cash on Delivery.</p>
+          <p>If you need assistance, please call our Barabanki counter at ${STORE_SETTINGS.store_phone}.</p>
+        </div>
+      `,
+    });
+  }
 }
 
 /**
@@ -404,6 +534,8 @@ export async function notifyNewBulkEnquiry(enquiry: ServerBulkEnquiry): Promise<
   // Email to Store Owner
   await emailProvider.sendEmail({
     to: STORE_SETTINGS.store_email || 'order@saraswatisweets.in',
+    recipientName: 'Saraswati Sweets Admin',
+    notificationType: 'BULK_ENQUIRY_ADMIN_ALERT',
     subject: `[NEW BULK ENQUIRY] ${enquiry.event_type} - ${enquiry.contact_name} (${enquiry.phone})`,
     html: `
       <div style="font-family: Arial, sans-serif; padding: 20px;">
@@ -427,6 +559,8 @@ export async function notifyNewBulkEnquiry(enquiry: ServerBulkEnquiry): Promise<
   if (enquiry.email) {
     await emailProvider.sendEmail({
       to: enquiry.email,
+      recipientName: enquiry.contact_name,
+      notificationType: 'BULK_ENQUIRY_CUSTOMER_ACK',
       subject: `Enquiry Received: Saraswati Sweets Bulk & Wedding Gifting (${enquiry.enquiry_number})`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e8dfd2; border-radius: 8px;">

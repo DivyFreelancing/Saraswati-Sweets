@@ -1835,12 +1835,14 @@ router.post('/notifications/test-email', requireRole(['ADMIN']), async (req: Aut
 
   const result = await emailProvider.sendEmail({
     to,
+    recipientName: 'Saraswati Sweets Admin Tester',
+    notificationType: 'ADMIN_TEST_EMAIL',
     subject: `[TEST] ${subject}`,
-    html: `<div style="font-family: Arial, sans-serif; padding: 20px;"><h2 style="color: #8A1538;">Saraswati Sweets Email Test</h2><p>Test email via Resend transactional provider.</p><p><strong>Timestamp:</strong> ${new Date().toISOString()}</p></div>`,
+    html: `<div style="font-family: Arial, sans-serif; padding: 20px;"><h2 style="color: #8A1538;">Saraswati Sweets Email Test</h2><p>Test email via Zoho ZeptoMail transactional provider (cpaas.zoho.in).</p><p><strong>Timestamp:</strong> ${new Date().toISOString()}</p></div>`,
     isPromotional: Boolean(isPromotional),
   });
 
-  res.json({ success: true, result });
+  res.json({ success: result.success, result });
 });
 
 // ==========================================================

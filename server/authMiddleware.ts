@@ -34,6 +34,9 @@ export async function authenticateToken(
           .single();
 
         if (profile) {
+          if (!profile.email && user.email) {
+            profile.email = user.email;
+          }
           req.user = profile as ServerProfile;
           return next();
         } else {

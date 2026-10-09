@@ -592,7 +592,7 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
   }
 
 
-  // Dispatch transactional notifications (email via Resend + in-app notification)
+  // Dispatch transactional notifications (email via ZeptoMail + in-app notification)
   if (!isOnlinePayment) {
     notifyOrderPlaced(newOrder).catch((err) =>
       console.error('[Notification Dispatch Error]:', err)

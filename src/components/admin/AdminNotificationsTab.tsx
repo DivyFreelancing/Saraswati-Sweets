@@ -73,10 +73,11 @@ export const AdminNotificationsTab: React.FC<AdminNotificationsTabProps> = ({
       const data = await res.json();
       setTestResult(data.result);
 
-      if (res.ok && data.success) {
-        showToast(`Email dispatched to ${testEmail} via Resend Provider!`, 'success');
+      if (res.ok && data.success && data.result?.success) {
+        showToast(`Email dispatched to ${testEmail} via Zoho ZeptoMail Provider!`, 'success');
       } else {
-        showToast('Email dispatch error', 'error');
+        const errMsg = data.result?.error || 'Email dispatch failed. Check server logs.';
+        showToast(errMsg, 'error');
       }
     } catch {
       showToast('Network error triggering test email', 'error');
@@ -92,7 +93,7 @@ export const AdminNotificationsTab: React.FC<AdminNotificationsTabProps> = ({
         <div>
           <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#8A1538] uppercase tracking-wider mb-1">
             <Bell className="w-4 h-4 text-[#C9A227]" />
-            <span>Storefront Communications & Resend Delivery</span>
+            <span>Storefront Communications & ZeptoMail Delivery</span>
           </div>
           <h2 className="font-display font-bold text-xl sm:text-2xl text-[#1F1B16]">
             Notifications & Transactional Email
@@ -105,7 +106,7 @@ export const AdminNotificationsTab: React.FC<AdminNotificationsTabProps> = ({
         <div className="flex items-center gap-2">
           <span className="px-3 py-1 rounded-lg bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Resend Provider Active</span>
+            <span>ZeptoMail Provider Active</span>
           </span>
         </div>
       </div>
@@ -166,7 +167,7 @@ export const AdminNotificationsTab: React.FC<AdminNotificationsTabProps> = ({
           )}
         </div>
 
-        {/* Right Column: Resend Email Test Dispatcher & Policy Card */}
+        {/* Right Column: ZeptoMail Email Test Dispatcher & Policy Card */}
         <div className="lg:col-span-5 space-y-5">
           {/* Policy Card */}
           <div className="p-5 rounded-2xl bg-[#FAF4DE]/70 border border-[#C9A227]/40 space-y-3 text-xs">
@@ -190,12 +191,12 @@ export const AdminNotificationsTab: React.FC<AdminNotificationsTabProps> = ({
             </ul>
           </div>
 
-          {/* Resend Test Panel */}
+          {/* ZeptoMail Test Panel */}
           {isAdmin && (
             <div className="p-5 rounded-2xl bg-white border border-[#E8DFD2] shadow-xs space-y-4">
               <h4 className="font-display font-bold text-sm text-[#1F1B16] flex items-center gap-2 border-b border-[#E8DFD2] pb-2.5">
                 <Mail className="w-4 h-4 text-[#8A1538]" />
-                <span>Test Transactional Email Dispatch</span>
+                <span>Test Transactional Email Dispatch (ZeptoMail)</span>
               </h4>
 
               <form onSubmit={handleSendTestEmail} className="space-y-3 text-xs">
