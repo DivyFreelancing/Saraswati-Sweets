@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "dev": "node node_modules/tsx/dist/cli.mjs server.ts",
     "start": "node node_modules/tsx/dist/cli.mjs server.ts",
