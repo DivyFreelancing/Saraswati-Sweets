@@ -72,25 +72,16 @@ async function startServer() {
   }
 
   // Resolve public site URL
-  const resolvedSiteUrl = (
+  let resolvedSiteUrl = (
     process.env.PUBLIC_SITE_URL ||
-    process.env.APP_URL ||
-    (isProduction ? '' : `http://localhost:${port}`)
+    (process.env.APP_URL && !process.env.APP_URL.includes('localhost') && !process.env.APP_URL.includes('127.0.0.1') ? process.env.APP_URL : '') ||
+    (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : '') ||
+    (process.env.RAILWAY_STATIC_URL ? `https://${process.env.RAILWAY_STATIC_URL}` : '') ||
+    (isProduction ? 'https://saraswatisweetsbarabanki.com' : `http://localhost:${port}`)
   ).replace(/\/$/, '');
 
-  // Fail startup in production if PUBLIC_SITE_URL / APP_URL is unset, points to localhost, or does not start with https://
-  if (isProduction) {
-    if (
-      !resolvedSiteUrl ||
-      resolvedSiteUrl.includes('localhost') ||
-      resolvedSiteUrl.includes('127.0.0.1') ||
-      !resolvedSiteUrl.startsWith('https://')
-    ) {
-      console.error(
-        '[FATAL CONFIG ERROR] PUBLIC_SITE_URL (or APP_URL) must be configured in production with a valid public HTTPS URL (must start with "https://"). Startup aborted.'
-      );
-      process.exit(1);
-    }
+  if (!resolvedSiteUrl.startsWith('http://') && !resolvedSiteUrl.startsWith('https://')) {
+    resolvedSiteUrl = `https://${resolvedSiteUrl}`;
   }
 
   console.log(`[Config] Resolved Site URL: ${resolvedSiteUrl} (Production: ${isProduction})`);

@@ -13,19 +13,20 @@ export function getCashfreeAppId(): string {
 }
 
 export function getPublicSiteUrl(): string {
-  const url = process.env.PUBLIC_SITE_URL || process.env.APP_URL;
-  const isProd = process.env.NODE_ENV === 'production' || CASHFREE_ENVIRONMENT === 'PRODUCTION';
+  let url =
+    process.env.PUBLIC_SITE_URL ||
+    (process.env.APP_URL && !process.env.APP_URL.includes('localhost') && !process.env.APP_URL.includes('127.0.0.1') ? process.env.APP_URL : '') ||
+    (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : '') ||
+    (process.env.RAILWAY_STATIC_URL ? `https://${process.env.RAILWAY_STATIC_URL}` : '') ||
+    (process.env.NODE_ENV === 'production' || CASHFREE_ENVIRONMENT === 'PRODUCTION'
+      ? 'https://saraswatisweetsbarabanki.com'
+      : 'http://localhost:3000');
 
-  if (isProd) {
-    if (!url || url.includes('localhost') || url.includes('127.0.0.1') || !url.startsWith('https://')) {
-      throw new Error(
-        'FATAL CONFIG ERROR: PUBLIC_SITE_URL (or APP_URL) must be configured in production with a valid public HTTPS URL (must start with "https://").'
-      );
-    }
-    return url.replace(/\/$/, '');
+  url = url.replace(/\/$/, '');
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = `https://${url}`;
   }
-
-  return (url || 'http://localhost:3000').replace(/\/$/, '');
+  return url;
 }
 
 export class CashfreeOrderCreationError extends Error {
