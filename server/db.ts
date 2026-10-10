@@ -1270,6 +1270,10 @@ export async function findOrderInSupabase(
     .eq('provider_order_id', target)
     .maybeSingle();
   if (errProviderId) {
+    // If provider_order_id column does not exist yet (pre-migration), return undefined safely
+    if (errProviderId.message?.includes('provider_order_id') || errProviderId.code === '42703') {
+      return { order: undefined };
+    }
     return { error: errProviderId };
   }
   if (byProviderId) return { order: byProviderId };
@@ -1278,7 +1282,7 @@ export async function findOrderInSupabase(
 }
 
 // Auto-expire unpaid PENDING_PAYMENT orders after 25 min: verifies with Cashfree, confirms paid orders, cancels definitively failed ones
-export async function expireUnpaidOrders(): Promise<number> {
+export async function expireUnpaidOrders(client: SupabaseClient | null = supabaseServer): Promise<number> {
   const now = Date.now();
   const EXPIRY_MS = 25 * 60 * 1000; // 25 minutes
   let expiredCount = 0;
@@ -1296,9 +1300,10 @@ export async function expireUnpaidOrders(): Promise<number> {
   }
 
   // 2. Discover persistent pending orders from Supabase (vital after server restart)
-  if (isLiveSupabase && supabaseServer) {
+  const activeClient = client || (isLiveSupabase ? supabaseServer : null);
+  if (activeClient) {
     const expiryIso = new Date(now - EXPIRY_MS).toISOString();
-    const { data: dbOrders, error: dbQueryErr } = await supabaseServer
+    const { data: dbOrders, error: dbQueryErr } = await activeClient
       .from('orders')
       .select('*')
       .eq('status', 'PENDING_PAYMENT')
@@ -1326,13 +1331,30 @@ export async function expireUnpaidOrders(): Promise<number> {
     // Re-check in-memory status in case concurrent webhook confirmed it
     if (order.status !== 'PENDING_PAYMENT') continue;
 
+    let currentDbOrder: any = null;
+
     // Check database state first if connected to Supabase
-    if (isLiveSupabase && supabaseServer) {
-      const { data: currentDbOrder, error: checkErr } = await supabaseServer
+    if (activeClient) {
+      let checkErr: any = null;
+      const res = await activeClient
         .from('orders')
         .select('id, status, payment_status, total_amount, provider_order_id, order_number')
         .eq('id', order.id)
         .maybeSingle();
+
+      currentDbOrder = res.data;
+      checkErr = res.error;
+
+      // Fallback: If provider_order_id column does not exist in Supabase (e.g. pre-migration), retry query without it
+      if (checkErr && (checkErr.message?.includes('provider_order_id') || checkErr.code === '42703')) {
+        const fallbackRes = await activeClient
+          .from('orders')
+          .select('id, status, payment_status, total_amount, order_number')
+          .eq('id', order.id)
+          .maybeSingle();
+        currentDbOrder = fallbackRes.data;
+        checkErr = fallbackRes.error;
+      }
 
       if (checkErr) {
         console.warn(
@@ -1362,16 +1384,25 @@ export async function expireUnpaidOrders(): Promise<number> {
     }
 
     // Authoritative verification with Cashfree gateway
-    if (order.payment_method === 'ONLINE' && order.provider_order_id) {
+    // In Cashfree, order_id is receipt/order_number, so gateway order ID is order.order_number if provider_order_id is absent
+    const gatewayLookupId = order.provider_order_id || currentDbOrder?.provider_order_id || order.order_number;
+    if (order.payment_method === 'ONLINE') {
+      if (!gatewayLookupId) {
+        console.warn(
+          `[OrderCleanup] Order #${order.order_number || order.id} has no gateway lookup ID. Deferring cancellation.`
+        );
+        continue;
+      }
+
       try {
-        const cashfreeDetails = await fetchCashfreeOrderDetails(order.provider_order_id);
+        const cashfreeDetails = await fetchCashfreeOrderDetails(gatewayLookupId);
 
         // If Cashfree confirms payment was PAID, reconcile and do NOT cancel!
         if (cashfreeDetails.status === 'PAID') {
           console.log(`[OrderCleanup] Order #${order.order_number} confirmed PAID by Cashfree API. Reconciling...`);
           await confirmOrderPayment({
             orderIdOrProviderId: order.id,
-            providerOrderId: order.provider_order_id,
+            providerOrderId: gatewayLookupId,
             paymentAmount: cashfreeDetails.orderAmount,
             currency: cashfreeDetails.orderCurrency || 'INR',
             source: 'CLEANUP_RECONCILE',
@@ -1410,8 +1441,8 @@ export async function expireUnpaidOrders(): Promise<number> {
     const nowIso = new Date().toISOString();
 
     // Persist cancellation to Supabase FIRST before mutating in-memory store
-    if (isLiveSupabase && supabaseServer) {
-      const { error: cancelDbErr, data: updatedRows } = await supabaseServer
+    if (activeClient) {
+      const { error: cancelDbErr, data: updatedRows } = await activeClient
         .from('orders')
         .update({
           status: 'CANCELLED',
@@ -1441,7 +1472,7 @@ export async function expireUnpaidOrders(): Promise<number> {
     order.status = 'CANCELLED';
     order.payment_status = 'FAILED';
     order.cancelled_at = nowIso;
-    order.cancel_reason = 'Auto-expired unpaid order after 15 minutes';
+    order.cancel_reason = 'Auto-expired unpaid order after 25 minutes';
     order.updated_at = nowIso;
     inMemoryStore.orders.set(order.id, order);
 

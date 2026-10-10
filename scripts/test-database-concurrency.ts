@@ -262,6 +262,152 @@ async function runDatabaseConcurrencyTests() {
 
   inMemoryStore.orders.delete(recentOrderId);
 
+  // --- Missing Column (42703) & Fallback Verification in findOrderInSupabase ---
+  const { findOrderInSupabase } = await import('../server/db');
+  const mockMissingColClient: any = {
+    from: () => ({
+      select: () => ({
+        eq: (col: string) => ({
+          maybeSingle: async () => {
+            if (col === 'provider_order_id') {
+              return { data: null, error: { code: '42703', message: 'column orders.provider_order_id does not exist' } };
+            }
+            return { data: null, error: null };
+          },
+        }),
+      }),
+    }),
+  };
+
+  const missingColLookupResult = await findOrderInSupabase('target_lookup_provider_id', mockMissingColClient);
+  assert(
+    missingColLookupResult.order === undefined && missingColLookupResult.error === undefined,
+    'findOrderInSupabase handles missing provider_order_id column (code 42703) safely without returning error'
+  );
+
+  // --- Missing provider_order_id Column Fallback in expireUnpaidOrders ---
+  let queryWithProviderAttempted = false;
+  let fallbackQueryWithoutProviderAttempted = false;
+  const testCleanupOrderId = randomUUID();
+  const testCleanupOrderNum = `SW-CLEAN-${Date.now()}`;
+
+  const testCandidateOrder: ServerOrder = {
+    ...retryOrder,
+    id: testCleanupOrderId,
+    order_number: testCleanupOrderNum,
+    provider_order_id: undefined, // Simulating order loaded from DB lacking provider_order_id column
+    status: 'PENDING_PAYMENT',
+    payment_status: 'PENDING',
+    payment_method: 'ONLINE',
+    created_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30 min old
+    total_amount: 500,
+  };
+  inMemoryStore.orders.set(testCleanupOrderId, testCandidateOrder);
+
+  const mockCleanupClient: any = {
+    from: () => ({
+      select: (cols: string) => {
+        if (cols === '*') {
+          return {
+            eq: () => ({
+              lt: async () => ({ data: [], error: null }),
+            }),
+          };
+        }
+        if (cols.includes('provider_order_id')) {
+          queryWithProviderAttempted = true;
+          return {
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: null,
+                error: { code: '42703', message: 'column orders.provider_order_id does not exist' },
+              }),
+            }),
+          };
+        } else {
+          fallbackQueryWithoutProviderAttempted = true;
+          return {
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: {
+                  id: testCleanupOrderId,
+                  status: 'PLACED',
+                  payment_status: 'CAPTURED',
+                  total_amount: 500,
+                  order_number: testCleanupOrderNum,
+                },
+                error: null,
+              }),
+            }),
+          };
+        }
+      },
+    }),
+  };
+
+  await expireUnpaidOrders(mockCleanupClient);
+
+  assert(
+    queryWithProviderAttempted,
+    'expireUnpaidOrders queries with provider_order_id initially'
+  );
+  assert(
+    fallbackQueryWithoutProviderAttempted,
+    'expireUnpaidOrders falls back to query without provider_order_id when column 42703 error occurs'
+  );
+
+  const orderAfterCleanupSync = inMemoryStore.orders.get(testCleanupOrderId);
+  assert(
+    orderAfterCleanupSync?.status === 'PLACED' && orderAfterCleanupSync?.payment_status === 'CAPTURED',
+    'Order already marked PLACED/CAPTURED in DB is preserved and synced without being cancelled'
+  );
+  inMemoryStore.orders.delete(testCleanupOrderId);
+
+  // --- Fatal Error Safety: Ensure failed DB status checks do NOT cancel valid orders ---
+  const fatalErrOrderId = randomUUID();
+  const fatalErrOrder: ServerOrder = {
+    ...retryOrder,
+    id: fatalErrOrderId,
+    order_number: `SW-FATAL-${Date.now()}`,
+    status: 'PENDING_PAYMENT',
+    payment_status: 'PENDING',
+    payment_method: 'ONLINE',
+    created_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+  };
+  inMemoryStore.orders.set(fatalErrOrderId, fatalErrOrder);
+
+  const mockFatalDbClient: any = {
+    from: () => ({
+      select: (cols: string) => {
+        if (cols === '*') {
+          return {
+            eq: () => ({
+              lt: async () => ({ data: [], error: null }),
+            }),
+          };
+        }
+        return {
+          eq: () => ({
+            maybeSingle: async () => ({
+              data: null,
+              error: { code: '500', message: 'connection failure / database offline' },
+            }),
+          }),
+        };
+      },
+    }),
+  };
+
+  await expireUnpaidOrders(mockFatalDbClient);
+
+  const fatalOrderAfterCleanup = inMemoryStore.orders.get(fatalErrOrderId);
+  assert(
+    fatalOrderAfterCleanup?.status === 'PENDING_PAYMENT',
+    'Order is safely SKIPPED and NOT cancelled when Supabase status check query fails with error'
+  );
+  inMemoryStore.orders.delete(fatalErrOrderId);
+
+
   // -------------------------------------------------------------------------
   // 4. DATA-AWARE ROLLBACK SPECIFICATION VALIDATION
   // -------------------------------------------------------------------------

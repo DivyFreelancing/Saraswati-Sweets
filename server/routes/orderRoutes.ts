@@ -600,14 +600,15 @@ router.get('/checkout/order-status/:orderId', requireAuth, async (req: Authentic
     return;
   }
 
-  // If order is in PENDING_PAYMENT with Cashfree provider_order_id, query Cashfree API to reconcile
-  if (order.payment_method === 'ONLINE' && order.provider_order_id) {
-    const cashfreeDetails = await fetchCashfreeOrderDetails(order.provider_order_id);
+  // If order is in PENDING_PAYMENT with Cashfree provider_order_id or order_number, query Cashfree API to reconcile
+  const gatewayLookupId = order.provider_order_id || order.order_number;
+  if (order.payment_method === 'ONLINE' && gatewayLookupId) {
+    const cashfreeDetails = await fetchCashfreeOrderDetails(gatewayLookupId);
 
     if (cashfreeDetails.status === 'PAID') {
       const confirmResult = await confirmOrderPayment({
         orderIdOrProviderId: order.id,
-        providerOrderId: order.provider_order_id,
+        providerOrderId: gatewayLookupId,
         paymentAmount: cashfreeDetails.orderAmount,
         currency: cashfreeDetails.orderCurrency,
         source: 'STATUS_POLL',
@@ -751,14 +752,15 @@ router.post(
     return;
   }
 
-  // If order is in PENDING_PAYMENT with provider_order_id, reconcile with Cashfree
-  if (order.status === 'PENDING_PAYMENT' && order.payment_method === 'ONLINE' && order.provider_order_id) {
+  // If order is in PENDING_PAYMENT with provider_order_id or order_number, reconcile with Cashfree
+  const gatewayLookupId = order.provider_order_id || order.order_number;
+  if (order.status === 'PENDING_PAYMENT' && order.payment_method === 'ONLINE' && gatewayLookupId) {
     try {
-      const gatewayDetails = await fetchCashfreeOrderDetails(order.provider_order_id);
+      const gatewayDetails = await fetchCashfreeOrderDetails(gatewayLookupId);
       if (gatewayDetails.status === 'PAID') {
         const confirmResult = await confirmOrderPayment({
           orderIdOrProviderId: order.id,
-          providerOrderId: order.provider_order_id,
+          providerOrderId: gatewayLookupId,
           paymentAmount: gatewayDetails.orderAmount,
           currency: gatewayDetails.orderCurrency,
           source: 'STATUS_POLL',
