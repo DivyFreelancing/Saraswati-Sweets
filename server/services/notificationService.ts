@@ -330,7 +330,7 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
             payment_method: order.payment_method,
             total_amount: `₹${order.total_amount}`,
             delivery_address: `${order.address_snapshot.street_address}, Barabanki - ${order.address_snapshot.pincode}`,
-            order_tracking_url: `${process.env.APP_URL || 'http://localhost:3000'}/order-confirmation/${order.order_number}`
+            order_tracking_url: `${(process.env.PUBLIC_SITE_URL || process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '')}/order-confirmation/${order.order_number}`
           }
         };
 

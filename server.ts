@@ -71,6 +71,30 @@ async function startServer() {
     console.log(`[Railway Deployment] Detected Railway environment. NODE_ENV=${process.env.NODE_ENV}, PORT=${port}`);
   }
 
+  // Resolve public site URL
+  const resolvedSiteUrl = (
+    process.env.PUBLIC_SITE_URL ||
+    process.env.APP_URL ||
+    (isProduction ? '' : `http://localhost:${port}`)
+  ).replace(/\/$/, '');
+
+  // Fail startup in production if PUBLIC_SITE_URL / APP_URL is unset, points to localhost, or does not start with https://
+  if (isProduction) {
+    if (
+      !resolvedSiteUrl ||
+      resolvedSiteUrl.includes('localhost') ||
+      resolvedSiteUrl.includes('127.0.0.1') ||
+      !resolvedSiteUrl.startsWith('https://')
+    ) {
+      console.error(
+        '[FATAL CONFIG ERROR] PUBLIC_SITE_URL (or APP_URL) must be configured in production with a valid public HTTPS URL (must start with "https://"). Startup aborted.'
+      );
+      process.exit(1);
+    }
+  }
+
+  console.log(`[Config] Resolved Site URL: ${resolvedSiteUrl} (Production: ${isProduction})`);
+
   // Body parser for JSON API requests - captures rawBody for Cashfree webhook HMAC validation
   app.use(
     express.json({
@@ -108,14 +132,32 @@ async function startServer() {
     max: 20, // Limit each IP to 20 requests per window for sensitive actions
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: 'Too many attempts, please try again later.' }
+    message: { error: 'Too many attempts, please try again later.' },
+    skip: (req) => req.originalUrl.includes('/webhook'),
+  });
+
+  const checkoutLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 60, // Limit each IP to 60 requests per window for checkout
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many attempts, please try again later.' },
+  });
+
+  const webhookLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 500, // Safe rate limit for Cashfree webhook callbacks and retries
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many webhook requests, please try again later.' },
   });
 
   app.use('/api/auth', sensitiveLimiter, authRoutes);
-  app.use('/api/checkout', sensitiveLimiter);
+  app.use('/api/checkout', checkoutLimiter);
   app.use('/api/cart', cartRoutes);
   app.use('/api/addresses', addressRoutes);
   app.use('/api/admin', adminRoutes);
+  app.use('/api/payments/webhook', webhookLimiter);
   app.use('/api/payments', sensitiveLimiter, paymentRoutes); // Mounts /api/payments/verify, /api/payments/webhook/cashfree
   app.use('/api', apiLimiter, orderRoutes); // Mounts /api/checkout, /api/delivery-slots, /api/orders
   app.use('/api', publicRoutes); // Mounts /api/offers, /api/banners, /api/hampers, /api/enquiries, /api/notifications, /api/products/:id/reviews

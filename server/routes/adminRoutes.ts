@@ -816,7 +816,12 @@ router.post('/orders/:id/refund', requireRole(['ADMIN']), async (req: Authentica
   }
 
   try {
-    const amountInPaise = Math.round(order.total_amount * 100);
+    const capturedPayment = Array.from(inMemoryStore.payments.values()).find(
+      (p) => p.order_id === order.id && p.status === 'CAPTURED'
+    );
+    // capturedPayment.amount is stored in rupees. Fallback to order.total_amount if payment row is not loaded
+    const refundAmountRupees = capturedPayment ? capturedPayment.amount : order.total_amount;
+    const amountInPaise = Math.round(refundAmountRupees * 100);
     
     // Check if a pending/successful refund already exists in our DB to prevent duplicates
     const existingRefunds = Array.from(inMemoryStore.refunds.values()).filter(r => r.order_id === order.id);
@@ -851,7 +856,7 @@ router.post('/orders/:id/refund', requireRole(['ADMIN']), async (req: Authentica
       order_id: order.id,
       refund_id: refundResult.refund_id,
       cf_refund_id: refundResult.cf_refund_id?.toString() || '',
-      refund_amount: order.total_amount,
+      refund_amount: refundAmountRupees,
       refund_status: cfRefundStatus === 'SUCCESS' ? 'SUCCESS' : cfRefundStatus === 'FAILED' ? 'FAILED' : 'PENDING',
       refund_note: reason,
       raw_response: refundResult,

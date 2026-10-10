@@ -18,37 +18,110 @@ export const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
 }) => {
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [guestPhoneInput, setGuestPhoneInput] = useState('');
+  const [isLookingUpGuest, setIsLookingUpGuest] = useState(false);
+  const [guestLookupError, setGuestLookupError] = useState('');
   const { isAuthenticated, isLoading: isAuthLoading, openAuthModal, getValidAuthHeaders } = useAuth();
 
   useEffect(() => {
     if (isAuthLoading) return;
 
     async function loadOrder() {
-      if (!isAuthenticated) {
-        setLoading(false);
+      // 1. Logged-in path (strictly unchanged)
+      if (isAuthenticated) {
+        try {
+          setLoading(true);
+          const headers = await getValidAuthHeaders();
+          const res = await fetch(`/api/orders/${orderNumber}`, {
+            headers,
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setOrder(data.order);
+          } else if (res.status === 401 || res.status === 403 || res.status === 404) {
+            setOrder(null);
+          }
+        } catch (err) {
+          console.error('Failed to load order confirmation details:', err);
+        } finally {
+          setLoading(false);
+        }
         return;
       }
-      
-      try {
-        setLoading(true);
-        const headers = await getValidAuthHeaders();
-        const res = await fetch(`/api/orders/${orderNumber}`, {
-          headers,
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setOrder(data.order);
-        } else if (res.status === 401 || res.status === 403 || res.status === 404) {
+
+      // 2. Guest path: check sessionStorage for phone recorded during checkout
+      const storedPhone =
+        sessionStorage.getItem('ss_checkout_phone') ||
+        sessionStorage.getItem('guest_checkout_phone') ||
+        sessionStorage.getItem(`guest_phone_${orderNumber}`);
+
+      if (storedPhone) {
+        try {
+          setLoading(true);
+          const res = await fetch('/api/orders/guest-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              order_number: orderNumber,
+              phone: storedPhone,
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setOrder(data.order);
+          } else {
+            setOrder(null);
+          }
+        } catch (err) {
+          console.error('Failed to load guest order confirmation details:', err);
           setOrder(null);
+        } finally {
+          setLoading(false);
         }
-      } catch (err) {
-        console.error('Failed to load order confirmation details:', err);
-      } finally {
+      } else {
         setLoading(false);
       }
     }
     loadOrder();
   }, [orderNumber, isAuthenticated, isAuthLoading, getValidAuthHeaders]);
+
+  const handleGuestPhoneSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setGuestLookupError('');
+    const cleanPhone = guestPhoneInput.replace(/\D/g, '').slice(-10);
+    if (cleanPhone.length !== 10) {
+      setGuestLookupError('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+
+    setIsLookingUpGuest(true);
+    try {
+      const res = await fetch('/api/orders/guest-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_number: orderNumber,
+          phone: cleanPhone,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setOrder(data.order);
+        try {
+          sessionStorage.setItem('ss_checkout_phone', cleanPhone);
+          sessionStorage.setItem(`guest_phone_${orderNumber}`, cleanPhone);
+        } catch (_) {}
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setGuestLookupError(errData.message || 'No order found matching this order number and mobile number.');
+      }
+    } catch (err: any) {
+      setGuestLookupError('Failed to verify order. Please check your connection and retry.');
+    } finally {
+      setIsLookingUpGuest(false);
+    }
+  };
 
   if (isAuthLoading || loading) {
     return (
@@ -59,24 +132,61 @@ export const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
     );
   }
 
-  if (!isAuthenticated) {
+  // If unauthenticated and order not loaded yet, allow phone verification instead of blocking with lock wall
+  if (!isAuthenticated && !order) {
     return (
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center space-y-6">
+      <div className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center space-y-6">
         <div className="w-20 h-20 rounded-full bg-[#FAF4DE] text-[#7A1129] flex items-center justify-center mx-auto border border-[#C79A3D]/40 shadow-xs">
-          <Lock className="w-10 h-10" />
+          <Package className="w-10 h-10" />
         </div>
-        <h1 className="font-display font-bold text-3xl text-[#221A14]">
-          Authentication Required
-        </h1>
-        <p className="text-[#6E6259] max-w-md mx-auto">
-          Please log in to view the details for order #{orderNumber}. This protects your personal information.
-        </p>
-        <button
-          onClick={openAuthModal}
-          className="px-8 py-3 rounded-full bg-[#7A1129] hover:bg-[#5E0D20] text-white font-semibold transition-colors shadow-sm"
-        >
-          Log in to view order
-        </button>
+        <div className="space-y-2">
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-[#221A14]">
+            View Order #{orderNumber}
+          </h1>
+          <p className="text-sm text-[#6E6259] leading-relaxed">
+            Enter the 10-digit mobile number used at checkout to view your order confirmation and dispatch timeline.
+          </p>
+        </div>
+
+        <form onSubmit={handleGuestPhoneSubmit} className="space-y-4 text-left">
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1.5">
+              Mobile Number *
+            </label>
+            <input
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              placeholder="e.g. 9876543210"
+              value={guestPhoneInput}
+              onChange={(e) => setGuestPhoneInput(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-[#E8DFD2] focus:border-[#7A1129] focus:outline-none text-center font-mono text-base tracking-wider"
+              maxLength={14}
+            />
+          </div>
+
+          {guestLookupError && (
+            <p className="text-xs text-[#8A1538] font-medium text-center">{guestLookupError}</p>
+          )}
+
+          <button
+            type="submit"
+            disabled={isLookingUpGuest}
+            className="w-full min-h-[48px] py-3 px-6 rounded-full bg-[#7A1129] hover:bg-[#5E0D20] disabled:bg-stone-300 text-white font-semibold text-sm transition-colors shadow-sm"
+          >
+            {isLookingUpGuest ? 'Verifying with Store...' : 'Confirm Mobile & View Order'}
+          </button>
+        </form>
+
+        <div className="pt-2 border-t border-[#E8DFD2]/60">
+          <button
+            type="button"
+            onClick={openAuthModal}
+            className="text-xs font-semibold text-[#8A1538] hover:underline"
+          >
+            Registered customer? Sign in with account instead
+          </button>
+        </div>
       </div>
     );
   }
@@ -175,7 +285,7 @@ export const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
             </div>
 
             <div className="pt-2 border-t border-[#E8DFD2] flex justify-between items-baseline text-base font-bold text-[#1F1B16]">
-              <span>Cash on Delivery Total</span>
+              <span>{order.payment_method === 'ONLINE' ? 'Total Paid (Cashfree)' : 'Cash on Delivery Total'}</span>
               <span className="text-xl font-display text-[#8A1538] tabular-nums">
                 {formatINR(order.total_amount)}
               </span>

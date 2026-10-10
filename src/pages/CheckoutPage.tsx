@@ -52,6 +52,8 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
   const [verificationStatus, setVerificationStatus] = useState<'verifying' | 'success' | 'pending' | 'failed' | null>(
     isPaymentReturn ? 'verifying' : null
   );
+  const [guestPhoneInput, setGuestPhoneInput] = useState('');
+  const [isPromptingGuestPhone, setIsPromptingGuestPhone] = useState(false);
 
   // Inline address creation state (for guest or when user has no saved address)
   const [guestAddress, setGuestAddress] = useState({
@@ -225,6 +227,14 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
       // If Online Payment, launch Cashfree Checkout modal
       if (data.cashfree) {
         try {
+          if (finalAddress?.recipient_phone) {
+            const cleanPhone = finalAddress.recipient_phone.replace(/\D/g, '').slice(-10);
+            sessionStorage.setItem('ss_checkout_phone', cleanPhone);
+            sessionStorage.setItem('guest_checkout_phone', cleanPhone);
+          }
+          if (data.order?.order_number) {
+            sessionStorage.setItem('ss_checkout_order_number', data.order.order_number);
+          }
           const CashfreeFactory = await loadCashfreeScript();
           const cashfree = await CashfreeFactory({
             mode: "sandbox" // Change to production in live
@@ -263,51 +273,75 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
       setErrorMessage('');
 
       try {
-        // 1. Retrieve guaranteed valid auth headers (auto-refreshed if needed)
+        // 1. Retrieve valid auth headers if logged in
         let headers = await getValidAuthHeaders();
+        let isGuestVerification = false;
+        let storedPhone = '';
 
-        // 2. If completely unauthenticated after auth loading finished
-        if (!headers.Authorization) {
-          if (isMounted) {
-            setErrorMessage('Authentication required. Please sign in with your phone or email to verify your order.');
-            setIsVerifyingPayment(false);
-            setVerificationStatus('failed');
-            openAuthModal();
+        let res: Response;
+        if (headers.Authorization) {
+          // Logged-in path (strictly unchanged)
+          res = await fetch('/api/payments/verify', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...headers,
+            },
+            body: JSON.stringify({ cashfree_order_id: orderIdFromUrl }),
+          });
+
+          // If 401 Unauthorized, token may have expired while completing OTP verification on Cashfree.
+          // Attempt safe session refresh and retry once.
+          if (res.status === 401) {
+            console.log('[Checkout] Verify received 401, attempting token refresh...');
+            const freshHeaders = await refreshAuthSession();
+            if (freshHeaders?.Authorization) {
+              res = await fetch('/api/payments/verify', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...freshHeaders,
+                },
+                body: JSON.stringify({ cashfree_order_id: orderIdFromUrl }),
+              });
+            }
           }
-          return;
-        }
+        } else {
+          // Guest path: no auth headers required!
+          isGuestVerification = true;
+          storedPhone =
+            sessionStorage.getItem('ss_checkout_phone') ||
+            sessionStorage.getItem('guest_checkout_phone') ||
+            sessionStorage.getItem(`guest_phone_${orderIdFromUrl}`) ||
+            guestAddress.recipient_phone ||
+            '';
 
-        // 3. Call backend verify endpoint
-        let res = await fetch('/api/payments/verify', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...headers,
-          },
-          body: JSON.stringify({ cashfree_order_id: orderIdFromUrl }),
-        });
-
-        // 4. If 401 Unauthorized, token may have expired while completing OTP verification on Cashfree.
-        // Attempt safe session refresh and retry once.
-        if (res.status === 401) {
-          console.log('[Checkout] Verify received 401, attempting token refresh...');
-          const freshHeaders = await refreshAuthSession();
-          if (freshHeaders?.Authorization) {
+          if (storedPhone) {
+            const cleanPhone = storedPhone.replace(/\D/g, '').slice(-10);
             res = await fetch('/api/payments/verify', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                ...freshHeaders,
               },
-              body: JSON.stringify({ cashfree_order_id: orderIdFromUrl }),
+              body: JSON.stringify({
+                cashfree_order_id: orderIdFromUrl,
+                phone: cleanPhone,
+              }),
             });
+          } else {
+            // Need phone for guest verification; prompt guest cleanly without auth wall
+            if (isMounted) {
+              setIsPromptingGuestPhone(true);
+              setIsVerifyingPayment(false);
+            }
+            return;
           }
         }
 
         const data = await res.json();
         if (!isMounted) return;
 
-        if (res.status === 401) {
+        if (res.status === 401 && !isGuestVerification) {
           setErrorMessage('Your session has expired. Please sign in to verify your payment.');
           setIsVerifyingPayment(false);
           setVerificationStatus('failed');
@@ -316,11 +350,33 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
         }
 
         if (data.success || data.idempotent) {
+          let confirmedOrderNumber = data.order?.order_number || orderIdFromUrl;
+
+          // For guests, also call /api/orders/guest-status for authoritative status
+          if (isGuestVerification && storedPhone) {
+            try {
+              const statusRes = await fetch('/api/orders/guest-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  order_number: confirmedOrderNumber,
+                  phone: storedPhone.replace(/\D/g, '').slice(-10),
+                }),
+              });
+              if (statusRes.ok) {
+                const statusData = await statusRes.json();
+                if (statusData.order?.order_number) {
+                  confirmedOrderNumber = statusData.order.order_number;
+                }
+              }
+            } catch (_) {}
+          }
+
           setVerificationStatus('success');
           await clearCart();
           showToast('Payment verified successfully! Fresh sweets are being prepared.', 'success');
           window.history.replaceState({}, '', '/checkout');
-          onOrderSuccess(data.order?.order_number || orderIdFromUrl);
+          onOrderSuccess(confirmedOrderNumber);
         } else if (data.pending) {
           setVerificationStatus('pending');
           setErrorMessage('Payment verification is pending confirmation from Cashfree. Please check your order history in a few minutes.');
@@ -344,7 +400,138 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [orderIdFromUrl, isAuthLoading, getValidAuthHeaders, refreshAuthSession, clearCart, showToast, onOrderSuccess, openAuthModal]);
+  }, [orderIdFromUrl, isAuthLoading, getValidAuthHeaders, refreshAuthSession, clearCart, showToast, onOrderSuccess, openAuthModal, guestAddress.recipient_phone]);
+
+  const handleGuestPhoneVerificationSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage('');
+    const cleanPhone = guestPhoneInput.replace(/\D/g, '').slice(-10);
+    if (cleanPhone.length !== 10) {
+      setErrorMessage('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+
+    setIsVerifyingPayment(true);
+    setVerificationStatus('verifying');
+    setIsPromptingGuestPhone(false);
+
+    try {
+      const res = await fetch('/api/payments/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cashfree_order_id: orderIdFromUrl,
+          phone: cleanPhone,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && (data.success || data.idempotent)) {
+        try {
+          sessionStorage.setItem('ss_checkout_phone', cleanPhone);
+          sessionStorage.setItem('guest_checkout_phone', cleanPhone);
+          sessionStorage.setItem(`guest_phone_${orderIdFromUrl}`, cleanPhone);
+          if (data.order?.order_number) {
+            sessionStorage.setItem(`guest_phone_${data.order.order_number}`, cleanPhone);
+          }
+        } catch (_) {}
+
+        // Also query guest-status as requested
+        let confirmedOrderNumber = data.order?.order_number || orderIdFromUrl;
+        try {
+          const statusRes = await fetch('/api/orders/guest-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              order_number: confirmedOrderNumber,
+              phone: cleanPhone,
+            }),
+          });
+          if (statusRes.ok) {
+            const statusData = await statusRes.json();
+            if (statusData.order?.order_number) {
+              confirmedOrderNumber = statusData.order.order_number;
+            }
+          }
+        } catch (_) {}
+
+        setVerificationStatus('success');
+        await clearCart();
+        showToast('Payment verified successfully! Fresh sweets are being prepared.', 'success');
+        window.history.replaceState({}, '', '/checkout');
+        onOrderSuccess(confirmedOrderNumber);
+      } else {
+        setVerificationStatus('failed');
+        setErrorMessage(data.message || 'Verification failed. Please check your mobile number and retry.');
+        setIsPromptingGuestPhone(true);
+        setIsVerifyingPayment(false);
+      }
+    } catch (err: any) {
+      setVerificationStatus('failed');
+      setErrorMessage(err.message || 'Network error verifying payment.');
+      setIsPromptingGuestPhone(true);
+      setIsVerifyingPayment(false);
+    }
+  };
+
+  if (isPaymentReturn && isPromptingGuestPhone) {
+    return (
+      <div className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center space-y-6">
+        <div className="w-20 h-20 rounded-full bg-[#FAF4DE] text-[#7A1129] flex items-center justify-center mx-auto border border-[#C79A3D]/40 shadow-xs">
+          <ShieldCheck className="w-10 h-10" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="font-display font-bold text-2xl sm:text-3xl text-[#221A14]">
+            Verify Order Payment
+          </h2>
+          <p className="text-sm text-[#6E6259] leading-relaxed">
+            Please enter the 10-digit mobile number used at checkout to finalize payment verification for order Reference: <strong className="font-mono text-[#7A1129]">{orderIdFromUrl}</strong>.
+          </p>
+        </div>
+
+        {errorMessage && (
+          <div className="p-3 rounded-xl bg-[#FAF4DE] border border-[#B3261E]/40 text-xs text-[#8A1538] font-medium">
+            {errorMessage}
+          </div>
+        )}
+
+        <form onSubmit={handleGuestPhoneVerificationSubmit} className="space-y-4 text-left">
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1.5">
+              Mobile Number *
+            </label>
+            <input
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              placeholder="e.g. 9876543210"
+              value={guestPhoneInput}
+              onChange={(e) => setGuestPhoneInput(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-[#E8DFD2] focus:border-[#7A1129] focus:outline-none text-center font-mono text-base tracking-wider"
+              maxLength={14}
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="w-full min-h-[48px] py-3 px-6 rounded-full bg-[#7A1129] hover:bg-[#5E0D20] text-white font-semibold text-sm transition-colors shadow-sm"
+          >
+            Verify Payment & View Confirmation
+          </button>
+        </form>
+
+        <div className="pt-2 border-t border-[#E8DFD2]/60">
+          <button
+            type="button"
+            onClick={openAuthModal}
+            className="text-xs font-semibold text-[#8A1538] hover:underline"
+          >
+            Registered customer? Sign in with account instead
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (isVerifyingPayment) {
     return (

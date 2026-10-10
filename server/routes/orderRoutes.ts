@@ -1,5 +1,6 @@
-    import { randomUUID } from 'crypto';
-import { Router, Response } from 'express';
+import { randomUUID } from 'crypto';
+import { Router, Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import { AuthenticatedRequest, requireAuth, requireRole } from '../authMiddleware';
 import {
   MASTER_VARIANTS,
@@ -16,9 +17,11 @@ import {
   validateCouponServer,
   isLiveSupabase,
   supabaseServer,
+  findOrderInSupabase,
 } from '../db';
-import { createCashfreeOrder, getCashfreeAppId } from '../services/cashfreeService';
+import { createCashfreeOrder, getCashfreeAppId, fetchCashfreeOrderDetails } from '../services/cashfreeService';
 import { notifyOrderPlaced, notifyOrderStatusChanged } from '../services/notificationService';
+import { confirmOrderPayment } from '../services/paymentPersistenceService';
 
 const router = Router();
 
@@ -437,36 +440,76 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
     items: orderItemsSnapshots,
   };
 
-  // If ONLINE payment: create Cashfree order and set 15-min auto-expiry
+  // If ONLINE payment: create Cashfree order and set 20-min auto-expiry
   let cashfreePayload: any = null;
   if (isOnlinePayment) {
     const amountInPaise = Math.round(total * 100);
-    newOrder.expires_at = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+    newOrder.expires_at = new Date(Date.now() + 20 * 60 * 1000).toISOString();
 
-    const cfOrder = await createCashfreeOrder(
-      amountInPaise, 
-      orderNumber, 
-      {
-        customer_id: verifiedUserId || 'guest',
-        customer_phone: address.recipient_phone,
-        customer_name: address.recipient_name,
-      },
-      {
-        order_id: orderId,
-        order_number: orderNumber
+    let cfOrder: { id: string; amount: number; currency: string; payment_session_id?: string };
+    try {
+      cfOrder = await createCashfreeOrder(
+        amountInPaise, 
+        orderNumber, 
+        {
+          customer_id: verifiedUserId || 'guest',
+          customer_phone: address.recipient_phone,
+          customer_name: address.recipient_name,
+        },
+        {
+          order_id: orderId,
+          order_number: orderNumber
+        },
+        newOrder.expires_at
+      );
+    } catch (cfErr: any) {
+      // Roll back in-memory delivery slot reservation!
+      slot.booked_count = Math.max(0, slot.booked_count - 1);
+      inMemoryStore.deliverySlots.set(slot.id, slot);
+
+      // Roll back database write too if delivery slot was already saved to Supabase
+      if (isLiveSupabase && supabaseServer && slot.id) {
+        try {
+          const { data: dbSlot } = await supabaseServer
+            .from('delivery_slots')
+            .select('booked_count')
+            .eq('id', slot.id)
+            .maybeSingle();
+
+          if (dbSlot && dbSlot.booked_count > 0) {
+            await supabaseServer
+              .from('delivery_slots')
+              .update({
+                booked_count: Math.max(0, dbSlot.booked_count - 1),
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', slot.id);
+          }
+        } catch (dbRollbackErr: any) {
+          console.warn('[Checkout] Failed to roll back database slot reservation:', dbRollbackErr.message);
+        }
       }
-    );
+
+      console.error('[Checkout] Cashfree order creation failed; delivery slot rolled back:', cfErr.message);
+      const statusCode = cfErr.statusCode === 502 ? 502 : 503;
+      res.status(statusCode).json({
+        error: 'PAYMENT_TEMPORARILY_UNAVAILABLE',
+        message: 'Payment gateway is temporarily unavailable. Please try again shortly or choose Cash on Delivery.',
+        details: cfErr.message,
+      });
+      return;
+    }
 
     newOrder.provider_order_id = cfOrder.id;
 
     // Record initial created payment record
-    const rzpUuid = randomUUID();
-      inMemoryStore.payments.set(rzpUuid, {
-      id: typeof rzpUuid !== 'undefined' ? rzpUuid : randomUUID(),
+    const initialPaymentId = randomUUID();
+    inMemoryStore.payments.set(initialPaymentId, {
+      id: initialPaymentId,
       order_id: orderId,
       order_number: orderNumber,
       provider_order_id: cfOrder.id,
-      amount: amountInPaise,
+      amount: Number((amountInPaise / 100).toFixed(2)), // in rupees, consistent with database
       currency: 'INR',
       status: 'CREATED',
       method: 'ONLINE',
@@ -530,15 +573,92 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
     // Non-fatal if profile already exists — the FK may still resolve. Log and continue.
   }
 
+  // Bug #2 Fix: Ensure the delivery slot row exists in Supabase BEFORE inserting the order.
+  // Without this, if the slot was generated in-memory or has an unsynced UUID,
+  // `orders.delivery_slot_id` FK references a missing row in `delivery_slots`,
+  // causing "insert or update on table orders violates foreign key constraint orders_delivery_slot_id_fkey".
+  let resolvedDeliverySlotId: string | null = slot.id;
+  if (isLiveSupabase && supabaseServer && slot) {
+    try {
+      const { data: existingSlot } = await supabaseServer
+        .from('delivery_slots')
+        .select('id')
+        .eq('id', slot.id)
+        .maybeSingle();
+
+      if (!existingSlot) {
+        // Check if there is already a slot for this exact time window (UNIQUE(slot_date, start_time, end_time))
+        const { data: slotByTime } = await supabaseServer
+          .from('delivery_slots')
+          .select('id')
+          .eq('slot_date', slot.slot_date)
+          .eq('start_time', slot.start_time)
+          .eq('end_time', slot.end_time)
+          .maybeSingle();
+
+        if (slotByTime) {
+          resolvedDeliverySlotId = slotByTime.id;
+          slot.id = slotByTime.id;
+          newOrder.delivery_slot_id = slotByTime.id;
+        } else {
+          // Insert slot row into Supabase delivery_slots
+          const { data: insertedSlot, error: insertSlotErr } = await supabaseServer
+            .from('delivery_slots')
+            .upsert(
+              {
+                id: slot.id,
+                slot_date: slot.slot_date,
+                start_time: slot.start_time,
+                end_time: slot.end_time,
+                capacity: slot.capacity || 25,
+                booked_count: Math.min(slot.capacity || 25, slot.booked_count || 1),
+                cutoff_at: slot.cutoff_at || nowIso,
+                status: slot.status || 'ACTIVE',
+              },
+              { onConflict: 'slot_date,start_time,end_time' }
+            )
+            .select('id')
+            .maybeSingle();
+
+          if (!insertSlotErr && insertedSlot) {
+            resolvedDeliverySlotId = insertedSlot.id;
+            slot.id = insertedSlot.id;
+            newOrder.delivery_slot_id = insertedSlot.id;
+          } else {
+            const { data: retrySlot } = await supabaseServer
+              .from('delivery_slots')
+              .select('id')
+              .eq('slot_date', slot.slot_date)
+              .eq('start_time', slot.start_time)
+              .eq('end_time', slot.end_time)
+              .maybeSingle();
+
+            if (retrySlot) {
+              resolvedDeliverySlotId = retrySlot.id;
+              slot.id = retrySlot.id;
+              newOrder.delivery_slot_id = retrySlot.id;
+            } else {
+              console.warn('[Order] Could not sync delivery slot to Supabase. Setting delivery_slot_id to null (details preserved in slot_snapshot).');
+              resolvedDeliverySlotId = null;
+            }
+          }
+        }
+      }
+    } catch (slotEx: any) {
+      console.warn('[Order] Delivery slot check error:', slotEx.message);
+      resolvedDeliverySlotId = null;
+    }
+  }
+
   // Write direct to Supabase
-  const orderRow = {
+  const orderRow: Record<string, any> = {
     id: orderId,
     order_number: orderNumber,
     user_id: verifiedUserId,
     guest_phone: newOrder.guest_phone,
     guest_email: newOrder.guest_email,
     address_snapshot: newOrder.address_snapshot,
-    delivery_slot_id: slot.id,
+    delivery_slot_id: resolvedDeliverySlotId,
     slot_snapshot: newOrder.slot_snapshot,
     subtotal: newOrder.subtotal,
     discount_amount: newOrder.discount_amount,
@@ -553,9 +673,27 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
     packaging_notes: newOrder.packaging_notes,
     idempotency_key: idempotencyKey,
     placed_at: newOrder.placed_at,
+    provider_order_id: newOrder.provider_order_id || null,
   };
 
-  const { error: orderErr } = await supabaseServer.from('orders').insert([orderRow]);
+  let { error: orderErr } = await supabaseServer.from('orders').insert([orderRow]);
+
+  // If pending migration causes error on provider_order_id column, retry without it
+  if (orderErr && orderErr.message?.includes('provider_order_id')) {
+    delete orderRow.provider_order_id;
+    const retryNoProvider = await supabaseServer.from('orders').insert([orderRow]);
+    orderErr = retryNoProvider.error;
+  }
+
+  // If order insert fails on delivery_slot_id foreign key constraint, retry with null
+  // (the full slot details are safely preserved in slot_snapshot JSONB)
+  if (orderErr && (orderErr.message?.includes('orders_delivery_slot_id_fkey') || orderErr.message?.includes('delivery_slot_id'))) {
+    console.warn('[Order] Retrying order insert with delivery_slot_id = null due to FK constraint on delivery_slots');
+    orderRow.delivery_slot_id = null;
+    const retryRes = await supabaseServer.from('orders').insert([orderRow]);
+    orderErr = retryRes.error;
+  }
+
   if (orderErr) {
     console.error('Order insert failed', orderErr);
     res.status(500).json({ error: 'DB_WRITE_FAILED', message: orderErr.message });
@@ -669,6 +807,269 @@ router.get('/orders/:orderNumber', requireAuth, (req: AuthenticatedRequest, res:
   }
 
   res.json({ order });
+});
+
+// GET /api/checkout/order-status/:orderId - Fallback reconciliation route
+router.get('/checkout/order-status/:orderId', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const { orderId } = req.params;
+
+  let order: ServerOrder | undefined = inMemoryStore.orders.get(orderId);
+  if (!order) {
+    order = Array.from(inMemoryStore.orders.values()).find(
+      (o) => o.id === orderId || o.order_number === orderId || o.provider_order_id === orderId
+    );
+  }
+
+  if (!order && isLiveSupabase && supabaseServer) {
+    const { order: dbOrder, error: dbErr } = await findOrderInSupabase(orderId);
+    if (dbErr) {
+      console.error(`[OrderRoutes] Database lookup failure for order status:`, dbErr);
+      res.status(500).json({
+        error: 'DATABASE_LOOKUP_ERROR',
+        message: 'Failed to query order from database. Please retry.',
+      });
+      return;
+    }
+    if (dbOrder) order = dbOrder;
+  }
+
+  if (!order) {
+    res.status(404).json({ error: 'ORDER_NOT_FOUND', message: 'Order not found' });
+    return;
+  }
+
+  // Authorize order ownership if user is customer
+  if (req.user && req.user.role === 'CUSTOMER') {
+    if (order.user_id && order.user_id !== req.user.id) {
+      res.status(404).json({ error: 'ORDER_NOT_FOUND', message: 'Order not found' });
+      return;
+    }
+  }
+
+  // If already confirmed & captured, return immediately
+  if (order.payment_status === 'CAPTURED' && order.status !== 'PENDING_PAYMENT') {
+    res.json({
+      success: true,
+      status: order.status,
+      payment_status: order.payment_status,
+      order,
+    });
+    return;
+  }
+
+  // If order is in PENDING_PAYMENT with Cashfree provider_order_id, query Cashfree API to reconcile
+  if (order.payment_method === 'ONLINE' && order.provider_order_id) {
+    const cashfreeDetails = await fetchCashfreeOrderDetails(order.provider_order_id);
+
+    if (cashfreeDetails.status === 'PAID') {
+      const confirmResult = await confirmOrderPayment({
+        orderIdOrProviderId: order.id,
+        providerOrderId: order.provider_order_id,
+        paymentAmount: cashfreeDetails.orderAmount,
+        currency: cashfreeDetails.orderCurrency,
+        source: 'STATUS_POLL',
+      });
+
+      if (confirmResult.success && confirmResult.order) {
+        res.json({
+          success: true,
+          status: confirmResult.order.status,
+          payment_status: confirmResult.order.payment_status,
+          reconciled: true,
+          order: confirmResult.order,
+        });
+        return;
+      }
+    } else if (cashfreeDetails.status === 'ACTIVE') {
+      res.json({
+        success: false,
+        pending: true,
+        status: order.status,
+        payment_status: order.payment_status,
+        message: 'Payment verification is still pending on Cashfree gateway.',
+        order,
+      });
+      return;
+    }
+  }
+
+  res.json({
+    success: order.status === 'PLACED',
+    status: order.status,
+    payment_status: order.payment_status,
+    order,
+  });
+});
+
+const guestOrderStatusIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 40, // Max 40 lookups per IP window (raised from 15)
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: 'TOO_MANY_REQUESTS',
+    message: 'Too many order status lookup requests from this IP. Please try again after 15 minutes.',
+  },
+});
+
+const guestOrderStatusOrderLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Max 10 lookups per order number per 15 minutes
+  keyGenerator: (req) => {
+    const rawOrderNum = req.body?.order_number;
+    return typeof rawOrderNum === 'string' && rawOrderNum.trim()
+      ? `order_${rawOrderNum.trim().toUpperCase()}`
+      : req.ip || 'unknown';
+  },
+  validate: { default: true, keyGeneratorIpFallback: false },
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: 'TOO_MANY_REQUESTS',
+    message: 'Too many status check attempts for this specific order. Please try again after 15 minutes.',
+  },
+});
+
+// POST /api/orders/guest-status - Safe guest order status lookup (requires order_number + checkout phone)
+router.post(
+  '/orders/guest-status',
+  guestOrderStatusIpLimiter,
+  guestOrderStatusOrderLimiter,
+  async (req: Request, res: Response) => {
+  const { order_number, phone } = req.body;
+
+  if (!order_number || typeof order_number !== 'string' || !order_number.trim()) {
+    res.status(400).json({
+      error: 'INVALID_REQUEST',
+      message: 'order_number is required.',
+    });
+    return;
+  }
+
+  if (!phone || typeof phone !== 'string' || !phone.trim()) {
+    res.status(400).json({
+      error: 'INVALID_REQUEST',
+      message: 'Mobile number used at checkout is required.',
+    });
+    return;
+  }
+
+  const cleanInputPhone = phone.replace(/\D/g, '').slice(-10);
+  if (cleanInputPhone.length !== 10) {
+    res.status(400).json({
+      error: 'INVALID_PHONE',
+      message: 'A valid 10-digit mobile number is required.',
+    });
+    return;
+  }
+
+  const targetIdentifier = order_number.trim();
+
+  // 1. Look up order in memory
+  let order: ServerOrder | undefined = inMemoryStore.orders.get(targetIdentifier);
+  if (!order) {
+    order = Array.from(inMemoryStore.orders.values()).find(
+      (o) => o.order_number === targetIdentifier || o.id === targetIdentifier
+    );
+  }
+
+  // 2. Look up in Supabase if not found in memory
+  if (!order && isLiveSupabase && supabaseServer) {
+    const { order: dbOrder, error: dbErr } = await findOrderInSupabase(targetIdentifier);
+    if (dbErr) {
+      console.error('[GuestStatus] Database lookup failure:', dbErr);
+      res.status(500).json({
+        error: 'DATABASE_LOOKUP_ERROR',
+        message: 'Failed to query order. Please retry shortly.',
+      });
+      return;
+    }
+    if (dbOrder) order = dbOrder;
+  }
+
+  // Uniform 404 response if order not found OR phone does not match
+  // (Prevents attackers from probing which order numbers exist)
+  if (!order) {
+    res.status(404).json({
+      error: 'ORDER_NOT_FOUND',
+      message: 'No matching order found for the provided order number and phone number.',
+    });
+    return;
+  }
+
+  const orderPhone1 = (order.guest_phone || '').replace(/\D/g, '').slice(-10);
+  const orderPhone2 = (order.address_snapshot?.recipient_phone || '').replace(/\D/g, '').slice(-10);
+
+  if (cleanInputPhone !== orderPhone1 && cleanInputPhone !== orderPhone2) {
+    res.status(404).json({
+      error: 'ORDER_NOT_FOUND',
+      message: 'No matching order found for the provided order number and phone number.',
+    });
+    return;
+  }
+
+  // If order is in PENDING_PAYMENT with provider_order_id, reconcile with Cashfree
+  if (order.status === 'PENDING_PAYMENT' && order.payment_method === 'ONLINE' && order.provider_order_id) {
+    try {
+      const gatewayDetails = await fetchCashfreeOrderDetails(order.provider_order_id);
+      if (gatewayDetails.status === 'PAID') {
+        const confirmResult = await confirmOrderPayment({
+          orderIdOrProviderId: order.id,
+          providerOrderId: order.provider_order_id,
+          paymentAmount: gatewayDetails.orderAmount,
+          currency: gatewayDetails.orderCurrency,
+          source: 'STATUS_POLL',
+        });
+        if (confirmResult.success && confirmResult.order) {
+          order = confirmResult.order;
+        }
+      }
+    } catch (reconcileErr: any) {
+      console.warn(`[GuestStatus] Reconcile error: ${reconcileErr.message}`);
+    }
+  }
+
+  // Mask recipient phone for privacy: e.g. "******7890"
+  const rawRecipientPhone = order.address_snapshot?.recipient_phone || order.guest_phone || '';
+  const digits = rawRecipientPhone.replace(/\D/g, '');
+  const maskedPhone = digits.length >= 4 ? `******${digits.slice(-4)}` : '******';
+
+  // Return safe sanitized projection
+  res.json({
+    success: true,
+    order: {
+      order_number: order.order_number,
+      status: order.status,
+      payment_status: order.payment_status,
+      payment_method: order.payment_method,
+      placed_at: order.placed_at,
+      total_amount: order.total_amount,
+      subtotal: order.subtotal,
+      discount_amount: order.discount_amount || 0,
+      delivery_charge: order.delivery_charge || 0,
+      coupon_code: order.coupon_code,
+      recipient_name: order.address_snapshot?.recipient_name,
+      recipient_phone_masked: maskedPhone,
+      address_snapshot: order.address_snapshot ? {
+        recipient_name: order.address_snapshot.recipient_name,
+        street_address: order.address_snapshot.street_address,
+        landmark: order.address_snapshot.landmark,
+        city: order.address_snapshot.city,
+        state: order.address_snapshot.state,
+        pincode: order.address_snapshot.pincode,
+      } : undefined,
+      slot_snapshot: order.slot_snapshot,
+      items: (order.items || []).map((item) => ({
+        product_name: item.product_name,
+        variant_label: item.variant_label,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total_price: item.total_price,
+      })),
+      is_paid: order.payment_status === 'CAPTURED',
+      tracking_status: order.status,
+    },
+  });
 });
 
 // PATCH /api/orders/:id/status - Server-side Order State Machine

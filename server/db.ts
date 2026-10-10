@@ -9,6 +9,7 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
 export const isLiveSupabase = Boolean(
+  process.env.UNIT_TEST !== 'true' &&
   supabaseUrl &&
   supabaseServiceKey &&
   supabaseUrl !== 'https://your-project.supabase.co' &&
@@ -651,14 +652,14 @@ export interface ServerPayment {
   order_number: string;
   provider_order_id: string;
   provider_payment_id?: string;
-  amount: number; // in paise
+  amount: number; // in rupees (consistent with database payments.amount NUMERIC(10, 2))
   currency: string;
   status: 'CREATED' | 'CAPTURED' | 'FAILED' | 'REFUNDED';
   method?: string;
   error_code?: string;
   error_description?: string;
   refund_id?: string;
-  refund_amount?: number;
+  refund_amount?: number; // in rupees
   created_at: string;
   updated_at: string;
 }
@@ -713,6 +714,7 @@ export interface ServerOrder {
   out_for_delivery_at?: string;
   delivered_at?: string;
   cancelled_at?: string;
+  cancel_reason?: string;
   refunded_at?: string;
   created_at: string;
   updated_at: string;
@@ -1271,43 +1273,276 @@ export function validateCouponServer(
   };
 }
 
-// Auto-expire unpaid PENDING_PAYMENT orders after 15 min: releases slot capacity and cancels order
-export function expireUnpaidOrders(): number {
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isUuid(val: string): boolean {
+  return typeof val === 'string' && UUID_REGEX.test(val.trim());
+}
+
+/**
+ * Robust order lookup in Supabase executing separate .eq() queries instead of .or().
+ * Validates UUID format before querying the 'id' column to prevent 22P02 Postgres errors.
+ * Preserves database query errors so callers never confuse DB failures with "order not found".
+ */
+export async function findOrderInSupabase(
+  identifier: string,
+  client = supabaseServer
+): Promise<{ order?: ServerOrder; error?: any }> {
+  if (!client || !identifier) return { order: undefined };
+  const target = identifier.trim();
+
+  // 1. If valid UUID, look up strictly by primary key 'id'
+  if (isUuid(target)) {
+    const { data, error } = await client
+      .from('orders')
+      .select('*')
+      .eq('id', target)
+      .maybeSingle();
+    if (error) {
+      return { error };
+    }
+    if (data) return { order: data };
+  }
+
+  // 2. Query strictly by 'order_number'
+  const { data: byOrderNum, error: errOrderNum } = await client
+    .from('orders')
+    .select('*')
+    .eq('order_number', target)
+    .maybeSingle();
+  if (errOrderNum) {
+    return { error: errOrderNum };
+  }
+  if (byOrderNum) return { order: byOrderNum };
+
+  // 3. Query strictly by 'provider_order_id'
+  const { data: byProviderId, error: errProviderId } = await client
+    .from('orders')
+    .select('*')
+    .eq('provider_order_id', target)
+    .maybeSingle();
+  if (errProviderId) {
+    return { error: errProviderId };
+  }
+  if (byProviderId) return { order: byProviderId };
+
+  return { order: undefined };
+}
+
+// Auto-expire unpaid PENDING_PAYMENT orders after 25 min: verifies with Cashfree, confirms paid orders, cancels definitively failed ones
+export async function expireUnpaidOrders(): Promise<number> {
   const now = Date.now();
-  const EXPIRY_MS = 15 * 60 * 1000; // 15 minutes
+  const EXPIRY_MS = 25 * 60 * 1000; // 25 minutes
   let expiredCount = 0;
 
-  for (const [id, order] of inMemoryStore.orders.entries()) {
-    if (order.status === 'PENDING_PAYMENT') {
-      const orderCreatedAt = new Date(order.created_at).getTime();
-      const isExpired = now - orderCreatedAt > EXPIRY_MS;
+  const { fetchCashfreeOrderDetails } = await import('./services/cashfreeService');
+  const { confirmOrderPayment } = await import('./services/paymentPersistenceService');
 
-      if (isExpired) {
-        order.status = 'CANCELLED';
-        order.payment_status = 'FAILED';
-        order.cancelled_at = new Date().toISOString();
-        order.updated_at = new Date().toISOString();
+  const pendingOrdersMap = new Map<string, ServerOrder>();
 
-        // Release slot capacity
-        const slot = inMemoryStore.deliverySlots.get(order.delivery_slot_id);
-        if (slot && slot.booked_count > 0) {
-          slot.booked_count -= 1;
-          inMemoryStore.deliverySlots.set(slot.id, slot);
+  // 1. In-memory candidate orders
+  for (const order of inMemoryStore.orders.values()) {
+    if (order.status === 'PENDING_PAYMENT' && now - new Date(order.created_at).getTime() > EXPIRY_MS) {
+      pendingOrdersMap.set(order.id, order);
+    }
+  }
+
+  // 2. Discover persistent pending orders from Supabase (vital after server restart)
+  if (isLiveSupabase && supabaseServer) {
+    const expiryIso = new Date(now - EXPIRY_MS).toISOString();
+    const { data: dbOrders, error: dbQueryErr } = await supabaseServer
+      .from('orders')
+      .select('*')
+      .eq('status', 'PENDING_PAYMENT')
+      .lt('created_at', expiryIso);
+
+    if (dbQueryErr) {
+      console.error(
+        `[OrderCleanup] Error discovering pending orders from Supabase: ${dbQueryErr.message}. Aborting cleanup run to prevent inconsistent state.`
+      );
+      return 0; // Abort cleanup run safely on query error
+    }
+
+    if (dbOrders && Array.isArray(dbOrders)) {
+      for (const dbo of dbOrders) {
+        if (!pendingOrdersMap.has(dbo.id)) {
+          pendingOrdersMap.set(dbo.id, dbo);
         }
-
-        inMemoryStore.orders.set(id, order);
-        expiredCount++;
       }
     }
+  }
+
+  const pendingOrders = Array.from(pendingOrdersMap.values());
+
+  for (const order of pendingOrders) {
+    // Re-check in-memory status in case concurrent webhook confirmed it
+    if (order.status !== 'PENDING_PAYMENT') continue;
+
+    // Check database state first if connected to Supabase
+    if (isLiveSupabase && supabaseServer) {
+      const { data: currentDbOrder, error: checkErr } = await supabaseServer
+        .from('orders')
+        .select('id, status, payment_status, total_amount, provider_order_id, delivery_slot_id, order_number')
+        .eq('id', order.id)
+        .maybeSingle();
+
+      if (checkErr) {
+        console.warn(
+          `[OrderCleanup] Error checking order ${order.id} status in Supabase: ${checkErr.message}. Skipping order.`
+        );
+        continue; // Abort cancellation if the Supabase status query returns an error
+      }
+
+      if (!currentDbOrder) {
+        console.warn(`[OrderCleanup] Order ${order.id} not found in Supabase. Skipping.`);
+        continue;
+      }
+
+      if (currentDbOrder.status !== 'PENDING_PAYMENT') {
+        console.log(
+          `[OrderCleanup] Order #${order.order_number} is already marked ${currentDbOrder.status}/${currentDbOrder.payment_status} in DB. Syncing memory and skipping cancel.`
+        );
+        order.status = currentDbOrder.status;
+        order.payment_status = currentDbOrder.payment_status;
+        inMemoryStore.orders.set(order.id, order);
+        continue;
+      }
+
+      if (currentDbOrder.provider_order_id) {
+        order.provider_order_id = currentDbOrder.provider_order_id;
+      }
+      if (currentDbOrder.delivery_slot_id) {
+        order.delivery_slot_id = currentDbOrder.delivery_slot_id;
+      }
+    }
+
+    // Authoritative verification with Cashfree gateway
+    if (order.payment_method === 'ONLINE' && order.provider_order_id) {
+      try {
+        const cashfreeDetails = await fetchCashfreeOrderDetails(order.provider_order_id);
+
+        // If Cashfree confirms payment was PAID, reconcile and do NOT cancel!
+        if (cashfreeDetails.status === 'PAID') {
+          console.log(`[OrderCleanup] Order #${order.order_number} confirmed PAID by Cashfree API. Reconciling...`);
+          await confirmOrderPayment({
+            orderIdOrProviderId: order.id,
+            providerOrderId: order.provider_order_id,
+            paymentAmount: cashfreeDetails.orderAmount,
+            currency: cashfreeDetails.orderCurrency || 'INR',
+            source: 'CLEANUP_RECONCILE',
+          });
+          continue;
+        }
+
+        // If Cashfree status is ACTIVE or TERMINATION_REQUESTED, customer may still be completing payment or gateway is processing
+        if (cashfreeDetails.status === 'ACTIVE' || cashfreeDetails.status === 'TERMINATION_REQUESTED') {
+          console.log(
+            `[OrderCleanup] Order #${order.order_number} is in non-terminal state '${cashfreeDetails.status}' on Cashfree. Deferring cancellation.`
+          );
+          continue;
+        }
+
+        // If Cashfree call timed out or returned network error, do NOT cancel
+        if (cashfreeDetails.status === 'UNKNOWN' || cashfreeDetails.isNetworkError) {
+          console.warn(`[OrderCleanup] Ambiguous/Network status for order #${order.order_number}. Retrying next cycle.`);
+          continue;
+        }
+
+        // Cancel only after authoritative verification establishes a definitive terminal payment state:
+        // Cashfree definitive terminal states are EXPIRED, TERMINATED, or FAILED.
+        if (cashfreeDetails.status !== 'EXPIRED' && cashfreeDetails.status !== 'TERMINATED' && cashfreeDetails.status !== 'FAILED') {
+          console.warn(
+            `[OrderCleanup] Order #${order.order_number} is in non-terminal gateway state '${cashfreeDetails.status}'. Deferring cancellation.`
+          );
+          continue;
+        }
+      } catch (err: any) {
+        console.warn(`[OrderCleanup] Error verifying order #${order.order_number} with Cashfree: ${err.message}. Deferring.`);
+        continue;
+      }
+    }
+
+    const nowIso = new Date().toISOString();
+
+    // Persist cancellation to Supabase FIRST before mutating in-memory store or releasing delivery slot
+    if (isLiveSupabase && supabaseServer) {
+      const { error: cancelDbErr, data: updatedRows } = await supabaseServer
+        .from('orders')
+        .update({
+          status: 'CANCELLED',
+          payment_status: 'FAILED',
+          cancelled_at: nowIso,
+          cancel_reason: 'Auto-expired unpaid order after 25 minutes',
+          updated_at: nowIso,
+        })
+        .eq('id', order.id)
+        .eq('status', 'PENDING_PAYMENT') // Concurrency guard: Only update if STILL PENDING_PAYMENT
+        .select('id, delivery_slot_id');
+
+      if (cancelDbErr) {
+        console.error(`[OrderCleanup] Failed to persist cancellation for order ${order.id} in Supabase:`, cancelDbErr);
+        // DO NOT update memory or release slot if database write failed!
+        continue;
+      }
+
+      // If no rows were updated, a concurrent webhook or cleanup run already changed the order state
+      if (!updatedRows || updatedRows.length === 0) {
+        console.warn(`[OrderCleanup] Order ${order.id} was already updated concurrently in Supabase. Skipping.`);
+        continue;
+      }
+
+      // Safely release delivery slot capacity in Supabase
+      const targetSlotId = updatedRows[0]?.delivery_slot_id || order.delivery_slot_id;
+      if (targetSlotId) {
+        try {
+          const { data: slotData } = await supabaseServer
+            .from('delivery_slots')
+            .select('booked_count')
+            .eq('id', targetSlotId)
+            .maybeSingle();
+
+          if (slotData && slotData.booked_count > 0) {
+            await supabaseServer
+              .from('delivery_slots')
+              .update({
+                booked_count: Math.max(0, slotData.booked_count - 1),
+                updated_at: nowIso,
+              })
+              .eq('id', targetSlotId);
+          }
+        } catch (slotEx: any) {
+          console.warn(`[OrderCleanup] Failed to release DB slot capacity: ${slotEx.message}`);
+        }
+      }
+    }
+
+    // Now that DB write succeeded (or in in-memory mode), update in-memory order
+    order.status = 'CANCELLED';
+    order.payment_status = 'FAILED';
+    order.cancelled_at = nowIso;
+    order.cancel_reason = 'Auto-expired unpaid order after 15 minutes';
+    order.updated_at = nowIso;
+    inMemoryStore.orders.set(order.id, order);
+
+    // Release delivery slot capacity safely in-memory
+    if (order.delivery_slot_id) {
+      const slot = inMemoryStore.deliverySlots.get(order.delivery_slot_id);
+      if (slot && slot.booked_count > 0) {
+        slot.booked_count = Math.max(0, slot.booked_count - 1);
+        inMemoryStore.deliverySlots.set(slot.id, slot);
+      }
+    }
+
+    expiredCount++;
   }
 
   return expiredCount;
 }
 
 // Run periodic cleanup every 30 seconds
-setInterval(() => {
+setInterval(async () => {
   try {
-    expireUnpaidOrders();
+    await expireUnpaidOrders();
   } catch (err) {
     console.error('Error during auto-expire cleanup:', err);
   }
