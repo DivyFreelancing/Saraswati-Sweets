@@ -167,12 +167,6 @@ async function runUnitTests() {
       created_at: nowIso,
       updated_at: nowIso,
     },
-    delivery_slot_id: 'slot-1',
-    slot_snapshot: {
-      slot_date: '2026-10-15',
-      start_time: '10:00',
-      end_time: '13:00',
-    },
     items: [],
   };
 
@@ -631,26 +625,12 @@ async function runUnitTests() {
   const retryFlowOrderId = randomUUID();
   const retryFlowOrderNum = `SW-EXPRESS-FLOW-${Date.now()}`;
   const retryFlowCfOrderId = `cf_express_${Date.now()}`;
-  const retryFlowSlotId = `slot-express-${Date.now()}`;
-
-  const retryFlowSlot = {
-    id: retryFlowSlotId,
-    slot_date: '2026-10-25',
-    start_time: '14:00',
-    end_time: '17:00',
-    capacity: 25,
-    booked_count: 8,
-    cutoff_at: nowIso,
-    status: 'ACTIVE',
-  };
-  inMemoryStore.deliverySlots.set(retryFlowSlotId, retryFlowSlot);
 
   const retryFlowOrder: ServerOrder = {
     ...mockOrder,
     id: retryFlowOrderId,
     order_number: retryFlowOrderNum,
     provider_order_id: retryFlowCfOrderId,
-    delivery_slot_id: retryFlowSlotId,
     status: 'PENDING_PAYMENT',
     payment_status: 'PENDING',
     total_amount: 550.00,
@@ -700,11 +680,9 @@ async function runUnitTests() {
     orderAfterFailedWebhook.status === 'PENDING_PAYMENT' && orderAfterFailedWebhook.payment_status === 'PENDING',
     'Order remains strictly in PENDING_PAYMENT after Express PAYMENT_FAILED_WEBHOOK handling'
   );
-
-  const slotAfterFailedWebhook = inMemoryStore.deliverySlots.get(retryFlowSlotId)!;
   assert(
-    slotAfterFailedWebhook.booked_count === 8,
-    'Delivery slot capacity booked_count remains strictly unchanged (8) after PAYMENT_FAILED_WEBHOOK'
+    orderAfterFailedWebhook.status === 'PENDING_PAYMENT',
+    'Order status preserved as PENDING_PAYMENT without any slot dependency on failed payment webhook'
   );
 
   // Step 2: Customer retries payment -> real Express POST of signed PAYMENT_SUCCESS_WEBHOOK
@@ -768,11 +746,9 @@ async function runUnitTests() {
     orderAfterSuccessWebhook.status === 'PLACED' && orderAfterSuccessWebhook.payment_status === 'CAPTURED',
     'Order transitions to PLACED & CAPTURED after Express PAYMENT_SUCCESS_WEBHOOK processing'
   );
-
-  const slotAfterSuccessWebhook = inMemoryStore.deliverySlots.get(retryFlowSlotId)!;
   assert(
-    slotAfterSuccessWebhook.booked_count === 8,
-    'Delivery slot capacity booked_count remains strictly unchanged (8) following payment confirmation'
+    orderAfterSuccessWebhook.status === 'PLACED',
+    'Order confirmed and placed successfully without requiring any slot system'
   );
 
   const retryFlowPayment = Array.from(inMemoryStore.payments.values()).find(
@@ -789,19 +765,6 @@ async function runUnitTests() {
   // -------------------------------------------------------------------------
   // 4k. HTTP Checkout Gateway Failure Test (Slot Rollback & No Order Created)
   // -------------------------------------------------------------------------
-  const failSlotId = `slot-fail-${Date.now()}`;
-  const tomorrowIsoDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-  const failSlot = {
-    id: failSlotId,
-    slot_date: tomorrowIsoDate,
-    start_time: '10:00',
-    end_time: '13:00',
-    capacity: 20,
-    booked_count: 5,
-    cutoff_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-    status: 'ACTIVE',
-  };
-  inMemoryStore.deliverySlots.set(failSlotId, failSlot);
 
   const testCustomerId = `cust_${Date.now()}`;
   inMemoryStore.profiles.set(testCustomerId, {
@@ -840,7 +803,6 @@ async function runUnitTests() {
     },
     body: JSON.stringify({
       items: [{ variantId: 'v-gj-500', quantity: 1 }],
-      slot_id: failSlotId,
       address: {
         recipient_name: 'Integration Test User',
         recipient_phone: '9876543210',
@@ -860,11 +822,9 @@ async function runUnitTests() {
     checkoutData.error === 'PAYMENT_TEMPORARILY_UNAVAILABLE',
     'Checkout returns PAYMENT_TEMPORARILY_UNAVAILABLE error code upon gateway failure'
   );
-
-  const slotAfterCheckoutFail = inMemoryStore.deliverySlots.get(failSlotId)!;
   assert(
-    slotAfterCheckoutFail.booked_count === 5,
-    'Delivery slot booked_count rolled back to original count (5) when gateway creation failed'
+    !checkoutData.slot_id && !checkoutData.delivery_slot_id,
+    'Checkout error response contains no slot references'
   );
 
   assert(
@@ -1117,49 +1077,59 @@ async function runUnitTests() {
   globalThis.fetch = origFetchForVerify;
 
   // -------------------------------------------------------------------------
-  // 4c. TEST: DELIVERY SLOT ROLLBACK ON CASHFREE FAILURE (IN-MEMORY & DATABASE)
-  // -------------------------------------------------------------------------
-  const slotRollbackTestId = `slot-rollback-${Date.now()}`;
-  const slotRollbackTest = {
-    id: slotRollbackTestId,
-    slot_date: '2026-10-30',
-    start_time: '10:00',
-    end_time: '13:00',
-    capacity: 20,
-    booked_count: 5,
-    cutoff_at: nowIso,
-    status: 'ACTIVE',
-  };
-  inMemoryStore.deliverySlots.set(slotRollbackTestId, { ...slotRollbackTest });
+  // 4c. TEST: CHECKOUT AND ORDER CREATION OPERATES WITHOUT SLOT INFORMATION
+  const normalCustId = `cust_slotfree_${Date.now()}`;
+  inMemoryStore.profiles.set(normalCustId, {
+    id: normalCustId,
+    phone: '9876543211',
+    full_name: 'Slot-Free Customer',
+    role: 'CUSTOMER',
+    created_at: nowIso,
+    updated_at: nowIso,
+  });
+  const normalCustToken = Buffer.from(
+    JSON.stringify({ sub: normalCustId, id: normalCustId, exp: Math.floor(Date.now() / 1000) + 3600 })
+  ).toString('base64');
 
-  // Simulate simulated DB slot
-  let simulatedDbSlot = { ...slotRollbackTest };
-
-  // 1. Checkout increments slot booked_count
-  const slotToReserve = inMemoryStore.deliverySlots.get(slotRollbackTestId)!;
-  slotToReserve.booked_count += 1; // becomes 6
-  inMemoryStore.deliverySlots.set(slotRollbackTestId, slotToReserve);
-  simulatedDbSlot.booked_count += 1; // saved in DB (becomes 6)
-
+  // Test 1: Place COD order without slot_id
+  const codCheckoutRes = await fetch(`${baseUrl}/api/checkout`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Idempotency-Key': `idem_cod_${Date.now()}`,
+      'Authorization': `Bearer ${normalCustToken}`,
+    },
+    body: JSON.stringify({
+      items: [{ variantId: 'v-kk-250', quantity: 1 }],
+      address: {
+        recipient_name: 'Slot-Free Customer',
+        recipient_phone: '9876543211',
+        street_address: 'Clock Tower Road',
+        pincode: '225001',
+      },
+      payment_method: 'COD',
+      // Explicitly NO slot_id provided!
+    }),
+  });
+  const codCheckoutData = await codCheckoutRes.json();
   assert(
-    slotToReserve.booked_count === 6 && simulatedDbSlot.booked_count === 6,
-    'Checkout initially increments delivery_slots.booked_count in-memory and database'
+    (codCheckoutRes.status === 200 || codCheckoutRes.status === 201) && codCheckoutData.success === true,
+    'COD checkout succeeds without slot_id (HTTP 201)'
+  );
+  assert(
+    codCheckoutData.order && codCheckoutData.order.status === 'PLACED',
+    'COD order placed successfully without slot selection (status=PLACED)'
+  );
+  assert(
+    !codCheckoutData.order.delivery_slot_id,
+    'Order is created without delivery_slot_id dependency'
   );
 
-  // 2. Gateway failure rollback executes
-  slotToReserve.booked_count = Math.max(0, slotToReserve.booked_count - 1);
-  inMemoryStore.deliverySlots.set(slotRollbackTestId, slotToReserve);
-  simulatedDbSlot.booked_count = Math.max(0, simulatedDbSlot.booked_count - 1);
-
+  // Test 2: Verify request with no slot parameters is accepted cleanly by backend
   assert(
-    slotToReserve.booked_count === 5,
-    'Cashfree failure rolls back in-memory delivery_slots.booked_count back to 5'
+    codCheckoutData.order.order_number.startsWith('SS-'),
+    'Standard order number generated for slot-free checkout'
   );
-  assert(
-    simulatedDbSlot.booked_count === 5,
-    'Cashfree failure rollback undoes the database write too if already saved'
-  );
-
   // Close HTTP server cleanly
   await new Promise<void>((resolve) => testServer.close(() => resolve()));
 
@@ -1180,19 +1150,6 @@ async function runUnitTests() {
   };
   inMemoryStore.orders.set(expiredOrderId, expiredMockOrder);
 
-  // Setup delivery slot
-  const testSlot = {
-    id: 'slot-1',
-    slot_date: '2026-10-15',
-    start_time: '10:00',
-    end_time: '13:00',
-    capacity: 25,
-    booked_count: 5,
-    cutoff_at: nowIso,
-    status: 'ACTIVE',
-  };
-  inMemoryStore.deliverySlots.set('slot-1', testSlot);
-
   // Run cleanup
   const expiredCount = await expireUnpaidOrders();
   assert(typeof expiredCount === 'number', 'expireUnpaidOrders runs cleanly without exceptions');
@@ -1203,8 +1160,8 @@ async function runUnitTests() {
   const processedExpiredOrder = inMemoryStore.orders.get(expiredOrderId);
   if (processedExpiredOrder?.status === 'CANCELLED') {
     assert(
-      testSlot.booked_count === 4,
-      'Delivery slot capacity safely decremented by exactly 1 on confirmed order cancellation'
+      processedExpiredOrder.status === 'CANCELLED',
+      'Unpaid expired order auto-cancelled cleanly without attempting any slot release'
     );
   }
 

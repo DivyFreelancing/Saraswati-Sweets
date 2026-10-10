@@ -13,7 +13,6 @@
 -- DELETE FROM public.categories;
 -- DELETE FROM public.banners;
 -- DELETE FROM public.offers;
--- DELETE FROM public.delivery_slots;
 
 -- 1. STORE SETTINGS
 INSERT INTO public.store_settings (
@@ -258,16 +257,3 @@ INSERT INTO public.coupons (code, description, discount_type, discount_value, mi
 ('SWAD100', 'Flat ₹100 off on first order over ₹599', 'FLAT', 100.00, 599.00, 100.00, 500, 1, NOW(), NOW() + INTERVAL '180 days', TRUE),
 ('FESTIVE10', '10% off up to ₹150 on orders over ₹799', 'PERCENTAGE', 10.00, 799.00, 150.00, 1000, 2, NOW(), NOW() + INTERVAL '90 days', TRUE)
 ON CONFLICT (code) DO NOTHING;
-
--- 9. DELIVERY SLOTS (Next 3 Days)
-INSERT INTO public.delivery_slots (slot_date, start_time, end_time, capacity, booked_count, cutoff_at, is_active) VALUES
-(CURRENT_DATE, '10:00:00', '13:00:00', 30, 4, NOW() + INTERVAL '2 hours', TRUE),
-(CURRENT_DATE, '14:00:00', '17:00:00', 30, 2, NOW() + INTERVAL '5 hours', TRUE),
-(CURRENT_DATE, '18:00:00', '21:00:00', 30, 7, NOW() + INTERVAL '8 hours', TRUE),
-(CURRENT_DATE + 1, '10:00:00', '13:00:00', 30, 0, (CURRENT_DATE + 1)::timestamp + INTERVAL '8 hours', TRUE),
-(CURRENT_DATE + 1, '14:00:00', '17:00:00', 30, 0, (CURRENT_DATE + 1)::timestamp + INTERVAL '12 hours', TRUE),
-(CURRENT_DATE + 1, '18:00:00', '21:00:00', 30, 0, (CURRENT_DATE + 1)::timestamp + INTERVAL '16 hours', TRUE),
-(CURRENT_DATE + 2, '10:00:00', '13:00:00', 30, 0, (CURRENT_DATE + 2)::timestamp + INTERVAL '8 hours', TRUE),
-(CURRENT_DATE + 2, '14:00:00', '17:00:00', 30, 0, (CURRENT_DATE + 2)::timestamp + INTERVAL '12 hours', TRUE),
-(CURRENT_DATE + 2, '18:00:00', '21:00:00', 30, 0, (CURRENT_DATE + 2)::timestamp + INTERVAL '16 hours', TRUE)
-ON CONFLICT DO NOTHING;

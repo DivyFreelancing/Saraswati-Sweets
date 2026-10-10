@@ -225,10 +225,10 @@ export const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-6 border-b border-[#E8DFD2]">
             <div className="space-y-1">
               <span className="text-xs text-[#6B6258] font-medium flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-[#8A1538]" /> Scheduled Delivery Slot
+                <Clock className="w-3.5 h-3.5 text-[#8A1538]" /> Fulfillment Mode
               </span>
               <div className="font-bold text-sm text-[#1F1B16]">
-                {order.slot_snapshot?.slot_date} ({order.slot_snapshot?.start_time} - {order.slot_snapshot?.end_time})
+                Fresh Dispatch from Ghantaghar
               </div>
             </div>
 

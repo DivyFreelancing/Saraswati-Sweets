@@ -98,17 +98,6 @@ export interface Banner {
   is_active: boolean;
 }
 
-export interface DeliverySlot {
-  id: string;
-  slot_date: string;
-  start_time: string;
-  end_time: string;
-  capacity: number;
-  booked_count: number;
-  cutoff_at: string;
-  is_active: boolean;
-}
-
 export interface StoreSettings {
   id: number;
   store_name: string;

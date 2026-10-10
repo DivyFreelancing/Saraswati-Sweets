@@ -279,7 +279,7 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
     addInAppNotification({
       userId: targetUserId,
       title: `Order #${order.order_number} Placed!`,
-      message: `Your fresh mithai order of ₹${order.total_amount} has been confirmed for delivery on ${order.slot_snapshot.slot_date} (${order.slot_snapshot.start_time} - ${order.slot_snapshot.end_time}).`,
+      message: `Your fresh mithai order of ₹${order.total_amount} has been confirmed for preparation and delivery.`,
       type: 'ORDER_PLACED',
       metadata: { orderId: order.id, orderNumber: order.order_number, total: order.total_amount },
     });
@@ -289,7 +289,7 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
   addInAppNotification({
     userId: 'ADMIN',
     title: `New Order Received: #${order.order_number}`,
-    message: `₹${order.total_amount} (${order.payment_method}) from ${order.address_snapshot.recipient_name} (${order.address_snapshot.recipient_phone}). Window: ${order.slot_snapshot.slot_date} ${order.slot_snapshot.start_time}`,
+    message: `₹${order.total_amount} (${order.payment_method}) from ${order.address_snapshot.recipient_name} (${order.address_snapshot.recipient_phone}). Destination: ${order.address_snapshot.street_address}`, 
     type: 'ORDER_PLACED',
     metadata: { orderId: order.id, orderNumber: order.order_number, total: order.total_amount },
   });
@@ -384,7 +384,7 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
             <p>Thank you for choosing Saraswati Sweets. Our master sweetmakers have begun preparing your fresh mithai with 100% cow desi ghee.</p>
             
             <div style="background-color: #fbf7f1; padding: 12px 16px; border-radius: 6px; margin: 16px 0;">
-              <p style="margin: 0; font-size: 14px;"><strong>Delivery Window:</strong> ${order.slot_snapshot.slot_date} (${order.slot_snapshot.start_time} - ${order.slot_snapshot.end_time})</p>
+              <p style="margin: 0; font-size: 14px;"><strong>Fulfillment:</strong> Fresh Direct Delivery (Barabanki)</p>
               <p style="margin: 4px 0 0; font-size: 14px;"><strong>Delivery Address:</strong> ${order.address_snapshot.street_address}, Barabanki - ${order.address_snapshot.pincode}</p>
               <p style="margin: 4px 0 0; font-size: 14px;"><strong>Payment Method:</strong> ${order.payment_method} (${order.payment_status})</p>
             </div>
@@ -426,7 +426,7 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
       <div style="font-family: Arial, sans-serif; padding: 20px;">
         <h2>New Order Received: #${order.order_number}</h2>
         <p><strong>Customer:</strong> ${order.address_snapshot.recipient_name} (${order.address_snapshot.recipient_phone})</p>
-        <p><strong>Delivery Slot:</strong> ${order.slot_snapshot.slot_date} ${order.slot_snapshot.start_time} - ${order.slot_snapshot.end_time}</p>
+        <p><strong>Fulfillment:</strong> Fresh Direct Delivery</p>
         <p><strong>Address:</strong> ${order.address_snapshot.street_address}, Barabanki - ${order.address_snapshot.pincode}</p>
         <p><strong>Items:</strong></p>
         <ul>
@@ -524,7 +524,7 @@ export async function notifyOrderStatusChanged(
                  </div>`
               : ''
           }
-          ${!isCancelled ? `<p>Expected delivery window: ${order.slot_snapshot.slot_date} (${order.slot_snapshot.start_time} - ${order.slot_snapshot.end_time})</p>` : ''}
+          ${!isCancelled ? `<p>Fresh preparation dispatched directly from Ghantaghar, Barabanki.</p>` : ''}
           <p style="margin-top: 20px; font-size: 13px; color: #6B6258;">Need assistance? Call our Barabanki shop at ${STORE_SETTINGS.store_phone} or WhatsApp ${STORE_SETTINGS.whatsapp}.</p>
         </div>
       `,
@@ -543,7 +543,7 @@ export async function notifyPaymentFailed(order: ServerOrder, reason?: string): 
     addInAppNotification({
       userId: targetUserId,
       title: `Payment Incomplete for #${order.order_number}`,
-      message: `Online payment was not completed (${reason || 'Transaction timed out'}). Your sweets will be held for 15 minutes before the slot is released.`,
+      message: `Online payment was not completed (${reason || 'Transaction timed out'}). Your order is reserved for 15 minutes to allow payment retry.`,
       type: 'PAYMENT_FAILED',
       metadata: { orderId: order.id, orderNumber: order.order_number },
     });
@@ -560,7 +560,7 @@ export async function notifyPaymentFailed(order: ServerOrder, reason?: string): 
           <h2 style="color: #B3261E;">Payment Could Not Be Completed</h2>
           <p>Dear ${order.address_snapshot.recipient_name},</p>
           <p>We noticed your online payment of ₹${order.total_amount} for order <strong>#${order.order_number}</strong> was not completed (${reason || 'Payment failed'}).</p>
-          <p>Your selected delivery slot (${order.slot_snapshot.slot_date} ${order.slot_snapshot.start_time}) is reserved for 15 minutes. You can retry paying online or choose Cash on Delivery.</p>
+          <p>Your order is reserved for 15 minutes. You can retry paying online or choose Cash on Delivery.</p>
           <p>If you need assistance, please call our Barabanki counter at ${STORE_SETTINGS.store_phone}.</p>
         </div>
       `,

@@ -62,7 +62,6 @@ async function runDatabaseConcurrencyTests() {
     placed_at: nowIso,
     created_at: nowIso,
     updated_at: nowIso,
-    delivery_slot_id: 'slot-test',
     address_snapshot: {
       id: randomUUID(),
       profile_id: 'test-user',
@@ -77,7 +76,6 @@ async function runDatabaseConcurrencyTests() {
       created_at: nowIso,
       updated_at: nowIso,
     },
-    slot_snapshot: { slot_date: '2026-10-20', start_time: '10:00', end_time: '13:00' },
     items: [],
   };
   inMemoryStore.orders.set(retryTestOrderId, retryOrder);

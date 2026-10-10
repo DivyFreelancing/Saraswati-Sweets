@@ -209,7 +209,7 @@ export const OrderHistoryPage: React.FC<OrderHistoryPageProps> = ({
                   <div className="flex items-center gap-4 text-xs text-[#6B6258] pt-1">
                     <span className="flex items-center gap-1">
                       <Clock className="w-3.5 h-3.5 text-[#8A1538]" />
-                      <span>{order.slot_snapshot?.slot_date} ({order.slot_snapshot?.start_time} - {order.slot_snapshot?.end_time})</span>
+                      <span>Doorstep Delivery</span>
                     </span>
                     <span>•</span>
                     <span>Total: <strong className="text-[#1F1B16] tabular-nums">{formatINR(order.total_amount)}</strong> (COD)</span>

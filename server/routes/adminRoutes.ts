@@ -1149,45 +1149,6 @@ router.patch('/delivery-partners/:id/status', async (req: AuthenticatedRequest, 
 });
 
 // ==========================================================
-// 8. DELIVERY SLOTS
-// ==========================================================
-router.get('/delivery-slots', (_req: AuthenticatedRequest, res: Response) => {
-  const slots = Array.from(inMemoryStore.deliverySlots.values()).sort((a, b) => {
-    if (a.slot_date !== b.slot_date) return a.slot_date.localeCompare(b.slot_date);
-    return a.start_time.localeCompare(b.start_time);
-  });
-  res.json({ slots });
-});
-
-router.patch('/delivery-slots/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
-  if (!assertSupabase(res)) return;
-
-  const { id } = req.params;
-  const slot = inMemoryStore.deliverySlots.get(id);
-  if (!slot) {
-    res.status(404).json({ error: 'NOT_FOUND', message: 'Delivery slot not found.' });
-    return;
-  }
-
-  const { capacity, is_active } = req.body;
-  const updates: Record<string, any> = {};
-  if (capacity !== undefined) updates.capacity = Number(capacity);
-  if (is_active !== undefined) updates.is_active = Boolean(is_active);
-
-  const { error } = await supabaseServer!.from('delivery_slots').update(updates).eq('id', id);
-  if (error) {
-    console.error('[Admin] Slot update failed:', error);
-    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
-    return;
-  }
-
-  if (updates.capacity !== undefined) slot.capacity = updates.capacity;
-  if (updates.status !== undefined) slot.status = updates.status;
-  Map.prototype.set.call(inMemoryStore.deliverySlots, id, slot);
-  res.json({ success: true, slot });
-});
-
-// ==========================================================
 // 9. STORE SETTINGS (ADMIN ONLY)
 // ==========================================================
 router.get('/store/settings', (_req: AuthenticatedRequest, res: Response) => {

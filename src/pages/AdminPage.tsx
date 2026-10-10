@@ -74,7 +74,6 @@ type AdminTab =
   | 'categories'
   | 'customers'
   | 'delivery'
-  | 'slots'
   | 'hampers'
   | 'marketing'
   | 'reviews'
@@ -107,7 +106,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
   const [categories, setCategories] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [deliveryPartners, setDeliveryPartners] = useState<any[]>([]);
-  const [deliverySlots, setDeliverySlots] = useState<any[]>([]);
   const [storeSettings, setStoreSettings] = useState<any>(null);
   const [coupons, setCoupons] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
@@ -222,12 +220,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
     stockStatus: 'IN_STOCK',
   });
 
-  // Slot Bulk Generator state
-  const [bulkStartDate, setBulkStartDate] = useState(new Date().toISOString().split('T')[0]);
-  const [bulkDays, setBulkDays] = useState(7);
-  const [bulkCapacity, setBulkCapacity] = useState(30);
-  const [isGeneratingSlots, setIsGeneratingSlots] = useState(false);
-
   // 1. DATA LOADER
   const loadAllAdminData = async (silent = false) => {
     if (!isAuthenticated || !isStaff) return;
@@ -242,7 +234,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
         productsRes,
         categoriesRes,
         partnersRes,
-        slotsRes,
         settingsRes,
         couponsRes,
         hampersRes,
@@ -257,7 +248,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
         fetch('/api/admin/products', { headers }),
         fetch('/api/admin/categories', { headers }),
         fetch('/api/admin/delivery-partners', { headers }),
-        fetch('/api/admin/delivery-slots', { headers }),
         fetch('/api/admin/store/settings', { headers }),
         fetch('/api/admin/coupons', { headers }),
         fetch('/api/admin/hampers', { headers }),
@@ -297,11 +287,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       if (partnersRes.ok) {
         const data = await partnersRes.json();
         setDeliveryPartners(data.partners || []);
-      }
-
-      if (slotsRes.ok) {
-        const data = await slotsRes.json();
-        setDeliverySlots(data.slots || []);
       }
 
       if (settingsRes.ok) {
@@ -922,39 +907,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
     });
   };
 
-  // 11. BULK GENERATE SLOTS
-  const handleBulkGenerateSlots = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsGeneratingSlots(true);
-
-    try {
-      const res = await fetch('/api/admin/delivery-slots/bulk-generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify({
-          startDate: bulkStartDate,
-          daysCount: bulkDays,
-          capacity: bulkCapacity,
-        }),
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        showToast(data.message || 'Slots generated!', 'success');
-        loadAllAdminData(true);
-      } else {
-        showToast(data.message || 'Failed to generate slots', 'error');
-      }
-    } catch {
-      showToast('Error creating delivery slots', 'error');
-    } finally {
-      setIsGeneratingSlots(false);
-    }
-  };
-
   // 12. CATEGORY HANDLERS (ADMIN ONLY)
   const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1190,7 +1142,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
     setConfirmDialog({
       isOpen: true,
       title: `Cancel Order #${order.order_number}?`,
-      message: `Are you sure you want to cancel this order? This will release reserved delivery slot capacity and record an audit log.`,
+      message: `Are you sure you want to cancel this order? This will update the order status and record an audit log.`,
       confirmLabel: 'Yes, Cancel Order',
       isDestructive: true,
       onConfirm: () => {
@@ -1384,7 +1336,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
           { key: 'notifications', label: `Notifications (${notifications.filter((n) => !n.is_read).length > 0 ? `${notifications.filter((n) => !n.is_read).length} unread` : notifications.length})`, icon: Bell },
           { key: 'customers', label: `Customers (${customers.length})`, icon: Users, adminOnly: true },
           { key: 'delivery', label: `Delivery Riders (${deliveryPartners.length})`, icon: Bike },
-          { key: 'slots', label: `Delivery Slots (${deliverySlots.length})`, icon: Calendar },
           { key: 'coupons', label: `Coupons (${coupons.length})`, icon: Tag, adminOnly: true },
           { key: 'settings', label: 'Store Settings', icon: Settings },
           { key: 'audit', label: `Audit Trail (${auditLogs.length})`, icon: ShieldCheck, adminOnly: true },
@@ -1651,18 +1602,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
               </div>
               <Plus className="w-4 h-4 text-[#8A1538]" />
             </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('slots')}
-              className="p-4 rounded-xl bg-white border border-[#E8DFD2] hover:border-[#8A1538] hover:bg-[#FBF7F1] text-left transition-all shadow-xs flex items-center justify-between"
-            >
-              <div>
-                <div className="font-bold text-sm text-[#1F1B16]">Bulk-Generate Slots</div>
-                <div className="text-xs text-[#6B6258] mt-0.5">Open upcoming delivery days</div>
-              </div>
-              <Calendar className="w-4 h-4 text-[#8A1538]" />
-            </button>
           </div>
         </div>
       )}
@@ -1795,16 +1734,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                       {order.address_snapshot?.street_address}, {order.address_snapshot?.pincode}
                     </div>
 
-                    {/* Bug #4 Fix: Show delivery slot date and time window */}
-                    {order.slot_snapshot && (
-                      <div className="text-xs text-[#8A1538] font-semibold flex items-center gap-1">
-                        <span>🕐</span>
-                        <span>
-                          Delivery: {order.slot_snapshot.slot_date} &bull; {order.slot_snapshot.start_time}–{order.slot_snapshot.end_time}
-                        </span>
-                      </div>
-                    )}
-
                     <div className="text-xs text-[#1F1B16] font-medium">
                       Items:{' '}
                       {order.items?.map((it: any) => `${it.product_name} (${it.variant_label}) × ${it.quantity}`).join(' • ')}
@@ -1904,7 +1833,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
 
                         {status === 'CANCELLED' && (
                           <span className="text-[11px] font-semibold text-[#B3261E]">
-                            Order Cancelled (Slot Restored)
+                            Order Cancelled
                           </span>
                         )}
 
@@ -2411,103 +2340,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                 </div>
               </div>
             ))}
-          </div>
-        </div>
-      )}
-
-      {/* ==================================================== */}
-      {/* TAB G: DELIVERY SLOTS MANAGEMENT                     */}
-      {/* ==================================================== */}
-      {activeTab === 'slots' && (
-        <div className="space-y-6">
-          {/* Bulk Generator Card */}
-          <div className="bg-white rounded-2xl border border-[#E8DFD2] p-5 sm:p-6 shadow-xs space-y-4">
-            <div className="border-b border-[#E8DFD2] pb-3">
-              <h3 className="font-display font-bold text-lg text-[#1F1B16] flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-[#8A1538]" />
-                <span>Bulk Generate Delivery Slots</span>
-              </h3>
-              <p className="text-xs text-[#6B6258]">
-                Generate 3 delivery windows per day (Morning 10-1, Afternoon 2-5, Evening 6-9) with automated cutoff hours.
-              </p>
-            </div>
-
-            <form onSubmit={handleBulkGenerateSlots} className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
-                  Start Date
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={bulkStartDate}
-                  onChange={(e) => setBulkStartDate(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs font-medium focus:outline-none focus:border-[#8A1538]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
-                  Days
-                </label>
-                <select
-                  value={bulkDays}
-                  onChange={(e) => setBulkDays(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-white text-xs font-medium focus:outline-none focus:border-[#8A1538]"
-                >
-                  <option value={7}>Next 7 Days (21 Slots)</option>
-                  <option value={14}>Next 14 Days (42 Slots)</option>
-                  <option value={30}>Next 30 Days (90 Slots)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
-                  Capacity / Slot
-                </label>
-                <input
-                  type="number"
-                  min={5}
-                  max={100}
-                  value={bulkCapacity}
-                  onChange={(e) => setBulkCapacity(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs font-medium focus:outline-none focus:border-[#8A1538]"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={isGeneratingSlots}
-                className="w-full min-h-[44px] rounded-xl bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-bold transition-colors shadow-xs flex items-center justify-center gap-1.5"
-              >
-                <Calendar className="w-4 h-4 text-[#F6E08B]" />
-                <span>{isGeneratingSlots ? 'Generating...' : 'Bulk Generate'}</span>
-              </button>
-            </form>
-          </div>
-
-          {/* Slots List */}
-          <div className="bg-white rounded-2xl border border-[#E8DFD2] p-5 sm:p-6 shadow-xs space-y-3">
-            <h4 className="font-display font-bold text-base text-[#1F1B16]">
-              Configured Delivery Slots ({deliverySlots.length})
-            </h4>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {deliverySlots.slice(0, 15).map((s) => (
-                <div key={s.id} className="p-3.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs space-y-1.5">
-                  <div className="flex items-center justify-between font-bold text-[#1F1B16]">
-                    <span>{s.slot_date}</span>
-                    <span className="text-[#8A1538]">{s.start_time} - {s.end_time}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[#6B6258]">
-                    <span>Booked: {s.booked_count} / {s.capacity}</span>
-                    <span className="text-[10px] font-semibold text-[#2E7D4F]">
-                      {Math.max(0, s.capacity - s.booked_count)} slots left
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       )}

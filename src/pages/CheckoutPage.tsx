@@ -3,13 +3,11 @@ import { useCart } from '../context/CartContext';
 import { useAddresses, UserAddress, SERVICEABLE_PINCODES } from '../context/AddressContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { DeliverySlotSelector, ClientDeliverySlot } from '../components/common/DeliverySlotSelector';
 import { PriceDisplay } from '../components/common/PriceDisplay';
 import { formatINR } from '../utils/formatters';
 import { loadCashfreeScript } from '../utils/cashfreeLoader';
 import {
   MapPin,
-  Clock,
   Banknote,
   ShieldCheck,
   Tag,
@@ -35,7 +33,6 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
   const { showToast } = useToast();
 
   const [selectedAddressId, setSelectedAddressId] = useState<string>('');
-  const [selectedSlot, setSelectedSlot] = useState<ClientDeliverySlot | null>(null);
   const [couponCode, setCouponCode] = useState<string>('');
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
   const [couponDiscount, setCouponDiscount] = useState<number>(0);
@@ -150,11 +147,6 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
       return;
     }
 
-    if (!selectedSlot) {
-      setErrorMessage('Please select a delivery slot.');
-      return;
-    }
-
     // Determine target address
     let finalAddress: any = null;
     if (addresses.length > 0 && selectedAddressId && !showAddAddressForm) {
@@ -192,7 +184,6 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
             item_type: i.item_type || (i.variantId.startsWith('hamper-') ? 'HAMPER' : 'PRODUCT'),
           })),
           address: finalAddress,
-          slot_id: selectedSlot.id,
           coupon_code: appliedCoupon || undefined,
           special_instructions: specialInstructions || undefined,
           packaging_notes: packagingNotes || undefined,
@@ -564,7 +555,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
           Checkout & Fresh Delivery
         </h1>
         <p className="mt-1 text-sm sm:text-base text-[#6B6258]">
-          Review your Barabanki delivery address, time slot, and cash-on-delivery preferences.
+          Review your Barabanki delivery address, order details, and payment preferences.
         </p>
       </div>
 
@@ -755,25 +746,12 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
             )}
           </div>
 
-          {/* 2. Customer Delivery Slot Picker */}
-          <div className="bg-white rounded-2xl border border-[#E8DFD2] p-6 shadow-xs space-y-4">
-            <div className="flex items-center gap-2 font-display font-bold text-lg text-[#1F1B16]">
-              <Clock className="w-5 h-5 text-[#8A1538]" />
-              <span>2. Delivery Date & Time Window</span>
-            </div>
-
-            <DeliverySlotSelector
-              selectedSlotId={selectedSlot?.id}
-              onSelectSlot={(s) => setSelectedSlot(s)}
-            />
-          </div>
-
           {/* 3. Payment Method: Online Cashfree vs COD */}
           <div className="bg-white rounded-2xl border border-[#E8DFD2] p-6 shadow-xs space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 font-display font-bold text-lg text-[#1F1B16]">
                 <Banknote className="w-5 h-5 text-[#8A1538]" />
-                <span>3. Payment Method</span>
+                <span>2. Payment Method</span>
               </div>
               <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-[#2E7D4F]/10 text-[#2E7D4F]">
                 {paymentMethod === 'ONLINE' ? 'Cashfree Secure' : 'Cash on Delivery'}
@@ -868,7 +846,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
           <div className="bg-white rounded-2xl border border-[#E8DFD2] p-6 shadow-xs space-y-4">
             <div className="flex items-center gap-2 font-display font-bold text-lg text-[#1F1B16]">
               <Package className="w-5 h-5 text-[#8A1538]" />
-              <span>4. Custom Notes & Packaging Request</span>
+              <span>3. Custom Notes & Packaging Request</span>
             </div>
 
             <div className="space-y-3">

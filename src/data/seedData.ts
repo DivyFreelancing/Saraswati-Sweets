@@ -1,4 +1,4 @@
-import { Category, Product, GiftHamper, Banner, Offer, StoreSettings, DeliverySlot } from '../types/database';
+import { Category, Product, GiftHamper, Banner, Offer, StoreSettings } from '../types/database';
 
 export const SEED_STORE_SETTINGS: StoreSettings = {
   id: 1,
@@ -1378,14 +1378,6 @@ export const SEED_OFFERS: Offer[] = [
   },
 ];
 
-export const SEED_DELIVERY_SLOTS: DeliverySlot[] = [
-  { id: 'slot-1', slot_date: 'Today', start_time: '10:00 AM', end_time: '01:00 PM', capacity: 30, booked_count: 8, cutoff_at: '', is_active: true },
-  { id: 'slot-2', slot_date: 'Today', start_time: '02:00 PM', end_time: '05:00 PM', capacity: 30, booked_count: 14, cutoff_at: '', is_active: true },
-  { id: 'slot-3', slot_date: 'Today', start_time: '06:00 PM', end_time: '09:00 PM', capacity: 30, booked_count: 5, cutoff_at: '', is_active: true },
-  { id: 'slot-4', slot_date: 'Tomorrow', start_time: '10:00 AM', end_time: '01:00 PM', capacity: 30, booked_count: 2, cutoff_at: '', is_active: true },
-  { id: 'slot-5', slot_date: 'Tomorrow', start_time: '02:00 PM', end_time: '05:00 PM', capacity: 30, booked_count: 0, cutoff_at: '', is_active: true },
-  { id: 'slot-6', slot_date: 'Tomorrow', start_time: '06:00 PM', end_time: '09:00 PM', capacity: 30, booked_count: 0, cutoff_at: '', is_active: true },
-];
 
 export const SEED_REVIEWS = [
   {

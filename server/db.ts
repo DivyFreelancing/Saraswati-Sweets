@@ -486,17 +486,6 @@ export interface ServerAddress {
   updated_at: string;
 }
 
-export interface ServerDeliverySlot {
-  id: string;
-  slot_date: string; // YYYY-MM-DD
-  start_time: string; // e.g. "10:00"
-  end_time: string; // e.g. "13:00"
-  capacity: number;
-  booked_count: number;
-  cutoff_at: string; // ISO string
-  status: string;
-}
-
 export interface ServerCoupon {
   id: string;
   code: string;
@@ -683,12 +672,8 @@ export interface ServerOrder {
   guest_phone?: string;
   guest_email?: string;
   address_snapshot: ServerAddress;
-  delivery_slot_id: string;
-  slot_snapshot: {
-    slot_date: string;
-    start_time: string;
-    end_time: string;
-  };
+  delivery_slot_id?: string | null;
+  slot_snapshot?: any;
   subtotal: number;
   discount_amount: number;
   coupon_code?: string;
@@ -737,42 +722,6 @@ export const VALID_ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   PAYMENT_FAILED: [],
   REFUNDED: [],
 };
-
-// Generate initial delivery slots for today and next 7 days
-function generateInitialSlots(): Map<string, ServerDeliverySlot> {
-  const map = new Map<string, ServerDeliverySlot>();
-  const templates = [
-    { start: '10:00', end: '13:00', label: 'Morning Slot (10 AM - 1 PM)', cutoffHours: 2 },
-    { start: '14:00', end: '17:00', label: 'Afternoon Slot (2 PM - 5 PM)', cutoffHours: 2 },
-    { start: '18:00', end: '21:00', label: 'Evening Slot (6 PM - 9 PM)', cutoffHours: 2 },
-  ];
-
-  const now = new Date();
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(now);
-    d.setDate(d.getDate() + i);
-    const dateStr = d.toISOString().split('T')[0];
-
-    templates.forEach((tmpl, idx) => {
-      const slotId = crypto.randomUUID();
-      // Cutoff time: slot date at start_time minus cutoffHours
-      const cutoffDate = new Date(`${dateStr}T${tmpl.start}:00Z`);
-      cutoffDate.setHours(cutoffDate.getHours() - tmpl.cutoffHours);
-
-      map.set(slotId, {
-        id: slotId,
-        slot_date: dateStr,
-        start_time: tmpl.start,
-        end_time: tmpl.end,
-        capacity: 30,
-        booked_count: i === 0 && idx === 0 ? 30 : (i * 3 + idx) % 7, // Demo slot 1 full to test disabled UI
-        cutoff_at: cutoffDate.toISOString(),
-        status: 'ACTIVE',
-      });
-    });
-  }
-  return map;
-}
 
 export interface ServerCategory {
   id: string;
@@ -872,7 +821,6 @@ export const inMemoryStore = {
   profiles: new Map<string, ServerProfile>(),
   addresses: new Map<string, ServerAddress>(),
   userCarts: new Map<string, Map<string, number>>(), // profileId -> (variantId -> quantity)
-  deliverySlots: generateInitialSlots(),
   orders: new Map<string, ServerOrder>(),
   ordersByIdempotency: new Map<string, ServerOrder>(),
   payments: new Map<string, ServerPayment>(), // provider_payment_id or provider_order_id -> payment
@@ -1382,7 +1330,7 @@ export async function expireUnpaidOrders(): Promise<number> {
     if (isLiveSupabase && supabaseServer) {
       const { data: currentDbOrder, error: checkErr } = await supabaseServer
         .from('orders')
-        .select('id, status, payment_status, total_amount, provider_order_id, delivery_slot_id, order_number')
+        .select('id, status, payment_status, total_amount, provider_order_id, order_number')
         .eq('id', order.id)
         .maybeSingle();
 
@@ -1410,9 +1358,6 @@ export async function expireUnpaidOrders(): Promise<number> {
 
       if (currentDbOrder.provider_order_id) {
         order.provider_order_id = currentDbOrder.provider_order_id;
-      }
-      if (currentDbOrder.delivery_slot_id) {
-        order.delivery_slot_id = currentDbOrder.delivery_slot_id;
       }
     }
 
@@ -1464,7 +1409,7 @@ export async function expireUnpaidOrders(): Promise<number> {
 
     const nowIso = new Date().toISOString();
 
-    // Persist cancellation to Supabase FIRST before mutating in-memory store or releasing delivery slot
+    // Persist cancellation to Supabase FIRST before mutating in-memory store
     if (isLiveSupabase && supabaseServer) {
       const { error: cancelDbErr, data: updatedRows } = await supabaseServer
         .from('orders')
@@ -1477,11 +1422,11 @@ export async function expireUnpaidOrders(): Promise<number> {
         })
         .eq('id', order.id)
         .eq('status', 'PENDING_PAYMENT') // Concurrency guard: Only update if STILL PENDING_PAYMENT
-        .select('id, delivery_slot_id');
+        .select('id');
 
       if (cancelDbErr) {
         console.error(`[OrderCleanup] Failed to persist cancellation for order ${order.id} in Supabase:`, cancelDbErr);
-        // DO NOT update memory or release slot if database write failed!
+        // DO NOT update memory if database write failed!
         continue;
       }
 
@@ -1489,30 +1434,6 @@ export async function expireUnpaidOrders(): Promise<number> {
       if (!updatedRows || updatedRows.length === 0) {
         console.warn(`[OrderCleanup] Order ${order.id} was already updated concurrently in Supabase. Skipping.`);
         continue;
-      }
-
-      // Safely release delivery slot capacity in Supabase
-      const targetSlotId = updatedRows[0]?.delivery_slot_id || order.delivery_slot_id;
-      if (targetSlotId) {
-        try {
-          const { data: slotData } = await supabaseServer
-            .from('delivery_slots')
-            .select('booked_count')
-            .eq('id', targetSlotId)
-            .maybeSingle();
-
-          if (slotData && slotData.booked_count > 0) {
-            await supabaseServer
-              .from('delivery_slots')
-              .update({
-                booked_count: Math.max(0, slotData.booked_count - 1),
-                updated_at: nowIso,
-              })
-              .eq('id', targetSlotId);
-          }
-        } catch (slotEx: any) {
-          console.warn(`[OrderCleanup] Failed to release DB slot capacity: ${slotEx.message}`);
-        }
       }
     }
 
@@ -1523,15 +1444,6 @@ export async function expireUnpaidOrders(): Promise<number> {
     order.cancel_reason = 'Auto-expired unpaid order after 15 minutes';
     order.updated_at = nowIso;
     inMemoryStore.orders.set(order.id, order);
-
-    // Release delivery slot capacity safely in-memory
-    if (order.delivery_slot_id) {
-      const slot = inMemoryStore.deliverySlots.get(order.delivery_slot_id);
-      if (slot && slot.booked_count > 0) {
-        slot.booked_count = Math.max(0, slot.booked_count - 1);
-        inMemoryStore.deliverySlots.set(slot.id, slot);
-      }
-    }
 
     expiredCount++;
   }
@@ -1612,7 +1524,7 @@ export async function loadStoreState(): Promise<void> {
     // Fetch critical tables
     const [
       cats, prods, vars, offs, bans, hampers, 
-      slots, ords, profs, addrs, pays, revs, 
+      ords, profs, addrs, pays, revs, 
       coups, bulks, prodImgs, ordItems
     ] = await Promise.all([
       supabaseServer.from('categories').select('*'),
@@ -1621,7 +1533,6 @@ export async function loadStoreState(): Promise<void> {
       supabaseServer.from('offers').select('*'),
       supabaseServer.from('banners').select('*'),
       supabaseServer.from('gift_hampers').select('*'),
-      supabaseServer.from('delivery_slots').select('*'),
       supabaseServer.from('orders').select('*'),
       supabaseServer.from('profiles').select('*'),
       supabaseServer.from('addresses').select('*'),
@@ -1638,7 +1549,6 @@ export async function loadStoreState(): Promise<void> {
     if (offs.data) { inMemoryStore.offers.clear(); offs.data.forEach(x => inMemoryStore.offers.set(x.id, x)); }
     if (bans.data) { inMemoryStore.banners.clear(); bans.data.forEach(x => inMemoryStore.banners.set(x.id, x)); }
     if (hampers.data) { inMemoryStore.giftHampers.clear(); hampers.data.forEach(x => inMemoryStore.giftHampers.set(x.id, x)); }
-    if (slots.data) { inMemoryStore.deliverySlots.clear(); slots.data.forEach(x => inMemoryStore.deliverySlots.set(x.id, x)); }
 
     if (prods.data) {
       inMemoryStore.products.clear();

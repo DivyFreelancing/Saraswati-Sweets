@@ -148,7 +148,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                     onClick={() =>
                       openLegal(
                         'Shipping & Delivery',
-                        'We deliver freshly prepared sweets across Barabanki (PIN codes: 225001, 225002, 225003, 225122) within chosen 2-hour slots. Free delivery on orders above ₹499. Small nominal fee of ₹40 for smaller orders.'
+                        'We deliver freshly prepared sweets across Barabanki (PIN codes: 225001, 225002, 225003, 225122) promptly after fresh preparation. Free delivery on orders above ₹499. Small nominal fee of ₹40 for smaller orders.'
                       )
                     }
                     className="hover:text-[#7A1129] transition-colors"
@@ -190,7 +190,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                     onClick={() =>
                       openLegal(
                         'Terms & Conditions',
-                        'All sweets are prepared fresh in our Barabanki kitchen. Product weights include standard food-grade packaging. Orders are fulfilled within chosen delivery slots. Prices are inclusive of all local taxes.'
+                        'All sweets are prepared fresh in our Barabanki kitchen. Product weights include standard food-grade packaging. Orders are fulfilled promptly via direct local delivery. Prices are inclusive of all local taxes.'
                       )
                     }
                     className="hover:text-[#7A1129] transition-colors"
@@ -365,7 +365,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   onClick={() =>
                     openLegal(
                       'Terms & Conditions',
-                      'All sweets are prepared fresh in our Barabanki kitchen. Product weights include standard food-grade packaging. Orders are fulfilled within chosen delivery slots. Prices are inclusive of all local taxes.'
+                      'All sweets are prepared fresh in our Barabanki kitchen. Product weights include standard food-grade packaging. Orders are fulfilled promptly via direct local delivery. Prices are inclusive of all local taxes.'
                     )
                   }
                   className="hover:text-[#7A1129] hover:underline"

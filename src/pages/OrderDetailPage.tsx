@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Clock,
   MapPin,
   CheckCircle2,
   AlertCircle,
@@ -26,7 +25,7 @@ interface OrderDetailPageProps {
 
 const ORDER_STEPS = [
   { key: 'PLACED', label: 'Order Received', desc: 'Received at Barabanki store' },
-  { key: 'CONFIRMED', label: 'Confirmed', desc: 'Slot locked and scheduled' },
+  { key: 'CONFIRMED', label: 'Confirmed', desc: 'Order confirmed and scheduled' },
   { key: 'PREPARING', label: 'Kitchen Prep', desc: 'Freshly boxed in desi ghee' },
   { key: 'READY_FOR_PICKUP', label: 'Ready for Dispatch', desc: 'Sealed with tamper tape' },
   { key: 'OUT_FOR_DELIVERY', label: 'Out for Delivery', desc: 'Delivery partner on the way' },
@@ -217,7 +216,7 @@ export const OrderDetailPage: React.FC<OrderDetailPageProps> = ({
           <div>
             <div className="font-bold text-sm">Order Cancelled</div>
             <p className="mt-0.5 text-stone-600">
-              This order was cancelled on {new Date(order.cancelled_at || order.updated_at).toLocaleString('en-IN')}. Delivery slot has been released.
+              This order was cancelled on {new Date(order.cancelled_at || order.updated_at).toLocaleString('en-IN')}.
             </p>
           </div>
         </div>
@@ -276,7 +275,7 @@ export const OrderDetailPage: React.FC<OrderDetailPageProps> = ({
         </div>
       )}
 
-      {/* Details Grid: Slot & Address + Items Breakdown */}
+      {/* Details Grid: Address + Items Breakdown */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
         {/* Left: Items list */}
         <div className="md:col-span-7 bg-white rounded-2xl border border-[#E8DFD2] p-6 shadow-xs space-y-4">
@@ -329,20 +328,8 @@ export const OrderDetailPage: React.FC<OrderDetailPageProps> = ({
           </div>
         </div>
 
-        {/* Right: Delivery Slot & Address */}
+        {/* Right: Delivery Address */}
         <div className="md:col-span-5 space-y-4">
-          <div className="bg-white rounded-2xl border border-[#E8DFD2] p-5 shadow-xs space-y-3">
-            <h4 className="font-display font-bold text-sm text-[#1F1B16] flex items-center gap-1.5">
-              <Clock className="w-4 h-4 text-[#8A1538]" />
-              <span>Delivery Slot</span>
-            </h4>
-            <div className="text-xs text-[#1F1B16]">
-              <div className="font-semibold">{order.slot_snapshot?.slot_date}</div>
-              <div className="text-[#6B6258] mt-0.5">
-                {order.slot_snapshot?.start_time} to {order.slot_snapshot?.end_time}
-              </div>
-            </div>
-          </div>
 
           <div className="bg-white rounded-2xl border border-[#E8DFD2] p-5 shadow-xs space-y-3">
             <h4 className="font-display font-bold text-sm text-[#1F1B16] flex items-center gap-1.5">
@@ -377,7 +364,7 @@ export const OrderDetailPage: React.FC<OrderDetailPageProps> = ({
                 Cancel Order #{order.order_number}?
               </h3>
               <p className="text-xs text-[#6B6258] leading-relaxed">
-                Are you sure you want to cancel this order? This will release your booked delivery slot in Barabanki.
+                Are you sure you want to cancel this order? This cannot be undone once processed.
               </p>
             </div>
 

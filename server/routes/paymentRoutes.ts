@@ -183,7 +183,6 @@ router.post('/verify', async (req: AuthenticatedRequest, res: Response) => {
         state: finalOrder.address_snapshot.state,
         pincode: finalOrder.address_snapshot.pincode,
       } : undefined,
-      slot_snapshot: finalOrder.slot_snapshot,
       items: (finalOrder.items || []).map((item: any) => ({
         product_name: item.product_name,
         variant_label: item.variant_label,
@@ -356,7 +355,7 @@ router.post('/webhook/cashfree', async (req: Request, res: Response) => {
   }
 
   // Event Handling: PAYMENT_FAILED_WEBHOOK
-  // Note: Do not change order status or release delivery slot on payment attempt failure!
+  // Note: Do not change order status on payment attempt failure!
   // Customers on the checkout page can retry with an alternate payment method.
   // We log the event, record it in webhook_events, and leave the order in PENDING_PAYMENT.
   if (event === 'PAYMENT_FAILED_WEBHOOK') {
@@ -378,7 +377,7 @@ router.post('/webhook/cashfree', async (req: Request, res: Response) => {
       }
     }
 
-    // Record failure event in webhook_events without changing order status or delivery slot
+    // Record failure event in webhook_events without changing order status
     if (isLiveSupabase && supabaseServer) {
       try {
         await supabaseServer.from('webhook_events').upsert(

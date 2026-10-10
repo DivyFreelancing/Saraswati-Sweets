@@ -130,20 +130,7 @@ CREATE TABLE IF NOT EXISTS public.cart_items (
     UNIQUE(cart_id, variant_id)
 );
 
--- 8. DELIVERY SLOTS
-CREATE TABLE IF NOT EXISTS public.delivery_slots (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    slot_date DATE NOT NULL,
-    start_time TIME NOT NULL,
-    end_time TIME NOT NULL,
-    capacity INT NOT NULL DEFAULT 25,
-    booked_count INT NOT NULL DEFAULT 0 CHECK (booked_count <= capacity),
-    cutoff_at TIMESTAMPTZ NOT NULL,
-    status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(slot_date, start_time, end_time)
-);
+-- 8. (REMOVED: Delivery slots system has been decommissioned)
 
 -- 9. ORDERS & ORDER ITEMS
 CREATE TABLE IF NOT EXISTS public.orders (
@@ -152,7 +139,7 @@ CREATE TABLE IF NOT EXISTS public.orders (
     user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     address_id UUID REFERENCES public.addresses(id) ON DELETE SET NULL,
     address_snapshot JSONB NOT NULL,
-    delivery_slot_id UUID REFERENCES public.delivery_slots(id) ON DELETE SET NULL,
+    delivery_slot_id UUID, -- Legacy column preserved for historical orders
     status VARCHAR(30) NOT NULL DEFAULT 'PENDING_PAYMENT',
     payment_method VARCHAR(20) NOT NULL,
     payment_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
@@ -415,7 +402,6 @@ ALTER TABLE public.product_variants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.product_images ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.carts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cart_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.delivery_slots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
@@ -455,7 +441,6 @@ CREATE POLICY "Public gift hampers are viewable by everyone" ON public.gift_hamp
 CREATE POLICY "Public hamper items are viewable by everyone" ON public.gift_hamper_items FOR SELECT USING (TRUE);
 CREATE POLICY "Public published reviews are viewable by everyone" ON public.reviews FOR SELECT USING (is_published = TRUE);
 CREATE POLICY "Public store settings are viewable by everyone" ON public.store_settings FOR SELECT USING (TRUE);
-CREATE POLICY "Public active delivery slots viewable by everyone" ON public.delivery_slots FOR SELECT USING (is_active = TRUE);
 
 -- Profile policies
 CREATE POLICY "Users can view their own profile" ON public.profiles FOR SELECT USING (auth.uid() = id OR public.is_admin_or_staff());
@@ -493,7 +478,6 @@ CREATE POLICY "Staff can manage banners" ON public.banners FOR ALL USING (public
 CREATE POLICY "Staff can manage offers" ON public.offers FOR ALL USING (public.is_admin_or_staff());
 CREATE POLICY "Staff can manage gift hampers" ON public.gift_hampers FOR ALL USING (public.is_admin_or_staff());
 CREATE POLICY "Staff can manage hamper items" ON public.gift_hamper_items FOR ALL USING (public.is_admin_or_staff());
-CREATE POLICY "Staff can manage delivery slots" ON public.delivery_slots FOR ALL USING (public.is_admin_or_staff());
 CREATE POLICY "Staff can manage delivery partners" ON public.delivery_partners FOR ALL USING (public.is_admin_or_staff());
 CREATE POLICY "Staff can manage delivery assignments" ON public.delivery_assignments FOR ALL USING (public.is_admin_or_staff());
 CREATE POLICY "Staff can manage reviews" ON public.reviews FOR ALL USING (public.is_admin_or_staff());

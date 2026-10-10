@@ -120,7 +120,7 @@ export default function () {
   // Think time while selecting weight / reading ingredients
   sleep(Math.random() * 1.5 + 1);
 
-  // Step 4: Add to Cart & Inspect Delivery Slots (Pre-Checkout)
+  // Step 4: Add to Cart & Verify (Pre-Checkout)
   group('04_Add_To_Cart_And_Verify', function () {
     // 4a: Calculate cart totals using server-side validation
     const cartPayload = JSON.stringify({
@@ -149,16 +149,7 @@ export default function () {
       },
     });
 
-    // 4b: Check Delivery Slots availability for festive delivery
-    const resSlots = http.get(`${BASE_URL}/api/delivery-slots`, { headers });
-    const okSlots = resSlots.status === 200;
-    errorRate.add(!okSlots);
-
-    check(resSlots, {
-      'Delivery slots endpoint responded with 200': (r) => r.status === 200,
-    });
-
-    if (okCart && okSlots) {
+    if (okCart) {
       totalFunnelCompleted.add(1);
     }
   });

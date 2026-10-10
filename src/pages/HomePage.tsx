@@ -297,7 +297,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                   Barabanki Delivery
                 </h4>
                 <p className="text-xs sm:text-sm text-white/90 leading-relaxed font-normal">
-                  Dispatched fresh from Ghantaghar directly to your doorstep with guaranteed slot timing.
+                  Dispatched fresh from Ghantaghar directly to your doorstep with prompt local delivery.
                 </p>
               </div>
             </div>
@@ -325,7 +325,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               <ul className="space-y-1.5 pt-2 text-xs text-[#221A14] font-medium">
                 <li className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-[#2E7D4F]" />
-                  <span>Choose from morning or evening delivery slots</span>
+                  <span>Fast same-day delivery across Barabanki</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-[#2E7D4F]" />
