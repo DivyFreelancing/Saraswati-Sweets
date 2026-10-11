@@ -864,8 +864,14 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                     </div>
                   </div>
                   {storeAvailability && !storeAvailability.delivery_enabled && (
-                    <div className="text-[11px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded">
-                      Temporarily Paused
+                    <div className="mt-1 pt-2 border-t border-red-200/60 space-y-1">
+                      <div className="inline-flex items-center gap-1.5 text-[11px] font-bold text-red-700 bg-red-100/90 px-2 py-0.5 rounded">
+                        <span>Doorstep Delivery Paused</span>
+                      </div>
+                      <p className="text-[11px] text-[#8A1538] font-medium leading-relaxed">
+                        {storeAvailability.closure_message ||
+                          'Home delivery is temporarily paused due to festival rush. Store counter pickup is available!'}
+                      </p>
                     </div>
                   )}
                 </button>
@@ -902,8 +908,14 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                     </div>
                   </div>
                   {storeAvailability && !storeAvailability.takeaway_enabled && (
-                    <div className="text-[11px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded">
-                      Temporarily Paused
+                    <div className="mt-1 pt-2 border-t border-red-200/60 space-y-1">
+                      <div className="inline-flex items-center gap-1.5 text-[11px] font-bold text-red-700 bg-red-100/90 px-2 py-0.5 rounded">
+                        <span>Store Pickup Paused</span>
+                      </div>
+                      <p className="text-[11px] text-[#8A1538] font-medium leading-relaxed">
+                        {storeAvailability.closure_message ||
+                          'Store counter pickup is temporarily unavailable.'}
+                      </p>
                     </div>
                   )}
                 </button>

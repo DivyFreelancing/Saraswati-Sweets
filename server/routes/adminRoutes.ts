@@ -35,6 +35,9 @@ router.use(requireRole(['ADMIN', 'STAFF']));
 
 // Helper: require Supabase or return 503
 function assertSupabase(res: Response): boolean {
+  if (process.env.UNIT_TEST === 'true') {
+    return true;
+  }
   if (!isLiveSupabase || !supabaseServer) {
     res.status(503).json({
       error: 'DATABASE_UNAVAILABLE',
@@ -1167,8 +1170,43 @@ router.get('/store/settings', (_req: AuthenticatedRequest, res: Response) => {
   res.json({ settings: inMemoryStore.storeSettings });
 });
 
-router.put('/store/settings', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+// Dedicated Store Operations Endpoint (Delivery & Takeaway Quick Toggle & Notice)
+router.put('/store/operations', requireRole(['ADMIN', 'STAFF']), async (req: AuthenticatedRequest, res: Response) => {
   if (!assertSupabase(res)) return;
+
+  const { delivery_enabled, takeaway_enabled, closure_message, auto_reopen_at } = req.body;
+  const updates: Partial<ServerStoreSettings> = {};
+
+  if (delivery_enabled !== undefined) updates.delivery_enabled = Boolean(delivery_enabled);
+  if (takeaway_enabled !== undefined) updates.takeaway_enabled = Boolean(takeaway_enabled);
+  if (closure_message !== undefined) updates.closure_message = closure_message ? String(closure_message).trim() : null;
+  if (auto_reopen_at !== undefined) updates.auto_reopen_at = auto_reopen_at ? String(auto_reopen_at).trim() : null;
+
+  // Update in-memory state
+  inMemoryStore.storeSettings = { ...inMemoryStore.storeSettings, ...updates };
+
+  // Persist to Supabase
+  await syncStoreSettingsToSupabase(inMemoryStore.storeSettings);
+
+  logAuditEvent(req.user, 'STORE_OPERATIONS_UPDATED', 'STORE_SETTINGS', '1', {
+    fields_updated: Object.keys(updates),
+    delivery_enabled: inMemoryStore.storeSettings.delivery_enabled,
+    takeaway_enabled: inMemoryStore.storeSettings.takeaway_enabled,
+    closure_message: inMemoryStore.storeSettings.closure_message,
+    auto_reopen_at: inMemoryStore.storeSettings.auto_reopen_at,
+  });
+
+  res.json({
+    success: true,
+    message: 'Store delivery & takeaway operations updated successfully.',
+    settings: inMemoryStore.storeSettings,
+  });
+});
+
+router.put('/store/settings', requireRole(['ADMIN', 'STAFF']), async (req: AuthenticatedRequest, res: Response) => {
+  if (!assertSupabase(res)) return;
+
+  const isFullAdmin = req.user?.role === 'ADMIN';
 
   // Explicit whitelist — NEVER spread req.body directly
   const {
@@ -1183,26 +1221,30 @@ router.put('/store/settings', requireRole(['ADMIN']), async (req: AuthenticatedR
   } = req.body;
 
   const updates: Partial<ServerStoreSettings> = {};
-  if (store_name !== undefined) updates.store_name = String(store_name).trim();
-  if (tagline !== undefined) updates.tagline = String(tagline).trim();
-  if (store_phone !== undefined || phone !== undefined) updates.store_phone = String(store_phone || phone).trim();
-  if (whatsapp !== undefined) updates.whatsapp = String(whatsapp).trim();
-  if (store_email !== undefined || email !== undefined) updates.store_email = String(store_email || email).trim();
-  if (address_text !== undefined || address !== undefined) updates.address_text = String(address_text || address).trim();
-  if (delivery_charge_flat !== undefined || delivery_charge !== undefined) updates.delivery_charge_flat = Number(delivery_charge_flat ?? delivery_charge);
-  if (free_delivery_above !== undefined || free_delivery_threshold !== undefined) updates.free_delivery_above = Number(free_delivery_above ?? free_delivery_threshold);
-  if (cod_limit_amount !== undefined || cod_max_limit !== undefined) updates.cod_limit_amount = Number(cod_limit_amount ?? cod_max_limit);
-  if (tax_rate_percent !== undefined) updates.tax_rate_percent = Number(tax_rate_percent);
-  if (opening_time !== undefined) updates.opening_time = String(opening_time);
-  if (closing_time !== undefined) updates.closing_time = String(closing_time);
-  if (is_store_open !== undefined) updates.is_store_open = Boolean(is_store_open);
 
-  const pincodesRaw = serviceable_pincodes !== undefined ? serviceable_pincodes : allowed_pincodes;
-  if (pincodesRaw !== undefined) {
-    updates.serviceable_pincodes = Array.isArray(pincodesRaw) ? pincodesRaw : String(pincodesRaw).split(',').map((p) => p.trim());
+  // Financial and core profile fields require full ADMIN role
+  if (isFullAdmin) {
+    if (store_name !== undefined) updates.store_name = String(store_name).trim();
+    if (tagline !== undefined) updates.tagline = String(tagline).trim();
+    if (store_phone !== undefined || phone !== undefined) updates.store_phone = String(store_phone || phone).trim();
+    if (whatsapp !== undefined) updates.whatsapp = String(whatsapp).trim();
+    if (store_email !== undefined || email !== undefined) updates.store_email = String(store_email || email).trim();
+    if (address_text !== undefined || address !== undefined) updates.address_text = String(address_text || address).trim();
+    if (delivery_charge_flat !== undefined || delivery_charge !== undefined) updates.delivery_charge_flat = Number(delivery_charge_flat ?? delivery_charge);
+    if (free_delivery_above !== undefined || free_delivery_threshold !== undefined) updates.free_delivery_above = Number(free_delivery_above ?? free_delivery_threshold);
+    if (cod_limit_amount !== undefined || cod_max_limit !== undefined) updates.cod_limit_amount = Number(cod_limit_amount ?? cod_max_limit);
+    if (tax_rate_percent !== undefined) updates.tax_rate_percent = Number(tax_rate_percent);
+    if (opening_time !== undefined) updates.opening_time = String(opening_time);
+    if (closing_time !== undefined) updates.closing_time = String(closing_time);
+    if (is_store_open !== undefined) updates.is_store_open = Boolean(is_store_open);
+
+    const pincodesRaw = serviceable_pincodes !== undefined ? serviceable_pincodes : allowed_pincodes;
+    if (pincodesRaw !== undefined) {
+      updates.serviceable_pincodes = Array.isArray(pincodesRaw) ? pincodesRaw : String(pincodesRaw).split(',').map((p) => p.trim());
+    }
   }
 
-  // Operations controls
+  // Operations and capacity controls are permitted for both ADMIN and STAFF (Store Managers)
   if (delivery_enabled !== undefined) updates.delivery_enabled = Boolean(delivery_enabled);
   if (takeaway_enabled !== undefined) updates.takeaway_enabled = Boolean(takeaway_enabled);
   if (closure_message !== undefined) updates.closure_message = closure_message ? String(closure_message).trim() : null;

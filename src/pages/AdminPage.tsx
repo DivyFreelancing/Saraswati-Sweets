@@ -52,6 +52,7 @@ import { AdminReviewsTab } from '../components/admin/AdminReviewsTab';
 import { AdminEnquiriesTab } from '../components/admin/AdminEnquiriesTab';
 import { AdminNotificationsTab } from '../components/admin/AdminNotificationsTab';
 import { AdminCouponUsageModal } from '../components/admin/AdminCouponUsageModal';
+import { StoreOperationsCard } from '../components/admin/StoreOperationsCard';
 import { ProductImagePlaceholder } from '../components/common/ProductImagePlaceholder';
 import {
   isOrderSoundMuted,
@@ -920,6 +921,37 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
     });
   };
 
+  // 11. QUICK STORE OPERATIONS HANDLER (ADMIN & STORE MANAGERS)
+  const handleUpdateOperationsSettings = async (newSettings: any): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/admin/store/operations', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          delivery_enabled: newSettings.delivery_enabled,
+          takeaway_enabled: newSettings.takeaway_enabled,
+          closure_message: newSettings.closure_message,
+          auto_reopen_at: newSettings.auto_reopen_at,
+        }),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        setStoreSettings(d.settings);
+        showToast(d.message || 'Store operations updated successfully!', 'success');
+        return true;
+      } else {
+        showToast(d.message || 'Failed to update store operations', 'error');
+        return false;
+      }
+    } catch {
+      showToast('Network error updating store operations', 'error');
+      return false;
+    }
+  };
+
   // 12. CATEGORY HANDLERS (ADMIN ONLY)
   const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1267,6 +1299,26 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Live Store Operations Quick Indicator */}
+          {storeSettings && (
+            <div
+              onClick={() => setActiveTab('overview')}
+              className="hidden md:flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-black/25 border border-white/10 text-xs text-white cursor-pointer hover:bg-black/35 transition-colors shadow-xs"
+              title="Click to view/manage store operations on Dashboard"
+            >
+              <span className="text-white/70 font-medium">Store Operations:</span>
+              <span className={`inline-flex items-center gap-1 font-bold ${storeSettings.delivery_enabled ?? true ? 'text-emerald-300' : 'text-rose-300'}`}>
+                <span className={`w-2 h-2 rounded-full ${storeSettings.delivery_enabled ?? true ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`} />
+                Delivery {storeSettings.delivery_enabled ?? true ? 'ON' : 'OFF'}
+              </span>
+              <span className="text-white/30">•</span>
+              <span className={`inline-flex items-center gap-1 font-bold ${storeSettings.takeaway_enabled ?? true ? 'text-emerald-300' : 'text-rose-300'}`}>
+                <span className={`w-2 h-2 rounded-full ${storeSettings.takeaway_enabled ?? true ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`} />
+                Pickup {storeSettings.takeaway_enabled ?? true ? 'ON' : 'OFF'}
+              </span>
+            </div>
+          )}
+
           {/* Autoplay blocked banner button */}
           {isAudioSuspended && (
             <button
@@ -1352,7 +1404,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
           { key: 'enquiries', label: `Bulk Enquiries (${enquiries.filter((e) => e.status === 'NEW').length > 0 ? `${enquiries.filter((e) => e.status === 'NEW').length} new` : enquiries.length})`, icon: Building2 },
           { key: 'notifications', label: `Notifications (${notifications.filter((n) => !n.is_read).length > 0 ? `${notifications.filter((n) => !n.is_read).length} unread` : notifications.length})`, icon: Bell },
           { key: 'customers', label: `Customers (${customers.length})`, icon: Users, adminOnly: true },
-          { key: 'delivery', label: `Delivery Riders (${deliveryPartners.length})`, icon: Bike },
+          { key: 'delivery', label: `Delivery & Fleet (${deliveryPartners.length})`, icon: Bike },
           { key: 'coupons', label: `Coupons (${coupons.length})`, icon: Tag, adminOnly: true },
           { key: 'settings', label: 'Store Settings', icon: Settings },
           { key: 'audit', label: `Audit Trail (${auditLogs.length})`, icon: ShieldCheck, adminOnly: true },
@@ -1386,6 +1438,15 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       {/* ==================================================== */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
+          {/* Store Operations / Delivery & Takeaway Live Controls */}
+          {storeSettings && (
+            <StoreOperationsCard
+              storeSettings={storeSettings}
+              onUpdateSettings={handleUpdateOperationsSettings}
+              canEdit={isStaff || isAdmin}
+            />
+          )}
+
           {/* Metrics 4-Cards Row */}
           {metrics && (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -2423,69 +2484,80 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       )}
 
       {/* ==================================================== */}
-      {/* TAB F: DELIVERY PARTNERS                             */}
+      {/* TAB F: DELIVERY & FLEET OPERATIONS                   */}
       {/* ==================================================== */}
       {activeTab === 'delivery' && (
-        <div className="bg-white rounded-2xl border border-[#E8DFD2] p-5 sm:p-6 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E8DFD2] pb-4">
-            <div>
-              <h3 className="font-display font-bold text-lg text-[#1F1B16] flex items-center gap-2">
-                <Bike className="w-5 h-5 text-[#8A1538]" />
-                <span>Barabanki Local Delivery Fleet</span>
-              </h3>
-              <p className="text-xs text-[#6B6258]">
-                Assign orders to trusted store delivery riders for doorstep drop-off.
-              </p>
-            </div>
-            {isAdmin && (
-              <button
-                type="button"
-                onClick={() => {
-                  setPartnerForm({ name: '', phone: '', vehicle_number: '' });
-                  setIsPartnerModalOpen(true);
-                }}
-                className="px-4 py-2 rounded-xl bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5 self-start sm:self-auto"
-              >
-                <Plus className="w-4 h-4 text-[#F6E08B]" />
-                <span>+ Add Rider</span>
-              </button>
-            )}
-          </div>
+        <div className="space-y-6">
+          {/* Store Operations / Delivery & Takeaway Live Controls */}
+          {storeSettings && (
+            <StoreOperationsCard
+              storeSettings={storeSettings}
+              onUpdateSettings={handleUpdateOperationsSettings}
+              canEdit={isStaff || isAdmin}
+            />
+          )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {deliveryPartners.map((dp) => (
-              <div key={dp.id} className="p-4 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] space-y-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-sm text-[#1F1B16]">{dp.name}</h4>
-                  <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                      dp.status === 'AVAILABLE'
-                        ? 'bg-emerald-100 text-[#2E7D4F]'
-                        : dp.status === 'ON_DELIVERY'
-                        ? 'bg-amber-100 text-amber-800'
-                        : 'bg-stone-200 text-stone-600'
-                    }`}
-                  >
-                    {dp.status}
-                  </span>
-                </div>
-                <div className="text-xs text-[#6B6258]">
-                  Phone: <strong>{dp.phone}</strong> • Vehicle: <strong>{dp.vehicle_number}</strong>
-                </div>
-                <div className="flex items-center justify-between text-xs pt-1 border-t border-black/5">
-                  <span className="text-[#8A1538] font-semibold">
-                    Assigned Orders: {dp.current_assigned_orders || 0}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleTogglePartnerStatus(dp.id, dp.status)}
-                    className="text-[11px] font-bold text-[#8A1538] hover:underline"
-                  >
-                    Toggle {dp.status === 'AVAILABLE' ? 'Off Duty' : 'Available'}
-                  </button>
-                </div>
+          <div className="bg-white rounded-2xl border border-[#E8DFD2] p-5 sm:p-6 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E8DFD2] pb-4">
+              <div>
+                <h3 className="font-display font-bold text-lg text-[#1F1B16] flex items-center gap-2">
+                  <Bike className="w-5 h-5 text-[#8A1538]" />
+                  <span>Barabanki Local Delivery Fleet</span>
+                </h3>
+                <p className="text-xs text-[#6B6258]">
+                  Assign orders to trusted store delivery riders for doorstep drop-off.
+                </p>
               </div>
-            ))}
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPartnerForm({ name: '', phone: '', vehicle_number: '' });
+                    setIsPartnerModalOpen(true);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5 self-start sm:self-auto"
+                >
+                  <Plus className="w-4 h-4 text-[#F6E08B]" />
+                  <span>+ Add Rider</span>
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {deliveryPartners.map((dp) => (
+                <div key={dp.id} className="p-4 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-sm text-[#1F1B16]">{dp.name}</h4>
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                        dp.status === 'AVAILABLE'
+                          ? 'bg-emerald-100 text-[#2E7D4F]'
+                          : dp.status === 'ON_DELIVERY'
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-stone-200 text-stone-600'
+                      }`}
+                    >
+                      {dp.status}
+                    </span>
+                  </div>
+                  <div className="text-xs text-[#6B6258]">
+                    Phone: <strong>{dp.phone}</strong> • Vehicle: <strong>{dp.vehicle_number}</strong>
+                  </div>
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-black/5">
+                    <span className="text-[#8A1538] font-semibold">
+                      Assigned Orders: {dp.current_assigned_orders || 0}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleTogglePartnerStatus(dp.id, dp.status)}
+                      className="text-[11px] font-bold text-[#8A1538] hover:underline"
+                    >
+                      Toggle {dp.status === 'AVAILABLE' ? 'Off Duty' : 'Available'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -2603,78 +2675,23 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
               {/* STORE OPERATIONS & PICKUP SCHEDULING CONTROLS        */}
               {/* ==================================================== */}
               <div className="sm:col-span-2 pt-4 border-t border-[#E8DFD2] space-y-4">
-                <div className="flex items-center gap-2">
+                <StoreOperationsCard
+                  storeSettings={storeSettings}
+                  onUpdateSettings={handleUpdateOperationsSettings}
+                  canEdit={isStaff || isAdmin}
+                />
+
+                <div className="flex items-center gap-2 pt-2">
                   <Store className="w-5 h-5 text-[#8A1538]" />
                   <h4 className="font-display font-bold text-base text-[#1F1B16]">
-                    Store Operations & Takeaway Capacity Scheduling
+                    Takeaway Counter Hours & Slot Capacity Scheduling
                   </h4>
                 </div>
                 <p className="text-xs text-[#6B6258]">
-                  Control live online availability, pause deliveries or takeaways, configure pickup hours, and cap per-slot kitchen load.
+                  Configure counter operating hours and per-slot kitchen order limits for Barabanki shop pickups.
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#FBF7F1] p-4 rounded-xl border border-[#E8DFD2]">
-                  {/* Delivery Toggle */}
-                  <div className="flex items-center justify-between p-3.5 rounded-xl bg-white border border-[#E8DFD2]">
-                    <div>
-                      <div className="font-bold text-xs text-[#1F1B16] flex items-center gap-1.5">
-                        <Truck className="w-4 h-4 text-[#8A1538]" />
-                        <span>Home Delivery Service</span>
-                      </div>
-                      <p className="text-[11px] text-[#6B6258] mt-0.5">
-                        {storeSettings.delivery_enabled ?? true ? 'Currently Accepting Doorstep Orders' : 'Paused by Management'}
-                      </p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        disabled={!isAdmin}
-                        checked={storeSettings.delivery_enabled ?? true}
-                        onChange={(e) => setStoreSettings({ ...storeSettings, delivery_enabled: e.target.checked })}
-                        className="sr-only peer"
-                      />
-                      <div className="w-10 h-6 bg-stone-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#2E7D4F]"></div>
-                    </label>
-                  </div>
-
-                  {/* Takeaway Toggle */}
-                  <div className="flex items-center justify-between p-3.5 rounded-xl bg-white border border-[#E8DFD2]">
-                    <div>
-                      <div className="font-bold text-xs text-[#1F1B16] flex items-center gap-1.5">
-                        <Store className="w-4 h-4 text-[#2E7D4F]" />
-                        <span>Store Pickup / Takeaway</span>
-                      </div>
-                      <p className="text-[11px] text-[#6B6258] mt-0.5">
-                        {storeSettings.takeaway_enabled ?? true ? 'Currently Accepting Counter Pickups' : 'Paused by Management'}
-                      </p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        disabled={!isAdmin}
-                        checked={storeSettings.takeaway_enabled ?? true}
-                        onChange={(e) => setStoreSettings({ ...storeSettings, takeaway_enabled: e.target.checked })}
-                        className="sr-only peer"
-                      />
-                      <div className="w-10 h-6 bg-stone-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#2E7D4F]"></div>
-                    </label>
-                  </div>
-
-                  {/* Closure / Announcement Message */}
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
-                      Customer Closure Notice / Announcement (Shown when services are paused)
-                    </label>
-                    <input
-                      type="text"
-                      disabled={!isAdmin}
-                      value={storeSettings.closure_message || ''}
-                      placeholder="e.g. Fresh batch cooking in progress. Online orders will resume at 4:30 PM."
-                      onChange={(e) => setStoreSettings({ ...storeSettings, closure_message: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-white text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
-                    />
-                  </div>
-
                   {/* Pickup Operating Hours */}
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
@@ -2682,7 +2699,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                     </label>
                     <input
                       type="time"
-                      disabled={!isAdmin}
+                      disabled={!isStaff && !isAdmin}
                       value={storeSettings.pickup_opening_time || '09:00'}
                       onChange={(e) => setStoreSettings({ ...storeSettings, pickup_opening_time: e.target.value })}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-white text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
@@ -2695,7 +2712,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                     </label>
                     <input
                       type="time"
-                      disabled={!isAdmin}
+                      disabled={!isStaff && !isAdmin}
                       value={storeSettings.pickup_closing_time || '21:30'}
                       onChange={(e) => setStoreSettings({ ...storeSettings, pickup_closing_time: e.target.value })}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-white text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
@@ -2708,7 +2725,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                       Pickup Slot Window (Minutes)
                     </label>
                     <select
-                      disabled={!isAdmin}
+                      disabled={!isStaff && !isAdmin}
                       value={storeSettings.pickup_slot_duration_minutes || 30}
                       onChange={(e) =>
                         setStoreSettings({
@@ -2734,7 +2751,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                       type="number"
                       min={1}
                       max={100}
-                      disabled={!isAdmin}
+                      disabled={!isStaff && !isAdmin}
                       value={storeSettings.pickup_max_orders_per_slot || 10}
                       onChange={(e) =>
                         setStoreSettings({
@@ -2755,7 +2772,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                       type="number"
                       min={1}
                       max={14}
-                      disabled={!isAdmin}
+                      disabled={!isStaff && !isAdmin}
                       value={storeSettings.pickup_advance_days || 3}
                       onChange={(e) =>
                         setStoreSettings({
@@ -2775,7 +2792,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                     <div className="flex gap-2 items-center">
                       <input
                         type="datetime-local"
-                        disabled={!isAdmin}
+                        disabled={!isStaff && !isAdmin}
                         value={storeSettings.auto_reopen_at ? storeSettings.auto_reopen_at.slice(0, 16) : ''}
                         onChange={(e) =>
                           setStoreSettings({
@@ -2785,7 +2802,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                         }
                         className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-white text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
                       />
-                      {storeSettings.auto_reopen_at && isAdmin && (
+                      {storeSettings.auto_reopen_at && (isStaff || isAdmin) && (
                         <button
                           type="button"
                           onClick={() => setStoreSettings({ ...storeSettings, auto_reopen_at: null })}
