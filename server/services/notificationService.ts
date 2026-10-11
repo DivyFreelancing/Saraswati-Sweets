@@ -129,11 +129,11 @@ export function formatZeptoAuthHeader(apiKey: string): string {
  */
 export function getAdminNotificationRecipient(customFallback?: string | null): string {
   const envAdminEmail = process.env.ADMIN_ORDER_EMAIL?.trim();
-  if (envAdminEmail && envAdminEmail.toLowerCase() !== 'order@saraswatisweets.in') {
+  if (envAdminEmail && !envAdminEmail.toLowerCase().includes('saraswatisweets.in')) {
     return envAdminEmail;
   }
   const fallback = customFallback?.trim();
-  if (fallback && fallback.toLowerCase() !== 'order@saraswatisweets.in') {
+  if (fallback && !fallback.toLowerCase().includes('saraswatisweets.in')) {
     return fallback;
   }
   return 'order@saraswatisweetsbarabanki.com';

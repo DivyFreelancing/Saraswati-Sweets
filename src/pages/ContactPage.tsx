@@ -64,6 +64,9 @@ export const ContactPage: React.FC = () => {
               <a href="mailto:order@saraswatisweetsbarabanki.com" className="text-[#1F1B16] hover:text-[#8A1538]">
                 order@saraswatisweetsbarabanki.com
               </a>
+              <span className="block text-xs text-[#6B6258] mt-0.5">
+                or <a href="mailto:saraswatisweetsbarabanki@gmail.com" className="hover:text-[#8A1538] underline">saraswatisweetsbarabanki@gmail.com</a>
+              </span>
             </p>
           </div>
         </div>

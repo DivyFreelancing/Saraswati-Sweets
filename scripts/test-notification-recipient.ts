@@ -86,6 +86,13 @@ async function runNotificationRecipientTests() {
       'In-memory store settings do not override process.env.ADMIN_ORDER_EMAIL'
     );
 
+    // Test 1.2b: ADMIN_ORDER_EMAIL set to saraswatisweetsbarabanki@gmail.com
+    process.env.ADMIN_ORDER_EMAIL = 'saraswatisweetsbarabanki@gmail.com';
+    assert(
+      getAdminNotificationRecipient() === 'saraswatisweetsbarabanki@gmail.com',
+      'Configuring saraswatisweetsbarabanki@gmail.com as ADMIN_ORDER_EMAIL is honored directly'
+    );
+
     // Test 1.3: Trimming of ADMIN_ORDER_EMAIL
     process.env.ADMIN_ORDER_EMAIL = '   trimmed-admin@saraswatisweetsbarabanki.com   ';
     assert(
