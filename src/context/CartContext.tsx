@@ -49,7 +49,7 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 const GUEST_CART_KEY = 'saraswati_guest_cart_v2';
-const FREE_DELIVERY_THRESHOLD = 499;
+const FREE_DELIVERY_THRESHOLD = 0;
 
 export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { isAuthenticated, getAuthHeaders, token } = useAuth();
@@ -58,9 +58,9 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [items, setItems] = useState<CartItemType[]>([]);
   const [subtotal, setSubtotal] = useState<number>(0);
   const [savings, setSavings] = useState<number>(0);
-  const [deliveryCharge, setDeliveryCharge] = useState<number>(40);
+  const [deliveryCharge, setDeliveryCharge] = useState<number>(0);
   const [total, setTotal] = useState<number>(0);
-  const [freeDeliveryShortfall, setFreeDeliveryShortfall] = useState<number>(FREE_DELIVERY_THRESHOLD);
+  const [freeDeliveryShortfall, setFreeDeliveryShortfall] = useState<number>(0);
   const [totalItems, setTotalItems] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
@@ -342,9 +342,9 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setItems([]);
     setSubtotal(0);
     setSavings(0);
-    setDeliveryCharge(40);
+    setDeliveryCharge(0);
     setTotal(0);
-    setFreeDeliveryShortfall(FREE_DELIVERY_THRESHOLD);
+    setFreeDeliveryShortfall(0);
     setTotalItems(0);
   };
 

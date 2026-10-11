@@ -100,10 +100,10 @@ export function computeServerCart(rawItems: CartInputItem[]) {
     });
   }
 
-  const isFreeDelivery = subtotal >= STORE_SETTINGS.free_delivery_above || subtotal === 0;
-  const deliveryCharge = isFreeDelivery ? 0 : STORE_SETTINGS.delivery_charge;
+  const isFreeDelivery = false;
+  const deliveryCharge = subtotal > 0 ? 50 : 0;
   const total = subtotal + deliveryCharge;
-  const freeDeliveryShortfall = Math.max(0, STORE_SETTINGS.free_delivery_above - subtotal);
+  const freeDeliveryShortfall = 0;
 
   return {
     items: verifiedItems,

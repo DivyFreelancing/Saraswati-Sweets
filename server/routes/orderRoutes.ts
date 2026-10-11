@@ -228,9 +228,8 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
     validatedCouponObj = couponRes.coupon;
   }
 
-  // 7. Calculate Delivery & Tax
-  const isFreeDelivery = subtotal >= STORE_SETTINGS.free_delivery_above;
-  const deliveryCharge = isFreeDelivery ? 0 : STORE_SETTINGS.delivery_charge;
+  // 7. Calculate Delivery & Tax (Enforce fixed ₹50 flat delivery fee for all new orders)
+  const deliveryCharge = 50;
   const tax = 0; // Inclusive in MRP per sweets standard in UP
   const total = Math.max(0, subtotal - discount + deliveryCharge + tax);
 

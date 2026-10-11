@@ -16,18 +16,16 @@ interface OrderSummaryProps {
 export const OrderSummary: React.FC<OrderSummaryProps> = ({
   subtotal,
   savings = 0,
-  deliveryCharge = 40,
+  deliveryCharge = 50,
   discount = 0,
-  freeDeliveryThreshold = 499,
+  freeDeliveryThreshold = 0,
   onProceedToCheckout,
   checkoutButtonLabel = 'Proceed to Checkout',
   isProceedDisabled = false,
 }) => {
-  const isFreeDelivery = subtotal >= freeDeliveryThreshold;
-  const effectiveDeliveryCharge = isFreeDelivery || subtotal === 0 ? 0 : deliveryCharge;
+  const isFreeDelivery = false;
+  const effectiveDeliveryCharge = subtotal === 0 ? 0 : 50;
   const grandTotal = Math.max(0, subtotal - discount + effectiveDeliveryCharge);
-  const shortfall = Math.max(0, freeDeliveryThreshold - subtotal);
-  const progressPercent = Math.min(100, Math.round((subtotal / freeDeliveryThreshold) * 100));
 
   return (
     <div className="bg-white rounded-2xl border border-[#E8DFD2] p-5 sm:p-6 shadow-xs space-y-5">
@@ -35,25 +33,11 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
         Order Summary
       </h3>
 
-      {/* Free delivery prompt bar */}
+      {/* Flat delivery prompt bar */}
       <div className="p-3 rounded-xl bg-[#F3EBE0]/70 border border-[#E8DFD2]">
-        <div className="flex items-center gap-2 text-xs font-semibold text-[#1F1B16] mb-1.5">
+        <div className="flex items-center gap-2 text-xs font-semibold text-[#1F1B16]">
           <Truck className="w-4 h-4 text-[#8A1538]" />
-          {isFreeDelivery ? (
-            <span className="text-[#2E7D4F] flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5" /> You unlocked FREE delivery across Barabanki!
-            </span>
-          ) : (
-            <span>
-              Add <strong className="text-[#8A1538]">{formatINR(shortfall)}</strong> more for <strong>FREE Delivery</strong>
-            </span>
-          )}
-        </div>
-        <div className="w-full bg-[#E8DFD2] h-1.5 rounded-full overflow-hidden">
-          <div
-            className="bg-[#8A1538] h-full transition-all duration-300 rounded-full"
-            style={{ width: `${progressPercent}%` }}
-          />
+          <span>Flat <strong className="text-[#8A1538]">₹50 Delivery Fee</strong> across all Barabanki orders</span>
         </div>
       </div>
 
@@ -79,14 +63,9 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
         )}
 
         <div className="flex justify-between items-center">
-          <span className="flex items-center gap-1">
-            Delivery Charge
-            {isFreeDelivery && (
-              <span className="text-[11px] font-semibold text-[#2E7D4F] uppercase">Free</span>
-            )}
-          </span>
+          <span>Delivery Charge</span>
           <span className="text-[#1F1B16] font-medium tabular-nums">
-            {isFreeDelivery || subtotal === 0 ? '₹0' : formatINR(deliveryCharge)}
+            {formatINR(effectiveDeliveryCharge)}
           </span>
         </div>
 

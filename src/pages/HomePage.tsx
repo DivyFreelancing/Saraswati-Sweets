@@ -329,7 +329,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-[#2E7D4F]" />
-                  <span>Free delivery on all orders above ₹499</span>
+                  <span>Flat ₹50 delivery across Barabanki</span>
                 </li>
               </ul>
             </div>

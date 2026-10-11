@@ -148,7 +148,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                     onClick={() =>
                       openLegal(
                         'Shipping & Delivery',
-                        'We deliver freshly prepared sweets across Barabanki (PIN codes: 225001, 225002, 225003, 225122) promptly after fresh preparation. Free delivery on orders above ₹499. Small nominal fee of ₹40 for smaller orders.'
+                        'We deliver freshly prepared sweets across Barabanki (PIN codes: 225001, 225002, 225003, 225122) promptly after fresh preparation. A flat delivery fee of ₹50 applies for all orders.'
                       )
                     }
                     className="hover:text-[#7A1129] transition-colors"

@@ -119,14 +119,13 @@ export const CartPage: React.FC<CartPageProps> = ({
             subtotal={subtotal}
             savings={savings}
             deliveryCharge={deliveryCharge}
-            freeDeliveryThreshold={499}
             onProceedToCheckout={handleProceed}
             checkoutButtonLabel="Proceed to Checkout"
           />
 
           <div className="p-4 rounded-xl bg-[#F3EBE0] text-xs text-[#6B6258] space-y-1 border border-[#E8DFD2]">
             <div className="font-semibold text-[#1F1B16]">Barabanki Delivery Promise:</div>
-            <div>• Free delivery on orders above ₹499</div>
+            <div>• Flat ₹50 delivery fee across all Barabanki orders</div>
             <div>• Prepared in 100% pure cow desi ghee</div>
             <div>• Insulated food-safe packaging with tamper seal</div>
           </div>

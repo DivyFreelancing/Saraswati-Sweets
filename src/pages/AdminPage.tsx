@@ -38,6 +38,8 @@ import {
   History,
   Volume2,
   VolumeX,
+  Receipt,
+  Eye,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -123,6 +125,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
   // Orders Tab filters & search
   const [orderSearchQuery, setOrderSearchQuery] = useState('');
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>('ALL');
+  const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<any | null>(null);
 
   // Confirmation Modal state
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -543,8 +546,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
     setActiveTab('orders');
     setOrderStatusFilter('ALL');
     const targetOrder = orders.find((o) => o.id === orderNumberOrId || o.order_number === orderNumberOrId);
-    if (targetOrder?.order_number) {
-      setOrderSearchQuery(targetOrder.order_number);
+    if (targetOrder) {
+      setSelectedOrderForDetails(targetOrder);
+      if (targetOrder.order_number) {
+        setOrderSearchQuery(targetOrder.order_number);
+      }
     } else {
       setOrderSearchQuery(orderNumberOrId);
     }
@@ -655,6 +661,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       const data = await res.json();
       if (res.ok) {
         setOrders((prev) => prev.map((o) => (o.id === orderId ? data.order : o)));
+        setSelectedOrderForDetails((prev: any) => (prev && prev.id === orderId ? data.order : prev));
         showToast(`Order status updated to ${nextStatus}`, 'success');
         loadAllAdminData(true);
       } else {
@@ -685,6 +692,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       const data = await res.json();
       if (res.ok) {
         setOrders((prev) => prev.map((o) => (o.id === assigningOrder.id ? data.order : o)));
+        setSelectedOrderForDetails((prev: any) => (prev && prev.id === assigningOrder.id ? data.order : prev));
         showToast(data.message || 'Delivery assigned!', 'success');
         setAssigningOrder(null);
         setSelectedPartnerId('');
@@ -708,6 +716,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       if (res.ok) {
         showToast(`Refund synced: ${data.refund?.refund_status || 'Unknown'}`, 'success');
         setOrders(prev => prev.map(o => o.id === orderId ? data.order : o));
+        setSelectedOrderForDetails((prev: any) => (prev && prev.id === orderId ? data.order : prev));
       } else {
         showToast(data.message || 'Failed to sync refund', 'error');
       }
@@ -738,6 +747,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       const data = await res.json();
       if (res.ok) {
         setOrders((prev) => prev.map((o) => (o.id === refundOrderTarget.id ? data.order : o)));
+        setSelectedOrderForDetails((prev: any) => (prev && prev.id === refundOrderTarget.id ? data.order : prev));
         showToast(`Refund of ₹${refundOrderTarget.total_amount} processed successfully!`, 'success');
         setRefundOrderTarget(null);
         loadAllAdminData(true);
@@ -1680,6 +1690,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                 const status = order.status;
                 const isPaidOnline = order.payment_method === 'ONLINE' && order.payment_status === 'CAPTURED';
 
+                // Complete, authoritative financial values
+                const itemsSubtotal = (order.subtotal && order.subtotal > 0)
+                  ? order.subtotal
+                  : (order.items?.reduce((acc: number, it: any) => acc + (it.total_price || ((it.unit_price || 0) * (it.quantity || 1)) || 0), 0) || 0);
+                const productDiscount = order.discount_amount || 0;
+                const deliveryFee = (order.delivery_charge !== undefined && order.delivery_charge !== null)
+                  ? order.delivery_charge
+                  : 50;
+                const applicableTaxes = order.tax_amount || 0;
+                const finalOrderTotal = order.total_amount;
+
                 return (
                   <div key={order.id} className="py-4 space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -1705,11 +1726,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                         <span
                           className={`text-[10px] font-bold px-2 py-0.5 rounded ${
                             order.payment_method === 'ONLINE'
-                              ? 'bg-purple-100 text-purple-800'
+                              ? order.payment_status === 'CAPTURED'
+                                ? 'bg-emerald-100 text-[#2E7D4F]'
+                                : 'bg-purple-100 text-purple-800'
                               : 'bg-stone-100 text-stone-700'
                           }`}
                         >
-                          {order.payment_method} • {order.payment_status === 'CAPTURED' ? 'COMPLETED' : order.payment_status}
+                          {order.payment_method === 'ONLINE' ? 'Online (Cashfree)' : 'Cash on Delivery'} • {order.payment_status === 'CAPTURED' ? 'Paid' : (order.payment_status || 'Pending')}
                         </span>
 
                         <span className="text-xs text-[#6B6258]">
@@ -1720,9 +1743,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                         </span>
                       </div>
 
-                    <div className="text-sm font-bold text-[#1F1B16]">
-                        {/* Bug #3 Fix: was order.total (always 0), must use order.total_amount */}
-                        {formatINR(order.total_amount)}
+                      <div className="text-right sm:text-right">
+                        <div className="text-sm font-bold text-[#1F1B16]">
+                          {formatINR(finalOrderTotal)}
+                        </div>
+                        <div className="text-[10px] text-[#6B6258] font-medium">
+                          Final Payable Total
+                        </div>
                       </div>
                     </div>
 
@@ -1743,6 +1770,48 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                         <span>Rider Assigned: {order.delivery_partner_name} ({order.delivery_partner_phone})</span>
                       </div>
                     )}
+
+                    {/* Financial Summary & Breakdown Bar */}
+                    <div className="p-3 bg-[#FBF7F1] rounded-xl border border-[#E8DFD2] flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4 text-xs flex-1">
+                        <div>
+                          <span className="block text-[10px] uppercase font-bold tracking-wider text-[#6B6258]">Items Subtotal</span>
+                          <span className="font-semibold text-[#1F1B16] tabular-nums">{formatINR(itemsSubtotal)}</span>
+                        </div>
+                        <div>
+                          <span className="block text-[10px] uppercase font-bold tracking-wider text-[#6B6258]">Product Discount</span>
+                          <span className={`font-semibold tabular-nums ${productDiscount > 0 ? 'text-[#2E7D4F]' : 'text-[#6B6258]'}`}>
+                            {productDiscount > 0 ? `−${formatINR(productDiscount)}` : '₹0'}
+                            {order.coupon_code && (
+                              <span className="ml-1 text-[10px] bg-emerald-100 text-emerald-800 px-1 py-0.5 rounded font-mono font-bold">
+                                {order.coupon_code}
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="block text-[10px] uppercase font-bold tracking-wider text-[#6B6258]">Delivery Fee</span>
+                          <span className="font-semibold text-[#1F1B16] tabular-nums">{formatINR(deliveryFee)}</span>
+                        </div>
+                        <div>
+                          <span className="block text-[10px] uppercase font-bold tracking-wider text-[#8A1538]">Final Order Total</span>
+                          <span className="font-bold text-[#8A1538] text-sm tabular-nums">{formatINR(finalOrderTotal)}</span>
+                          {applicableTaxes > 0 ? (
+                            <span className="block text-[10px] text-[#6B6258]">incl. ₹{applicableTaxes} tax</span>
+                          ) : (
+                            <span className="block text-[10px] text-stone-400">tax incl. in MRP</span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedOrderForDetails(order)}
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-[#F3EBE0] border border-[#E8DFD2] text-xs font-semibold text-[#1F1B16] transition-colors shrink-0 shadow-2xs"
+                      >
+                        <Receipt className="w-3.5 h-3.5 text-[#8A1538]" />
+                        <span>View Price Breakdown</span>
+                      </button>
+                    </div>
 
                     {/* State Machine Transition Action Buttons & Actions */}
                     <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-black/5">
@@ -3493,6 +3562,291 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
           </div>
         </div>
       )}
+
+      {/* ==================================================== */}
+      {/* MODAL 9: INDIVIDUAL ORDER DETAILS & FINANCIAL BREAKDOWN */}
+      {/* ==================================================== */}
+      {selectedOrderForDetails && (() => {
+        const modalSubtotal = (selectedOrderForDetails.subtotal && selectedOrderForDetails.subtotal > 0)
+          ? selectedOrderForDetails.subtotal
+          : (selectedOrderForDetails.items?.reduce((acc: number, it: any) => acc + (it.total_price || ((it.unit_price || 0) * (it.quantity || 1)) || 0), 0) || 0);
+        const modalDiscount = selectedOrderForDetails.discount_amount || 0;
+        const modalDeliveryFee = (selectedOrderForDetails.delivery_charge !== undefined && selectedOrderForDetails.delivery_charge !== null)
+          ? selectedOrderForDetails.delivery_charge
+          : 50;
+        const modalTaxes = selectedOrderForDetails.tax_amount || 0;
+        const modalFinalTotal = selectedOrderForDetails.total_amount;
+        const modalStatus = selectedOrderForDetails.status;
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
+            <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-white shadow-2xl border border-[#E8DFD2] overflow-hidden my-auto animate-in fade-in-50 zoom-in-95 duration-150">
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-[#E8DFD2] px-6 py-4 bg-[#FBF7F1] shrink-0">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Receipt className="w-5 h-5 text-[#8A1538]" />
+                    <h3 className="font-display font-bold text-lg text-[#1F1B16]">
+                      Order #{selectedOrderForDetails.order_number}
+                    </h3>
+                    <span
+                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                        modalStatus === 'DELIVERED'
+                          ? 'bg-emerald-100 text-[#2E7D4F]'
+                          : modalStatus === 'CANCELLED'
+                          ? 'bg-red-100 text-[#B3261E]'
+                          : modalStatus === 'REFUNDED'
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-[#F7E9EE] text-[#8A1538]'
+                      }`}
+                    >
+                      {modalStatus}
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#6B6258] mt-0.5">
+                    Placed on {new Date(selectedOrderForDetails.created_at).toLocaleString('en-IN', {
+                      dateStyle: 'medium',
+                      timeStyle: 'short',
+                    })}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrderForDetails(null)}
+                  className="p-1.5 rounded-xl text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Scrollable Content Body */}
+              <div className="p-6 overflow-y-auto space-y-5">
+                {/* 1. Customer & Delivery Information */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-stone-50/70 p-4 rounded-xl border border-[#E8DFD2]/60 text-xs">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B6258] block">Customer Details</span>
+                    <div className="font-bold text-[#1F1B16] text-sm">
+                      {selectedOrderForDetails.address_snapshot?.recipient_name || selectedOrderForDetails.recipient_name || 'Customer'}
+                    </div>
+                    <div className="text-[#6B6258] flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 text-[#8A1538]" />
+                      <span>{selectedOrderForDetails.address_snapshot?.recipient_phone || selectedOrderForDetails.guest_phone || 'N/A'}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B6258] block">Delivery Destination</span>
+                    <div className="text-[#1F1B16] leading-relaxed flex items-start gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-[#8A1538] shrink-0 mt-0.5" />
+                      <span>
+                        {selectedOrderForDetails.address_snapshot?.street_address}
+                        {selectedOrderForDetails.address_snapshot?.landmark ? `, Near ${selectedOrderForDetails.address_snapshot?.landmark}` : ''}
+                        <br />
+                        {selectedOrderForDetails.address_snapshot?.city || 'Barabanki'}, {selectedOrderForDetails.address_snapshot?.state || 'Uttar Pradesh'} - {selectedOrderForDetails.address_snapshot?.pincode || '225001'}
+                      </span>
+                    </div>
+                    {selectedOrderForDetails.delivery_partner_name && (
+                      <div className="text-[#2E7D4F] flex items-center gap-1 font-semibold pt-1">
+                        <Bike className="w-3.5 h-3.5" />
+                        <span>Rider: {selectedOrderForDetails.delivery_partner_name} ({selectedOrderForDetails.delivery_partner_phone})</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. Itemized Products Table */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-display font-bold text-sm text-[#1F1B16] flex items-center gap-1.5">
+                      <Package className="w-4 h-4 text-[#8A1538]" />
+                      <span>Ordered Products ({selectedOrderForDetails.items?.length || 0} items)</span>
+                    </h4>
+                  </div>
+
+                  <div className="border border-[#E8DFD2] rounded-xl overflow-hidden">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-[#FBF7F1] border-b border-[#E8DFD2] text-[#6B6258] font-bold uppercase tracking-wider text-[10px]">
+                        <tr>
+                          <th className="py-2.5 px-3">Product & Pack / Weight</th>
+                          <th className="py-2.5 px-3 text-right">Unit Price</th>
+                          <th className="py-2.5 px-3 text-center">Qty</th>
+                          <th className="py-2.5 px-3 text-right">Line Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#E8DFD2]">
+                        {selectedOrderForDetails.items?.map((it: any, idx: number) => {
+                          const unitPrice = it.unit_price || (it.quantity ? Math.round((it.total_price || 0) / it.quantity) : 0);
+                          const lineTotal = it.total_price || (unitPrice * (it.quantity || 1));
+
+                          return (
+                            <tr key={idx} className="hover:bg-stone-50/50">
+                              <td className="py-2.5 px-3">
+                                <div className="font-semibold text-[#1F1B16]">{it.product_name}</div>
+                                <div className="text-[11px] text-[#6B6258]">{it.variant_label}</div>
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-medium text-[#1F1B16] tabular-nums">
+                                {formatINR(unitPrice)}
+                              </td>
+                              <td className="py-2.5 px-3 text-center font-bold text-[#1F1B16] tabular-nums">
+                                × {it.quantity}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-bold text-[#1F1B16] tabular-nums">
+                                {formatINR(lineTotal)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* 3. Dedicated Order Price Breakdown Section */}
+                <div className="bg-[#FBF7F1] rounded-2xl border border-[#E8DFD2] p-4 sm:p-5 space-y-3.5 shadow-2xs">
+                  <div className="flex items-center justify-between border-b border-[#E8DFD2] pb-2.5">
+                    <h4 className="font-display font-bold text-sm text-[#1F1B16] flex items-center gap-1.5">
+                      <IndianRupee className="w-4 h-4 text-[#8A1538]" />
+                      <span>Order Price Breakdown</span>
+                    </h4>
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-[#6B6258] bg-stone-100 px-2 py-0.5 rounded border border-[#E8DFD2]">
+                      Authoritative Persisted Totals
+                    </span>
+                  </div>
+
+                  <div className="space-y-2.5 text-xs">
+                    {/* Items Subtotal */}
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <span className="font-medium text-[#1F1B16]">Items Subtotal</span>
+                        <span className="text-[10px] text-[#6B6258] block">Total price of products before discounts and delivery</span>
+                      </div>
+                      <span className="font-semibold text-[#1F1B16] tabular-nums text-sm">{formatINR(modalSubtotal)}</span>
+                    </div>
+
+                    {/* Product Discount */}
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <span className="font-medium text-[#1F1B16]">Product Discount</span>
+                        {selectedOrderForDetails.coupon_code && (
+                          <span className="ml-1.5 text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-mono font-bold">
+                            Coupon: {selectedOrderForDetails.coupon_code}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-[#6B6258] block">
+                          {modalDiscount > 0 ? 'Discount applied through coupons or special offers' : 'No promotional coupon or offer applied'}
+                        </span>
+                      </div>
+                      <span className={`font-semibold tabular-nums text-sm ${modalDiscount > 0 ? 'text-[#2E7D4F]' : 'text-[#6B6258]'}`}>
+                        {modalDiscount > 0 ? `−${formatINR(modalDiscount)}` : '₹0'}
+                      </span>
+                    </div>
+
+                    {/* Delivery Fee */}
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <span className="font-medium text-[#1F1B16]">Delivery Fee</span>
+                        <span className="text-[10px] text-[#6B6258] block">Flat delivery fee across Barabanki</span>
+                      </div>
+                      <span className="font-semibold text-[#1F1B16] tabular-nums text-sm">{formatINR(modalDeliveryFee)}</span>
+                    </div>
+
+                    {/* Taxes */}
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <span className="font-medium text-[#1F1B16]">Taxes (GST)</span>
+                        <span className="text-[10px] text-[#6B6258] block">
+                          {modalTaxes > 0 ? 'Applicable GST added to order' : 'Inclusive in sweets MRP (0% additional tax)'}
+                        </span>
+                      </div>
+                      <span className="font-semibold text-[#1F1B16] tabular-nums text-sm">
+                        {modalTaxes > 0 ? formatINR(modalTaxes) : '₹0'}
+                      </span>
+                    </div>
+
+                    {/* Final Order Total */}
+                    <div className="pt-3 border-t-2 border-[#E8DFD2] flex justify-between items-baseline">
+                      <div>
+                        <span className="text-base font-bold text-[#1F1B16] block">Final Order Total</span>
+                        <span className="text-[11px] text-[#6B6258]">Exact final amount payable by customer</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-2xl font-display font-bold text-[#8A1538] tabular-nums">
+                          {formatINR(modalFinalTotal)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Mathematical verification summary */}
+                    <div className="p-2.5 rounded-xl bg-white/80 border border-[#E8DFD2] text-[11px] font-mono text-[#6B6258] flex flex-wrap items-center justify-between gap-1">
+                      <span>
+                        Calculation: {formatINR(modalSubtotal)} (Subtotal) − {formatINR(modalDiscount)} (Discount) + {formatINR(modalDeliveryFee)} (Delivery){modalTaxes > 0 ? ` + ${formatINR(modalTaxes)} (Tax)` : ''} =
+                      </span>
+                      <span className="font-bold text-[#8A1538]">{formatINR(modalFinalTotal)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Payment & Gateway System Information */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-xl border border-[#E8DFD2] bg-stone-50/60 text-xs">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B6258] block">Payment Method</span>
+                    <div className="font-bold text-[#1F1B16] mt-0.5">
+                      {selectedOrderForDetails.payment_method === 'ONLINE' ? 'Online Payment (Cashfree Payment Gateway)' : 'Cash on Delivery (COD)'}
+                    </div>
+                    <div className="text-[11px] text-[#6B6258] mt-1">
+                      {selectedOrderForDetails.payment_method === 'ONLINE' ? (
+                        <span>Gateway Ref: <code className="bg-stone-200/80 px-1 py-0.5 rounded text-[10px]">{selectedOrderForDetails.provider_order_id || 'N/A'}</code></span>
+                      ) : (
+                        <span>Pay exact cash upon door delivery</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B6258] block">Payment Status</span>
+                    <div className="mt-0.5">
+                      <span
+                        className={`inline-block text-[11px] font-bold px-2 py-0.5 rounded ${
+                          selectedOrderForDetails.payment_status === 'CAPTURED'
+                            ? 'bg-emerald-100 text-[#2E7D4F]'
+                            : selectedOrderForDetails.payment_status === 'FAILED'
+                            ? 'bg-red-100 text-[#B3261E]'
+                            : selectedOrderForDetails.payment_status?.includes('REFUND')
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}
+                      >
+                        {selectedOrderForDetails.payment_status === 'CAPTURED'
+                          ? 'Paid (CAPTURED)'
+                          : (selectedOrderForDetails.payment_status || 'Pending')}
+                      </span>
+                    </div>
+                    {selectedOrderForDetails.provider_payment_id && (
+                      <div className="text-[11px] text-[#6B6258] mt-1">
+                        Payment ID: <code className="bg-stone-200/80 px-1 py-0.5 rounded text-[10px]">{selectedOrderForDetails.provider_payment_id}</code>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="border-t border-[#E8DFD2] px-6 py-3.5 bg-[#FBF7F1] flex items-center justify-between gap-3 shrink-0">
+                <div className="text-xs text-[#6B6258]">
+                  Order Status: <strong className="text-[#1F1B16]">{modalStatus}</strong>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrderForDetails(null)}
+                  className="px-5 py-2 rounded-xl bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-bold shadow-xs transition-colors"
+                >
+                  Close Details
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Floating Real-Time New Order Alerts & Autoplay Banner */}
       <AdminOrderNotificationBanner
