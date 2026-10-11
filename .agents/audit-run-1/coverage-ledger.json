@@ -1,0 +1,304 @@
+[
+  {
+    "canonical_refs": {
+      "surface": "server/authMiddleware.ts#authenticateToken",
+      "boundary": "server/authMiddleware.ts#requireRole",
+      "subsystem": "server/authMiddleware",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "server/authMiddleware.ts#authenticateToken",
+    "boundary": "server/authMiddleware.ts#requireRole",
+    "subsystem": "server/authMiddleware",
+    "attack_class": "ATTACK-CLASSES.md#Access control",
+    "starting_paths": [
+      "server/authMiddleware.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#Federated-identity attack classes"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "CLIENT-SIDE.md#Core discipline",
+        "reason": "This unit focuses exclusively on server-side token authentication and role checking."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-auth",
+    "reviewed_paths": [
+      "server/authMiddleware.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-auth",
+        "reviewed_paths": [
+          "server/authMiddleware.ts"
+        ],
+        "invariant": "Unverified or unsigned tokens must never yield administrative authority.",
+        "method": "source",
+        "result": "Violation identified: authMiddleware.ts decodes unverified token payload and grants ADMIN role when decoded.role equals service_role.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "auth-query-parameter-token-credential-leak",
+      "auth-unverified-jwt-admin-privilege-escalation"
+    ],
+    "unresolved": [],
+    "coverage_id": "server%2FauthMiddleware.ts%23authenticateToken::server%2FauthMiddleware.ts%23requireRole::server%2FauthMiddleware::ATTACK-CLASSES.md%23Access%20control"
+  },
+  {
+    "canonical_refs": {
+      "surface": "server/routes/addressRoutes.ts#GET /api/addresses",
+      "boundary": "server/authMiddleware.ts#requireAuth",
+      "subsystem": "server/routes",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "server/routes/addressRoutes.ts#GET /api/addresses",
+    "boundary": "server/authMiddleware.ts#requireAuth",
+    "subsystem": "server/routes",
+    "attack_class": "ATTACK-CLASSES.md#Access control",
+    "starting_paths": [
+      "server/routes/addressRoutes.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "CLOUD-AND-DEPLOYMENT.md#Core discipline",
+        "reason": "Unit inspects route handler address filtering, not cloud IAM configuration."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-address",
+    "reviewed_paths": [
+      "server/routes/addressRoutes.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-address",
+        "reviewed_paths": [
+          "server/routes/addressRoutes.ts"
+        ],
+        "invariant": "Saved addresses must be strictly isolated to the authenticated user ID.",
+        "method": "source",
+        "result": "Verified: address queries in Supabase and in-memory store enforce user_id / profile_id match.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": [],
+    "coverage_id": "server%2Froutes%2FaddressRoutes.ts%23GET%20%2Fapi%2Faddresses::server%2FauthMiddleware.ts%23requireAuth::server%2Froutes::ATTACK-CLASSES.md%23Access%20control"
+  },
+  {
+    "canonical_refs": {
+      "surface": "server/routes/cartRoutes.ts#POST /api/cart/verify",
+      "boundary": "server/routes/cartRoutes.ts#computeServerCart",
+      "subsystem": "server/routes",
+      "attack_class": "ATTACK-CLASSES.md#Business logic"
+    },
+    "surface": "server/routes/cartRoutes.ts#POST /api/cart/verify",
+    "boundary": "server/routes/cartRoutes.ts#computeServerCart",
+    "subsystem": "server/routes",
+    "attack_class": "ATTACK-CLASSES.md#Business logic",
+    "starting_paths": [
+      "server/routes/cartRoutes.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Core discipline",
+        "reason": "Application runs in TypeScript/Node.js runtime without native binary modules."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-cart",
+    "reviewed_paths": [
+      "server/routes/cartRoutes.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-cart",
+        "reviewed_paths": [
+          "server/routes/cartRoutes.ts"
+        ],
+        "invariant": "Cart calculations must recalculate prices server-side and clamp input quantities.",
+        "method": "source",
+        "result": "Verified: computeServerCart looks up master product and hamper prices and clamps quantity to [1, 20].",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": [],
+    "coverage_id": "server%2Froutes%2FcartRoutes.ts%23POST%20%2Fapi%2Fcart%2Fverify::server%2Froutes%2FcartRoutes.ts%23computeServerCart::server%2Froutes::ATTACK-CLASSES.md%23Business%20logic"
+  },
+  {
+    "canonical_refs": {
+      "surface": "server/routes/orderRoutes.ts#GET /api/orders/:orderNumber",
+      "boundary": "server/authMiddleware.ts#requireAuth",
+      "subsystem": "server/routes",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "server/routes/orderRoutes.ts#GET /api/orders/:orderNumber",
+    "boundary": "server/authMiddleware.ts#requireAuth",
+    "subsystem": "server/routes",
+    "attack_class": "ATTACK-CLASSES.md#Access control",
+    "starting_paths": [
+      "server/routes/orderRoutes.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "AI-AND-LLM.md#Core discipline",
+        "reason": "The order lookup workflow does not involve LLM or AI components."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-order",
+    "reviewed_paths": [
+      "server/routes/orderRoutes.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-order",
+        "reviewed_paths": [
+          "server/routes/orderRoutes.ts"
+        ],
+        "invariant": "Authenticated customers must not access orders belonging to other customers or unauthenticated guest purchasers.",
+        "method": "source",
+        "result": "Violation identified: orderRoutes.ts line 780 checks ownership only when order.user_id is present, allowing any customer to read unmasked guest orders.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "order-idor-guest-order-pii-exposure"
+    ],
+    "unresolved": [],
+    "coverage_id": "server%2Froutes%2ForderRoutes.ts%23GET%20%2Fapi%2Forders%2F%3AorderNumber::server%2FauthMiddleware.ts%23requireAuth::server%2Froutes::ATTACK-CLASSES.md%23Access%20control"
+  },
+  {
+    "canonical_refs": {
+      "surface": "server/routes/paymentRoutes.ts#POST /api/payments/webhook",
+      "boundary": "server/services/cashfreeService.ts#verifyWebhookSignature",
+      "subsystem": "server/services",
+      "attack_class": "ATTACK-CLASSES.md#Cryptography and secrets"
+    },
+    "surface": "server/routes/paymentRoutes.ts#POST /api/payments/webhook",
+    "boundary": "server/services/cashfreeService.ts#verifyWebhookSignature",
+    "subsystem": "server/services",
+    "attack_class": "ATTACK-CLASSES.md#Cryptography and secrets",
+    "starting_paths": [
+      "server/routes/paymentRoutes.ts",
+      "server/services/cashfreeService.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Cryptography and secrets",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "PROTOCOLS-RPC-AND-MESSAGING.md#Core discipline"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Core discipline",
+        "reason": "Target is a backend web service, not a desktop or mobile application."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-payment",
+    "reviewed_paths": [
+      "server/routes/paymentRoutes.ts",
+      "server/services/cashfreeService.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-payment",
+        "reviewed_paths": [
+          "server/routes/paymentRoutes.ts",
+          "server/services/cashfreeService.ts"
+        ],
+        "invariant": "Webhooks must require strict timestamp freshness to prevent delayed execution or replay window exposure.",
+        "method": "source",
+        "result": "Candidate identified: verifyWebhookSignature does not validate timestamp freshness bounds against current server clock.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "cashfree-webhook-timestamp-skew-unbounded"
+    ],
+    "unresolved": [],
+    "coverage_id": "server%2Froutes%2FpaymentRoutes.ts%23POST%20%2Fapi%2Fpayments%2Fwebhook::server%2Fservices%2FcashfreeService.ts%23verifyWebhookSignature::server%2Fservices::ATTACK-CLASSES.md%23Cryptography%20and%20secrets"
+  },
+  {
+    "canonical_refs": {
+      "surface": "server.ts#app.use(express.json)",
+      "boundary": "server.ts#bodyLimit",
+      "subsystem": "server",
+      "attack_class": "ATTACK-CLASSES.md#Resource and file handling"
+    },
+    "surface": "server.ts#app.use(express.json)",
+    "boundary": "server.ts#bodyLimit",
+    "subsystem": "server",
+    "attack_class": "ATTACK-CLASSES.md#Resource and file handling",
+    "starting_paths": [
+      "server.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Core discipline"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "SUPPLY-CHAIN-AND-RELEASE.md#Core discipline",
+        "reason": "Unit reviews request parser limit rather than npm package integrity."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-dos",
+    "reviewed_paths": [
+      "server.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-dos",
+        "reviewed_paths": [
+          "server.ts"
+        ],
+        "invariant": "Public body parser limits must prevent unbounded memory exhaustion.",
+        "method": "source",
+        "result": "Verified: express.json limit is bounded to 50mb (noted as hardening recommendation to reduce on non-media routes).",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": [],
+    "coverage_id": "server.ts%23app.use%28express.json%29::server.ts%23bodyLimit::server::ATTACK-CLASSES.md%23Resource%20and%20file%20handling"
+  }
+]

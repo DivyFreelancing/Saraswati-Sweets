@@ -174,7 +174,20 @@ router.post('/upload-image', async (req: AuthenticatedRequest, res: Response) =>
 
   const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, '');
   const buffer = Buffer.from(base64Data, 'base64');
-  const uploadPath = path || `products/${Date.now()}-${fileName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+  let uploadPath: string;
+  if (typeof path === 'string' && path.trim()) {
+    const cleaned = path.trim().replace(/\\/g, '/');
+    if (cleaned.includes('..') || cleaned.startsWith('/') || !cleaned.startsWith('products/')) {
+      res.status(400).json({
+        error: 'INVALID_PATH',
+        message: 'Upload path must start with products/ and cannot contain directory traversal characters.'
+      });
+      return;
+    }
+    uploadPath = cleaned;
+  } else {
+    uploadPath = `products/${Date.now()}-${fileName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+  }
 
   const { data, error } = await supabaseServer!.storage
     .from('product-images')

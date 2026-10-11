@@ -775,9 +775,15 @@ router.get('/orders/:orderNumber', requireAuth, async (req: AuthenticatedRequest
     return;
   }
 
-  // If user is authenticated and not staff, verify ownership
+  // If user is authenticated and not staff, strictly verify ownership or phone match
   if (req.user && req.user.role === 'CUSTOMER') {
-    if (order.user_id && order.user_id !== req.user.id) {
+    const isOwner = Boolean(order.user_id && order.user_id === req.user.id);
+    const userCleanPhone = req.user.phone ? req.user.phone.replace(/\D/g, '').slice(-10) : '';
+    const guestPhone = (order.guest_phone || '').replace(/\D/g, '').slice(-10);
+    const recipientPhone = (order.address_snapshot?.recipient_phone || '').replace(/\D/g, '').slice(-10);
+    const isPhoneMatch = Boolean(userCleanPhone && (guestPhone === userCleanPhone || recipientPhone === userCleanPhone));
+
+    if (!isOwner && !isPhoneMatch) {
       res.status(404).json({ error: 'ORDER_NOT_FOUND', message: `Order #${orderNumber} not found.` });
       return;
     }

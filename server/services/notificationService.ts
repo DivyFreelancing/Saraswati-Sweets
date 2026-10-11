@@ -983,16 +983,16 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
     subject: `[NEW ${isTakeaway ? 'TAKEAWAY' : 'DELIVERY'} ORDER ALERT] #${order.order_number} - ₹${order.total_amount} (${order.payment_method})`,
     html: `
       <div style="font-family: Arial, sans-serif; padding: 20px;">
-        <h2>New Order Received: #${order.order_number} [${isTakeaway ? 'TAKEAWAY / STORE PICKUP' : 'HOME DELIVERY'}]</h2>
-        <p><strong>Customer:</strong> ${order.address_snapshot.recipient_name} (${order.address_snapshot.recipient_phone})</p>
-        <p><strong>Fulfillment:</strong> ${isTakeaway ? `Store Counter Pickup (${pickupTimeText})` : 'Fresh Direct Delivery'}</p>
-        ${isTakeaway ? `<p><strong>Scheduled Slot:</strong> ${pickupTimeText}</p>` : `<p><strong>Address:</strong> ${order.address_snapshot.street_address}, Barabanki - ${order.address_snapshot.pincode}</p>`}
+        <h2>New Order Received: #${escapeHtml(order.order_number)} [${isTakeaway ? 'TAKEAWAY / STORE PICKUP' : 'HOME DELIVERY'}]</h2>
+        <p><strong>Customer:</strong> ${escapeHtml(order.address_snapshot.recipient_name)} (${escapeHtml(order.address_snapshot.recipient_phone)})</p>
+        <p><strong>Fulfillment:</strong> ${isTakeaway ? `Store Counter Pickup (${escapeHtml(pickupTimeText)})` : 'Fresh Direct Delivery'}</p>
+        ${isTakeaway ? `<p><strong>Scheduled Slot:</strong> ${escapeHtml(pickupTimeText)}</p>` : `<p><strong>Address:</strong> ${escapeHtml(order.address_snapshot.street_address)}, Barabanki - ${escapeHtml(order.address_snapshot.pincode)}</p>`}
         <p><strong>Items:</strong></p>
         <ul>
-          ${order.items.map((i) => `<li>${i.product_name} (${i.variant_label}) x ${i.quantity} = ₹${i.total_price}</li>`).join('')}
+          ${order.items.map((i) => `<li>${escapeHtml(i.product_name)} (${escapeHtml(i.variant_label)}) x ${i.quantity} = ₹${i.total_price}</li>`).join('')}
         </ul>
-        <p><strong>Order Total:</strong> ₹${order.total_amount} [${order.payment_method} / ${order.payment_status}]</p>
-        <p><strong>Order Tracking Link:</strong> <a href="${trackingUrl}">${trackingUrl}</a></p>
+        <p><strong>Order Total:</strong> ₹${order.total_amount} [${escapeHtml(order.payment_method)} / ${escapeHtml(order.payment_status)}]</p>
+        <p><strong>Order Tracking Link:</strong> <a href="${escapeHtml(trackingUrl)}">${escapeHtml(trackingUrl)}</a></p>
       </div>
     `,
   });
@@ -1153,18 +1153,18 @@ export async function notifyNewBulkEnquiry(enquiry: ServerBulkEnquiry): Promise<
     subject: `[NEW BULK ENQUIRY] ${enquiry.event_type} - ${enquiry.contact_name} (${enquiry.phone})`,
     html: `
       <div style="font-family: Arial, sans-serif; padding: 20px;">
-        <h2 style="color: #8A1538;">New Bulk Mithai Enquiry: ${enquiry.enquiry_number}</h2>
-        <p><strong>Name:</strong> ${enquiry.contact_name} ${enquiry.organization_name ? `(${enquiry.organization_name})` : ''}</p>
-        <p><strong>Phone:</strong> <a href="tel:${enquiry.phone}">${enquiry.phone}</a></p>
-        <p><strong>Email:</strong> ${enquiry.email || 'Not provided'}</p>
-        <p><strong>Event Type:</strong> ${enquiry.event_type}</p>
-        <p><strong>Target Date:</strong> ${enquiry.event_date}</p>
-        <p><strong>Estimated Quantity:</strong> ${enquiry.estimated_quantity_kg ? `${enquiry.estimated_quantity_kg} kg` : 'Not specified'}</p>
-        <p><strong>Estimated Guests:</strong> ${enquiry.estimated_guests || 'Not specified'}</p>
-        <p><strong>Budget Range:</strong> ${enquiry.budget_range || 'Not specified'}</p>
-        <p><strong>Delivery Address:</strong> ${enquiry.delivery_address || 'Barabanki'}</p>
-        <p><strong>Requested Sweets:</strong> ${enquiry.requested_sweets || 'None'}</p>
-        <p><strong>Client Notes:</strong> ${enquiry.notes || 'None'}</p>
+        <h2 style="color: #8A1538;">New Bulk Mithai Enquiry: ${escapeHtml(enquiry.enquiry_number)}</h2>
+        <p><strong>Name:</strong> ${escapeHtml(enquiry.contact_name)} ${enquiry.organization_name ? `(${escapeHtml(enquiry.organization_name)})` : ''}</p>
+        <p><strong>Phone:</strong> <a href="tel:${escapeHtml(enquiry.phone)}">${escapeHtml(enquiry.phone)}</a></p>
+        <p><strong>Email:</strong> ${enquiry.email ? escapeHtml(enquiry.email) : 'Not provided'}</p>
+        <p><strong>Event Type:</strong> ${escapeHtml(enquiry.event_type)}</p>
+        <p><strong>Target Date:</strong> ${escapeHtml(enquiry.event_date)}</p>
+        <p><strong>Estimated Quantity:</strong> ${enquiry.estimated_quantity_kg ? `${escapeHtml(String(enquiry.estimated_quantity_kg))} kg` : 'Not specified'}</p>
+        <p><strong>Estimated Guests:</strong> ${enquiry.estimated_guests ? escapeHtml(String(enquiry.estimated_guests)) : 'Not specified'}</p>
+        <p><strong>Budget Range:</strong> ${enquiry.budget_range ? escapeHtml(enquiry.budget_range) : 'Not specified'}</p>
+        <p><strong>Delivery Address:</strong> ${enquiry.delivery_address ? escapeHtml(enquiry.delivery_address) : 'Barabanki'}</p>
+        <p><strong>Requested Sweets:</strong> ${enquiry.requested_sweets ? escapeHtml(enquiry.requested_sweets) : 'None'}</p>
+        <p><strong>Client Notes:</strong> ${enquiry.notes ? escapeHtml(enquiry.notes) : 'None'}</p>
       </div>
     `,
   });
@@ -1178,9 +1178,9 @@ export async function notifyNewBulkEnquiry(enquiry: ServerBulkEnquiry): Promise<
       subject: `Enquiry Received: Saraswati Sweets Bulk & Wedding Gifting (${enquiry.enquiry_number})`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e8dfd2; border-radius: 8px;">
-          <h2 style="color: #8A1538;">Namaste ${enquiry.contact_name},</h2>
-          <p>Thank you for reaching out to Saraswati Sweets (Barabanki) for your upcoming <strong>${enquiry.event_type}</strong> celebration on <strong>${enquiry.event_date}</strong>.</p>
-          <p>Our senior order coordinator has received your enquiry (Ref: <strong>${enquiry.enquiry_number}</strong>) and will call you on <strong>${enquiry.phone}</strong> with wholesale bulk rates, custom box packaging choices, and complimentary sample tasting options.</p>
+          <h2 style="color: #8A1538;">Namaste ${escapeHtml(enquiry.contact_name)},</h2>
+          <p>Thank you for reaching out to Saraswati Sweets (Barabanki) for your upcoming <strong>${escapeHtml(enquiry.event_type)}</strong> celebration on <strong>${escapeHtml(enquiry.event_date)}</strong>.</p>
+          <p>Our senior order coordinator has received your enquiry (Ref: <strong>${escapeHtml(enquiry.enquiry_number)}</strong>) and will call you on <strong>${escapeHtml(enquiry.phone)}</strong> with wholesale bulk rates, custom box packaging choices, and complimentary sample tasting options.</p>
           <p>We look forward to sweetening your auspicious occasion with 100% pure cow desi ghee craftsmanship.</p>
           <p style="margin-top: 20px; font-size: 13px; color: #6B6258;">Saraswati Sweets • Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001 • Tel: ${STORE_SETTINGS.store_phone}</p>
         </div>

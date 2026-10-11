@@ -1,0 +1,31 @@
+{
+  "run_id": "run-1",
+  "repo": "saraswati-sweets---artisanal-mithai-&-namkeen",
+  "target": ".",
+  "source_ref": "fdde42afef45c351e2586379ba892f3ee1beeb2e",
+  "profile": "standard",
+  "scope_paths": [
+    "server/",
+    "server.ts",
+    "src/"
+  ],
+  "budget": null,
+  "execution_policy": "sandboxed-source-and-local-only",
+  "selected_companion_files": [
+    "WEB-PROTOCOL-AND-AUTH.md",
+    "DATA-ISOLATION-AND-LIFECYCLE.md",
+    "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md",
+    "PROTOCOLS-RPC-AND-MESSAGING.md"
+  ],
+  "prior_run_paths": [],
+  "shared_file_owners": {
+    "run-metadata.json": "parent",
+    "architecture.md": "parent",
+    "coverage-ledger.json": "parent",
+    "findings.json": "parent",
+    "REPORT.md": "parent",
+    "FINDINGS-DETAIL.md": "parent",
+    "NEEDS-VALIDATION.md": "parent"
+  },
+  "run_status": "complete"
+}

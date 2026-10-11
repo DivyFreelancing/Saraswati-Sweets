@@ -143,6 +143,14 @@ async function startServer() {
     message: { error: 'Too many webhook requests, please try again later.' },
   });
 
+  const enquiryLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10, // Limit each IP to 10 bulk enquiry submissions per 15 minutes to protect transactional email quotas
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many enquiry requests from this IP, please try again later.' },
+  });
+
   app.use('/api/auth', sensitiveLimiter, authRoutes);
   app.use('/api/checkout', checkoutLimiter);
   app.use('/api/cart', cartRoutes);
@@ -150,6 +158,7 @@ async function startServer() {
   app.use('/api/admin', adminRoutes);
   app.use('/api/payments/webhook', webhookLimiter);
   app.use('/api/payments', sensitiveLimiter, paymentRoutes); // Mounts /api/payments/verify, /api/payments/webhook/cashfree
+  app.use('/api/enquiries', enquiryLimiter); // Protect outbound ZeptoMail transactional quota against bot spam
   app.use('/api', apiLimiter, orderRoutes); // Mounts /api/checkout, /api/orders
   app.use('/api', publicRoutes); // Mounts /api/offers, /api/banners, /api/hampers, /api/enquiries, /api/notifications, /api/products/:id/reviews
 

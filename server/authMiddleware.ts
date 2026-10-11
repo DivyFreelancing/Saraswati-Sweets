@@ -16,8 +16,6 @@ export async function authenticateToken(
 
   if (authHeader && authHeader.startsWith('Bearer ')) {
     token = authHeader.split(' ')[1]?.trim();
-  } else if (typeof req.query?.token === 'string') {
-    token = req.query.token.trim();
   }
 
   if (!token) {
@@ -78,8 +76,8 @@ export async function authenticateToken(
       }
     }
 
-    // Fallback: Attempt decode JWT / session token payload if not resolved by Supabase
-    if (!req.user) {
+    // In unit test harness mode only (UNIT_TEST=true), allow resolving existing in-memory mock test profiles
+    if (!req.user && process.env.UNIT_TEST === 'true') {
       try {
         let payloadJson: string | null = null;
         if (token.includes('.')) {
@@ -94,35 +92,13 @@ export async function authenticateToken(
         if (payloadJson) {
           const decoded = JSON.parse(payloadJson);
           const userId = decoded.sub || decoded.id;
-
-          // Check token expiration (exp is in epoch seconds per JWT standard)
-          if (decoded.exp) {
-            const expMs = decoded.exp > 1e11 ? decoded.exp : decoded.exp * 1000;
-            if (Date.now() >= expMs) {
-              // Token has expired! Do not authenticate.
-              return next();
-            }
-          }
-
-          if (userId) {
-            let existing = inMemoryStore.profiles.get(userId);
-            if (!existing) {
-              existing = {
-                id: userId,
-                phone: decoded.phone || (decoded.user_metadata?.phone as string),
-                email: decoded.email,
-                full_name: decoded.user_metadata?.full_name || decoded.full_name || '',
-                role: decoded.role === 'service_role' ? 'ADMIN' : 'CUSTOMER',
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              };
-              inMemoryStore.profiles.set(userId, existing);
-            }
-            req.user = existing;
+          if (userId && inMemoryStore.profiles.has(userId)) {
+            // Strictly resolve only pre-existing mock profiles; never auto-grant roles or ADMIN permissions
+            req.user = inMemoryStore.profiles.get(userId);
           }
         }
       } catch {
-        // not a valid JWT or JSON token
+        // invalid test token
       }
     }
 

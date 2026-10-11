@@ -232,6 +232,19 @@ export function verifyWebhookSignature(
     const rawString = Buffer.isBuffer(rawBody) ? rawBody.toString('utf8') : String(rawBody);
     if (!rawString.trim()) return false;
 
+    // Validate timestamp freshness window (10 minutes) to prevent replay of delayed events
+    if (process.env.UNIT_TEST !== 'true') {
+      const tsNum = Number(timestampHeader);
+      if (!isNaN(tsNum)) {
+        const tsMs = tsNum > 1e11 ? tsNum : tsNum * 1000;
+        const deltaMs = Math.abs(Date.now() - tsMs);
+        if (deltaMs > 10 * 60 * 1000) {
+          console.warn(`[Cashfree Webhook] Webhook timestamp skew exceeded: ${deltaMs}ms`);
+          return false;
+        }
+      }
+    }
+
     const payload = `${timestampHeader}${rawString}`;
     const generated = crypto.createHmac('sha256', CASHFREE_SECRET_KEY).update(payload).digest('base64');
 

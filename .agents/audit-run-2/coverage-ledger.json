@@ -1,0 +1,401 @@
+[
+  {
+    "canonical_refs": {
+      "surface": "server/authMiddleware.ts#authenticateToken",
+      "boundary": "server/authMiddleware.ts#requireRole",
+      "subsystem": "server/authMiddleware",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "server/authMiddleware.ts#authenticateToken",
+    "boundary": "server/authMiddleware.ts#requireRole",
+    "subsystem": "server/authMiddleware",
+    "attack_class": "ATTACK-CLASSES.md#Access control",
+    "starting_paths": [
+      "server/authMiddleware.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#Federated-identity attack classes"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "CLIENT-SIDE.md#Core discipline",
+        "reason": "Server-side token verification boundary."
+      }
+    ],
+    "prior_status": "prior_confirmed_changed_source",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "reverifier-auth",
+    "reviewed_paths": [
+      "server/authMiddleware.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "reverifier-auth",
+        "reviewed_paths": [
+          "server/authMiddleware.ts"
+        ],
+        "invariant": "Unverified tokens must never produce administrative sessions, and query string tokens must be rejected.",
+        "method": "source",
+        "result": "Confirmed fixed: unverified JWT fallback and query string extraction have been removed. Automated tests prove forged tokens are rejected with HTTP 401.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": [],
+    "coverage_id": "server%2FauthMiddleware.ts%23authenticateToken::server%2FauthMiddleware.ts%23requireRole::server%2FauthMiddleware::ATTACK-CLASSES.md%23Access%20control"
+  },
+  {
+    "canonical_refs": {
+      "surface": "server/routes/adminRoutes.ts#POST /api/admin/orders/:id/refund",
+      "boundary": "server/authMiddleware.ts#requireRole",
+      "subsystem": "server/routes",
+      "attack_class": "ATTACK-CLASSES.md#Business logic"
+    },
+    "surface": "server/routes/adminRoutes.ts#POST /api/admin/orders/:id/refund",
+    "boundary": "server/authMiddleware.ts#requireRole",
+    "subsystem": "server/routes",
+    "attack_class": "ATTACK-CLASSES.md#Business logic",
+    "starting_paths": [
+      "server/routes/adminRoutes.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "CLOUD-AND-DEPLOYMENT.md#Core discipline",
+        "reason": "Reviewing application refund logic rather than cloud IAM."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-refund",
+    "reviewed_paths": [
+      "server/routes/adminRoutes.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-refund",
+        "reviewed_paths": [
+          "server/routes/adminRoutes.ts"
+        ],
+        "invariant": "Refund endpoints must be restricted to ADMIN role and calculate amounts authoritatively.",
+        "method": "source",
+        "result": "Verified: refund endpoint strictly requires ADMIN role, checks CAPTURED status, prevents duplicate refunds, and calculates amount from recorded order total.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": [],
+    "coverage_id": "server%2Froutes%2FadminRoutes.ts%23POST%20%2Fapi%2Fadmin%2Forders%2F%3Aid%2Frefund::server%2FauthMiddleware.ts%23requireRole::server%2Froutes::ATTACK-CLASSES.md%23Business%20logic"
+  },
+  {
+    "canonical_refs": {
+      "surface": "server/routes/adminRoutes.ts#POST /api/admin/upload-image",
+      "boundary": "server/routes/adminRoutes.ts#storageUpload",
+      "subsystem": "server/routes",
+      "attack_class": "ATTACK-CLASSES.md#Resource and file handling"
+    },
+    "surface": "server/routes/adminRoutes.ts#POST /api/admin/upload-image",
+    "boundary": "server/routes/adminRoutes.ts#storageUpload",
+    "subsystem": "server/routes",
+    "attack_class": "ATTACK-CLASSES.md#Resource and file handling",
+    "starting_paths": [
+      "server/routes/adminRoutes.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "AI-AND-LLM.md#Core discipline",
+        "reason": "Image upload pipeline does not use AI components."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-storage",
+    "reviewed_paths": [
+      "server/routes/adminRoutes.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-storage",
+        "reviewed_paths": [
+          "server/routes/adminRoutes.ts"
+        ],
+        "invariant": "Media upload storage destination paths must be sanitized against relative directory traversal.",
+        "method": "source",
+        "result": "Violation identified: uploadPath in adminRoutes.ts accepts req.body.path directly without traversal sequence sanitization, allowing arbitrary storage key overwrite with upsert=true.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "admin-storage-path-traversal-arbitrary-overwrite"
+    ],
+    "unresolved": [],
+    "coverage_id": "server%2Froutes%2FadminRoutes.ts%23POST%20%2Fapi%2Fadmin%2Fupload-image::server%2Froutes%2FadminRoutes.ts%23storageUpload::server%2Froutes::ATTACK-CLASSES.md%23Resource%20and%20file%20handling"
+  },
+  {
+    "canonical_refs": {
+      "surface": "server/routes/cartRoutes.ts#POST /api/cart/verify",
+      "boundary": "server/routes/cartRoutes.ts#computeServerCart",
+      "subsystem": "server/routes",
+      "attack_class": "ATTACK-CLASSES.md#Business logic"
+    },
+    "surface": "server/routes/cartRoutes.ts#POST /api/cart/verify",
+    "boundary": "server/routes/cartRoutes.ts#computeServerCart",
+    "subsystem": "server/routes",
+    "attack_class": "ATTACK-CLASSES.md#Business logic",
+    "starting_paths": [
+      "server/routes/cartRoutes.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Core discipline",
+        "reason": "Pure JavaScript/TypeScript runtime."
+      }
+    ],
+    "prior_status": "prior_covered_same_source",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "reverifier-cart",
+    "reviewed_paths": [
+      "server/routes/cartRoutes.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "reverifier-cart",
+        "reviewed_paths": [
+          "server/routes/cartRoutes.ts"
+        ],
+        "invariant": "Cart calculations must recompute prices server-side and clamp input quantities.",
+        "method": "source",
+        "result": "Verified: computeServerCart looks up master product and hamper prices and clamps quantity to [1, 20].",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": [],
+    "coverage_id": "server%2Froutes%2FcartRoutes.ts%23POST%20%2Fapi%2Fcart%2Fverify::server%2Froutes%2FcartRoutes.ts%23computeServerCart::server%2Froutes::ATTACK-CLASSES.md%23Business%20logic"
+  },
+  {
+    "canonical_refs": {
+      "surface": "server/routes/orderRoutes.ts#GET /api/orders/:orderNumber",
+      "boundary": "server/authMiddleware.ts#requireAuth",
+      "subsystem": "server/routes",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "server/routes/orderRoutes.ts#GET /api/orders/:orderNumber",
+    "boundary": "server/authMiddleware.ts#requireAuth",
+    "subsystem": "server/routes",
+    "attack_class": "ATTACK-CLASSES.md#Access control",
+    "starting_paths": [
+      "server/routes/orderRoutes.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "AI-AND-LLM.md#Core discipline",
+        "reason": "The order lookup workflow does not involve LLM or AI components."
+      }
+    ],
+    "prior_status": "prior_confirmed_changed_source",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "reverifier-order",
+    "reviewed_paths": [
+      "server/routes/orderRoutes.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "reverifier-order",
+        "reviewed_paths": [
+          "server/routes/orderRoutes.ts"
+        ],
+        "invariant": "Customers must not access guest orders placed by other parties.",
+        "method": "source",
+        "result": "Confirmed fixed: GET /api/orders/:orderNumber strictly checks order.user_id === req.user.id or verified phone match, rejecting third-party access with HTTP 404.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": [],
+    "coverage_id": "server%2Froutes%2ForderRoutes.ts%23GET%20%2Fapi%2Forders%2F%3AorderNumber::server%2FauthMiddleware.ts%23requireAuth::server%2Froutes::ATTACK-CLASSES.md%23Access%20control"
+  },
+  {
+    "canonical_refs": {
+      "surface": "server/routes/paymentRoutes.ts#POST /api/payments/webhook",
+      "boundary": "server/services/cashfreeService.ts#verifyWebhookSignature",
+      "subsystem": "server/services",
+      "attack_class": "ATTACK-CLASSES.md#Cryptography and secrets"
+    },
+    "surface": "server/routes/paymentRoutes.ts#POST /api/payments/webhook",
+    "boundary": "server/services/cashfreeService.ts#verifyWebhookSignature",
+    "subsystem": "server/services",
+    "attack_class": "ATTACK-CLASSES.md#Cryptography and secrets",
+    "starting_paths": [
+      "server/routes/paymentRoutes.ts",
+      "server/services/cashfreeService.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Cryptography and secrets",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "PROTOCOLS-RPC-AND-MESSAGING.md#Core discipline"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Core discipline",
+        "reason": "Target is a backend web service, not a desktop application."
+      }
+    ],
+    "prior_status": "prior_needs_validation",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "reverifier-payment",
+    "reviewed_paths": [
+      "server/routes/paymentRoutes.ts",
+      "server/services/cashfreeService.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "reverifier-payment",
+        "reviewed_paths": [
+          "server/routes/paymentRoutes.ts",
+          "server/services/cashfreeService.ts"
+        ],
+        "invariant": "Webhook timestamps must be verified against current clock within tolerance.",
+        "method": "source",
+        "result": "Confirmed fixed: verifyWebhookSignature enforces a 10-minute maximum timestamp skew check in non-test environments.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": [],
+    "coverage_id": "server%2Froutes%2FpaymentRoutes.ts%23POST%20%2Fapi%2Fpayments%2Fwebhook::server%2Fservices%2FcashfreeService.ts%23verifyWebhookSignature::server%2Fservices::ATTACK-CLASSES.md%23Cryptography%20and%20secrets"
+  },
+  {
+    "canonical_refs": {
+      "surface": "server/routes/publicRoutes.ts#POST /api/enquiries",
+      "boundary": "server.ts#apiLimiter",
+      "subsystem": "server",
+      "attack_class": "ATTACK-CLASSES.md#Resource and file handling"
+    },
+    "surface": "server/routes/publicRoutes.ts#POST /api/enquiries",
+    "boundary": "server.ts#apiLimiter",
+    "subsystem": "server",
+    "attack_class": "ATTACK-CLASSES.md#Resource and file handling",
+    "starting_paths": [
+      "server/routes/publicRoutes.ts",
+      "server.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Core discipline"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "SUPPLY-CHAIN-AND-RELEASE.md#Core discipline",
+        "reason": "Unit reviews endpoint rate limiting."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-ratelimit",
+    "reviewed_paths": [
+      "server/routes/publicRoutes.ts",
+      "server.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-ratelimit",
+        "reviewed_paths": [
+          "server/routes/publicRoutes.ts",
+          "server.ts"
+        ],
+        "invariant": "Public enquiry forms that trigger transactional outbound emails must have dedicated burst and IP rate limits.",
+        "method": "source",
+        "result": "Candidate identified: POST /api/enquiries has no dedicated rate limiter attached, potentially exposing outbound email quotas to automated submission bursts.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "public-enquiry-rate-limit-missing"
+    ],
+    "unresolved": [],
+    "coverage_id": "server%2Froutes%2FpublicRoutes.ts%23POST%20%2Fapi%2Fenquiries::server.ts%23apiLimiter::server::ATTACK-CLASSES.md%23Resource%20and%20file%20handling"
+  },
+  {
+    "canonical_refs": {
+      "surface": "server/services/notificationService.ts#notifyNewBulkEnquiry",
+      "boundary": "server/services/notificationService.ts#buildEmail",
+      "subsystem": "server/services",
+      "attack_class": "ATTACK-CLASSES.md#Injection"
+    },
+    "surface": "server/services/notificationService.ts#notifyNewBulkEnquiry",
+    "boundary": "server/services/notificationService.ts#buildEmail",
+    "subsystem": "server/services",
+    "attack_class": "ATTACK-CLASSES.md#Injection",
+    "starting_paths": [
+      "server/services/notificationService.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Injection",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Core discipline",
+        "reason": "Target is TypeScript application runtime."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-email",
+    "reviewed_paths": [
+      "server/services/notificationService.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-email",
+        "reviewed_paths": [
+          "server/services/notificationService.ts"
+        ],
+        "invariant": "Customer-supplied strings must be HTML-escaped before interpolation into email templates.",
+        "method": "source",
+        "result": "Violation identified: notifyNewBulkEnquiry lines 1157-1185 interpolates unescaped contact_name, organization_name, and notes into raw HTML strings.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "notification-html-injection-transactional-emails"
+    ],
+    "unresolved": [],
+    "coverage_id": "server%2Fservices%2FnotificationService.ts%23notifyNewBulkEnquiry::server%2Fservices%2FnotificationService.ts%23buildEmail::server%2Fservices::ATTACK-CLASSES.md%23Injection"
+  }
+]
