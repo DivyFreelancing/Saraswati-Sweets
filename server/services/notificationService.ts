@@ -290,6 +290,67 @@ export function addInAppNotification(params: {
   return notif;
 }
 
+export const DEFAULT_PRODUCTION_URL = 'https://saraswatisweetsbarabanki.com';
+
+/**
+ * Resolves the public site base URL for customer-facing communication (e.g. ZeptoMail tracking links).
+ * Priority:
+ * 1. process.env.PUBLIC_SITE_URL (if valid and not localhost in production)
+ * 2. process.env.APP_URL (if valid and not localhost in production)
+ * 3. process.env.RAILWAY_PUBLIC_DOMAIN (e.g. `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`)
+ * 4. Production fallback: 'https://saraswatisweetsbarabanki.com' (NEVER falls back to localhost in production!)
+ * 5. In local dev mode without env vars: returns 'https://saraswatisweetsbarabanki.com' unless explicitly configured.
+ */
+export function getOrderTrackingBaseUrl(): string {
+  const isProduction =
+    process.env.NODE_ENV === 'production' ||
+    Boolean(process.env.RAILWAY_ENVIRONMENT) ||
+    Boolean(process.env.RAILWAY_PUBLIC_DOMAIN) ||
+    process.env.CASHFREE_ENVIRONMENT === 'PRODUCTION';
+
+  const rawCandidate = (process.env.PUBLIC_SITE_URL || process.env.APP_URL || '').trim();
+
+  if (rawCandidate) {
+    const isLocal = rawCandidate.includes('localhost') || rawCandidate.includes('127.0.0.1');
+
+    if (isProduction && isLocal) {
+      console.warn(
+        `[TrackingURL] Localhost detected in production environment: '${rawCandidate}'. Overriding to authoritative production URL: '${DEFAULT_PRODUCTION_URL}'.`
+      );
+      return DEFAULT_PRODUCTION_URL;
+    }
+
+    if (!isLocal || !isProduction) {
+      let cleaned = rawCandidate.replace(/\/$/, '');
+      if (!cleaned.startsWith('http://') && !cleaned.startsWith('https://')) {
+        cleaned = `https://${cleaned}`;
+      }
+      if (isProduction && cleaned.startsWith('http://')) {
+        cleaned = cleaned.replace(/^http:\/\//, 'https://');
+      }
+      return cleaned;
+    }
+  }
+
+  // Check Railway public domain
+  if (process.env.RAILWAY_PUBLIC_DOMAIN && !process.env.RAILWAY_PUBLIC_DOMAIN.includes('localhost')) {
+    return `https://${process.env.RAILWAY_PUBLIC_DOMAIN.replace(/\/$/, '')}`;
+  }
+
+  // Authoritative production fallback (Never fallback to localhost for customer communication)
+  return DEFAULT_PRODUCTION_URL;
+}
+
+/**
+ * Generates the canonical order tracking URL for customer order confirmation.
+ * Route: /order-confirmation/:orderNumber
+ */
+export function buildOrderTrackingUrl(orderNumber: string): string {
+  const baseUrl = getOrderTrackingBaseUrl();
+  const cleanOrderNumber = encodeURIComponent(String(orderNumber || '').trim());
+  return `${baseUrl}/order-confirmation/${cleanOrderNumber}`;
+}
+
 /**
  * 1. Notify Order Placed (to Customer and Store Owner)
  */
@@ -305,7 +366,9 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
     ? `${order.slot_snapshot.slot_time_formatted}${order.slot_snapshot.slot_date ? ` (${order.slot_snapshot.slot_date})` : ''}`
     : 'scheduled slot';
 
-  console.log(`[notifyOrderPlaced] Order #${order.order_number} [${order.fulfilment_type || 'DELIVERY'}] | customer email: ${realCustomerEmail || '(none — phone user)'} | phone: ${customerPhone}`);
+  const trackingUrl = buildOrderTrackingUrl(order.order_number);
+
+  console.log(`[notifyOrderPlaced] Order #${order.order_number} [${order.fulfilment_type || 'DELIVERY'}] | customer email: ${realCustomerEmail || '(none — phone user)'} | phone: ${customerPhone} | tracking: ${trackingUrl}`);
 
   // In-app notification for Customer
   if (targetUserId) {
@@ -369,7 +432,7 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
             delivery_address: isTakeaway
               ? `Store Counter Pickup (${pickupTimeText}) - Saraswati Sweets, Main Road, Barabanki`
               : `${order.address_snapshot.street_address}, Barabanki - ${order.address_snapshot.pincode}`,
-            order_tracking_url: `${(process.env.PUBLIC_SITE_URL || process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '')}/order-confirmation/${order.order_number}`
+            order_tracking_url: trackingUrl
           }
         };
 
@@ -454,6 +517,17 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
                 </tr>
               </tfoot>
             </table>
+
+            <!-- Track Order Button & Link -->
+            <div style="text-align: center; margin: 24px 0 14px;">
+              <a href="${trackingUrl}" target="_blank" style="display: inline-block; background-color: #8A1538; color: #FFFFFF; font-size: 14px; font-weight: bold; text-decoration: none; padding: 12px 28px; border-radius: 8px; letter-spacing: 0.5px;">
+                Track Order & View Receipt &rarr;
+              </a>
+            </div>
+            <p style="font-size: 12px; color: #6B6258; text-align: center; margin: 0 0 16px; word-break: break-all;">
+              Or view your order directly in your browser: <a href="${trackingUrl}" style="color: #8A1538; text-decoration: underline;">${trackingUrl}</a>
+            </p>
+
             <p style="font-size: 13px; color: #6b6258;">Need assistance? Call our Barabanki shop at ${STORE_SETTINGS.store_phone} or WhatsApp ${STORE_SETTINGS.whatsapp}.</p>
           </div>
         </div>
@@ -479,6 +553,7 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
           ${order.items.map((i) => `<li>${i.product_name} (${i.variant_label}) x ${i.quantity} = ₹${i.total_price}</li>`).join('')}
         </ul>
         <p><strong>Order Total:</strong> ₹${order.total_amount} [${order.payment_method} / ${order.payment_status}]</p>
+        <p><strong>Order Tracking Link:</strong> <a href="${trackingUrl}">${trackingUrl}</a></p>
       </div>
     `,
   });

@@ -751,12 +751,21 @@ router.get('/orders', requireAuth, (req: AuthenticatedRequest, res: Response) =>
 });
 
 // GET /api/orders/:orderNumber - Fetch order details by order_number
-router.get('/orders/:orderNumber', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+router.get('/orders/:orderNumber', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const { orderNumber } = req.params;
 
-  const order = Array.from(inMemoryStore.orders.values()).find(
+  let order = Array.from(inMemoryStore.orders.values()).find(
     (o) => o.order_number === orderNumber || o.id === orderNumber
   );
+
+  if (!order && isLiveSupabase && supabaseServer) {
+    const { order: dbOrder, error: dbErr } = await findOrderInSupabase(orderNumber);
+    if (dbErr) {
+      console.error(`[OrderRoutes] Database lookup failure for order #${orderNumber}:`, dbErr);
+    } else if (dbOrder) {
+      order = dbOrder;
+    }
+  }
 
   if (!order) {
     res.status(404).json({
@@ -1020,6 +1029,8 @@ router.post(
       coupon_code: order.coupon_code,
       recipient_name: order.address_snapshot?.recipient_name,
       recipient_phone_masked: maskedPhone,
+      fulfilment_type: order.fulfilment_type || 'DELIVERY',
+      slot_snapshot: order.slot_snapshot || undefined,
       address_snapshot: order.address_snapshot ? {
         recipient_name: order.address_snapshot.recipient_name,
         street_address: order.address_snapshot.street_address,

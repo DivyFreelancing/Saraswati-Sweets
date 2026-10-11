@@ -175,6 +175,8 @@ router.post('/verify', async (req: AuthenticatedRequest, res: Response) => {
       coupon_code: finalOrder.coupon_code,
       recipient_name: finalOrder.address_snapshot?.recipient_name,
       recipient_phone_masked: maskedPhone,
+      fulfilment_type: finalOrder.fulfilment_type || 'DELIVERY',
+      slot_snapshot: finalOrder.slot_snapshot || undefined,
       address_snapshot: finalOrder.address_snapshot ? {
         recipient_name: finalOrder.address_snapshot.recipient_name,
         street_address: finalOrder.address_snapshot.street_address,
