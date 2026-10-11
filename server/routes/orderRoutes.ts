@@ -842,7 +842,7 @@ router.patch('/orders/:id/status', requireAuth, async (req: AuthenticatedRequest
     if (currentStatus !== 'PLACED' && currentStatus !== 'CONFIRMED') {
       res.status(409).json({
         error: 'INVALID_STATUS_TRANSITION',
-        message: `Order #${order.order_number} has already entered kitchen preparation (${currentStatus}) and cannot be cancelled.`,
+        message: `Order #${order.order_number} has already entered dispatch (${currentStatus}) and cannot be cancelled.`,
       });
       return;
     }

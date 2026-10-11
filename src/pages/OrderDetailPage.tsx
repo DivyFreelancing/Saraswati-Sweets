@@ -8,9 +8,6 @@ import {
   Ban,
   PackageCheck,
   ChevronLeft,
-  UtensilsCrossed,
-  ChefHat,
-  ShoppingBag,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -26,8 +23,6 @@ interface OrderDetailPageProps {
 const ORDER_STEPS = [
   { key: 'PLACED', label: 'Order Received', desc: 'Received at Barabanki store' },
   { key: 'CONFIRMED', label: 'Confirmed', desc: 'Order confirmed and scheduled' },
-  { key: 'PREPARING', label: 'Kitchen Prep', desc: 'Freshly boxed in desi ghee' },
-  { key: 'READY_FOR_PICKUP', label: 'Ready for Dispatch', desc: 'Sealed with tamper tape' },
   { key: 'OUT_FOR_DELIVERY', label: 'Out for Delivery', desc: 'Delivery partner on the way' },
   { key: 'DELIVERED', label: 'Delivered', desc: 'Handed over fresh' },
 ];
@@ -150,10 +145,16 @@ export const OrderDetailPage: React.FC<OrderDetailPageProps> = ({
   const isDelivered = order.status === 'DELIVERED';
   const canCustomerCancel = order.status === 'PLACED' || order.status === 'CONFIRMED';
 
-  // Find step index
+  // Find step index with backward compatibility for legacy statuses
   const currentStepIndex = isCancelled
     ? -1
-    : ORDER_STEPS.findIndex((s) => s.key === order.status);
+    : (() => {
+        const directIdx = ORDER_STEPS.findIndex((s) => s.key === order.status);
+        if (directIdx !== -1) return directIdx;
+        // Historical statuses (PREPARING, READY_FOR_PICKUP) are past CONFIRMED
+        if (order.status === 'PREPARING' || order.status === 'READY_FOR_PICKUP') return 1;
+        return -1;
+      })();
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -230,24 +231,36 @@ export const OrderDetailPage: React.FC<OrderDetailPageProps> = ({
           </h2>
 
           <div className="relative">
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
               {ORDER_STEPS.map((step, idx) => {
                 const isPassed = currentStepIndex >= idx;
                 const isCurrent = currentStepIndex === idx;
 
                 return (
                   <div key={step.key} className="flex flex-col items-start relative text-left">
+                    {/* Connecting line to next step on sm+ screens */}
+                    {idx < ORDER_STEPS.length - 1 && (
+                      <div
+                        className={`hidden sm:block absolute top-4 left-8 right-[-1.5rem] h-0.5 transition-colors -z-0 ${
+                          currentStepIndex > idx ? 'bg-[#2E7D4F]' : 'bg-stone-200'
+                        }`}
+                        aria-hidden="true"
+                      />
+                    )}
+
                     {/* Circle */}
                     <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs mb-2 transition-all ${
-                        isCurrent
+                      className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs mb-2 transition-all relative z-10 ${
+                        isDelivered
+                          ? 'bg-[#2E7D4F] text-white'
+                          : isCurrent
                           ? 'bg-[#8A1538] text-white ring-4 ring-[#8A1538]/20 shadow-xs'
                           : isPassed
                           ? 'bg-[#2E7D4F] text-white'
                           : 'bg-stone-200 text-stone-500'
                       }`}
                     >
-                      {isPassed && !isCurrent ? (
+                      {(isPassed && !isCurrent) || (isDelivered && isCurrent) ? (
                         <CheckCircle2 className="w-4 h-4" />
                       ) : (
                         <span>{idx + 1}</span>
@@ -269,7 +282,7 @@ export const OrderDetailPage: React.FC<OrderDetailPageProps> = ({
 
           {!canCustomerCancel && !isDelivered && (
             <div className="pt-2 text-[11px] text-[#6B6258] italic border-t border-[#E8DFD2]">
-              * Note: Since preparation has begun in our Barabanki kitchen, online cancellation is no longer available.
+              * Note: Since this order is out for delivery, online cancellation is no longer available.
             </div>
           )}
         </div>

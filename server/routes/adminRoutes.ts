@@ -65,6 +65,7 @@ router.get('/overview', (req: AuthenticatedRequest, res: Response) => {
   ).length;
 
   const preparingOrders = allOrders.filter((o) => o.status === 'PREPARING').length;
+  const outForDeliveryOrders = allOrders.filter((o) => o.status === 'OUT_FOR_DELIVERY').length;
 
   const allVariants = Array.from(inMemoryStore.variants.values());
   const lowStockItems = allVariants.filter(
@@ -114,6 +115,7 @@ router.get('/overview', (req: AuthenticatedRequest, res: Response) => {
       todayOrders: todayOrders.length > 0 ? todayOrders.length : 19,
       pendingOrders,
       preparingOrders,
+      outForDeliveryOrders,
       lowStockItems,
       totalCustomers: uniqueCustomerKeys.size || 24,
       trend7Days,

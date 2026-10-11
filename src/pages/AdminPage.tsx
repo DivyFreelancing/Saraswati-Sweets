@@ -1392,19 +1392,19 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   {metrics.pendingOrders}
                 </div>
                 <span className="text-[11px] text-[#6B6258] mt-1 block">
-                  Awaiting dispatch / kitchen
+                  Awaiting dispatch
                 </span>
               </div>
 
               <div className="bg-white p-5 rounded-2xl border border-[#E8DFD2] shadow-xs">
                 <span className="text-xs text-[#6B6258] font-medium flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5 text-[#C9A227]" /> Kitchen Prep
+                  <Bike className="w-3.5 h-3.5 text-[#C9A227]" /> Out for Delivery
                 </span>
                 <div className="text-2xl font-bold font-display text-[#C9A227] tabular-nums mt-1">
-                  {metrics.preparingOrders}
+                  {orders.filter((o: any) => o.status === 'OUT_FOR_DELIVERY').length || metrics.outForDeliveryOrders || 0}
                 </div>
                 <span className="text-[11px] text-[#6B6258] mt-1 block">
-                  Fresh packing underway
+                  En route to customer
                 </span>
               </div>
 
@@ -1583,7 +1583,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
             >
               <div>
                 <div className="font-bold text-sm text-[#1F1B16]">Manage Live Orders</div>
-                <div className="text-xs text-[#6B6258] mt-0.5">Kitchen prep, dispatch, and delivery</div>
+                <div className="text-xs text-[#6B6258] mt-0.5">Order confirmation, dispatch, and delivery</div>
               </div>
               <ArrowRight className="w-4 h-4 text-[#8A1538]" />
             </button>
@@ -1648,8 +1648,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                 'PENDING_PAYMENT',
                 'PLACED',
                 'CONFIRMED',
-                'PREPARING',
-                'READY_FOR_PICKUP',
                 'OUT_FOR_DELIVERY',
                 'DELIVERED',
                 'CANCELLED',
@@ -1780,10 +1778,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                           <>
                             <button
                               type="button"
-                              onClick={() => handleOrderStatusTransition(order.id, 'PREPARING')}
-                              className="px-3 py-1 rounded-lg bg-[#C9A227] hover:bg-[#AB881D] text-[#1F1B16] text-xs font-bold shadow-xs"
+                              onClick={() => handleOrderStatusTransition(order.id, 'OUT_FOR_DELIVERY')}
+                              className="px-3 py-1 rounded-lg bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-semibold shadow-xs"
                             >
-                              Start Kitchen Prep
+                              Send Out for Delivery
                             </button>
                             <button
                               type="button"
@@ -1795,17 +1793,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                           </>
                         )}
 
-                        {status === 'PREPARING' && (
-                          <button
-                            type="button"
-                            onClick={() => handleOrderStatusTransition(order.id, 'READY_FOR_PICKUP')}
-                            className="px-3 py-1 rounded-lg bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-semibold shadow-xs"
-                          >
-                            Mark Ready for Dispatch
-                          </button>
-                        )}
-
-                        {status === 'READY_FOR_PICKUP' && (
+                        {/* Backward compatibility for historical orders */}
+                        {(status === 'PREPARING' || status === 'READY_FOR_PICKUP') && (
                           <button
                             type="button"
                             onClick={() => handleOrderStatusTransition(order.id, 'OUT_FOR_DELIVERY')}

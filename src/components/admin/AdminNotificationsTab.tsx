@@ -99,7 +99,7 @@ export const AdminNotificationsTab: React.FC<AdminNotificationsTabProps> = ({
             Notifications & Transactional Email
           </h2>
           <p className="text-xs sm:text-sm text-[#6B6258] mt-0.5">
-            Automated notifications for order placement, kitchen prep status transitions, payment alerts, and store owner enquiry alerts.
+            Automated notifications for order placement, order status transitions, payment alerts, and store owner enquiry alerts.
           </p>
         </div>
 

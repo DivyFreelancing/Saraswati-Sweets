@@ -346,7 +346,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
               <span>My Orders & Tracking</span>
             </h2>
             <p className="text-xs sm:text-sm text-[#6B6258]">
-              Track live kitchen status, delivery progress, and previous mithai orders.
+              Track live delivery progress and view previous mithai orders.
             </p>
           </div>
 
