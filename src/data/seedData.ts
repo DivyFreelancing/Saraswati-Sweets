@@ -16,6 +16,15 @@ export const SEED_STORE_SETTINGS: StoreSettings = {
   opening_time: '06:30',
   closing_time: '22:00',
   is_store_open: true,
+  delivery_enabled: true,
+  takeaway_enabled: true,
+  closure_message: null,
+  pickup_opening_time: '08:00',
+  pickup_closing_time: '21:30',
+  pickup_slot_duration_minutes: 30,
+  pickup_max_orders_per_slot: 10,
+  pickup_advance_days: 2,
+  auto_reopen_at: null,
 };
 
 export const SEED_CATEGORIES: Category[] = [

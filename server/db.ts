@@ -457,6 +457,15 @@ export const STORE_SETTINGS = {
   cod_limit_amount: 2000,
   tax_rate_percent: 5,
   serviceable_pincodes: SERVICEABLE_PINCODES,
+  delivery_enabled: true,
+  takeaway_enabled: true,
+  closure_message: null,
+  pickup_opening_time: '08:00',
+  pickup_closing_time: '21:30',
+  pickup_slot_duration_minutes: 30,
+  pickup_max_orders_per_slot: 10,
+  pickup_advance_days: 2,
+  auto_reopen_at: null,
 };
 
 // In-Memory store for fast fallback & local development sync
@@ -675,6 +684,7 @@ export interface ServerOrder {
   address_snapshot: ServerAddress;
   delivery_slot_id?: string | null;
   slot_snapshot?: any;
+  fulfilment_type?: 'DELIVERY' | 'TAKEAWAY';
   subtotal: number;
   discount_amount: number;
   coupon_code?: string;
@@ -803,6 +813,15 @@ export interface ServerStoreSettings {
   closing_time: string;
   is_store_open: boolean;
   serviceable_pincodes: string[];
+  delivery_enabled: boolean;
+  takeaway_enabled: boolean;
+  closure_message?: string | null;
+  pickup_opening_time: string;
+  pickup_closing_time: string;
+  pickup_slot_duration_minutes: number;
+  pickup_max_orders_per_slot: number;
+  pickup_advance_days: number;
+  auto_reopen_at?: string | null;
 }
 
 
@@ -1117,6 +1136,15 @@ export const inMemoryStore = {
     opening_time: '06:30',
     closing_time: '22:00',
     is_store_open: true,
+    delivery_enabled: true,
+    takeaway_enabled: true,
+    closure_message: null,
+    pickup_opening_time: '08:00',
+    pickup_closing_time: '21:30',
+    pickup_slot_duration_minutes: 30,
+    pickup_max_orders_per_slot: 10,
+    pickup_advance_days: 2,
+    auto_reopen_at: null,
   } as ServerStoreSettings,
   coupons: new Map<any, any>(),
   couponUsage: [] as ServerCouponUsage[],
@@ -1507,6 +1535,395 @@ export function logAuditEvent(
   return log;
 }
 
+// ==========================================================
+// STORE OPERATIONS & PICKUP SCHEDULING (ASIA/KOLKATA)
+// ==========================================================
+
+export function checkAutoReopen(settings?: ServerStoreSettings): boolean {
+  const targetSettings = settings || inMemoryStore.storeSettings;
+  if (!targetSettings) return false;
+  if (targetSettings.auto_reopen_at) {
+    const reopenTime = new Date(targetSettings.auto_reopen_at).getTime();
+    if (!isNaN(reopenTime) && Date.now() >= reopenTime) {
+      console.log(`[Store] Automatic reopening triggered at ${new Date().toISOString()}. Re-enabling delivery & takeaway.`);
+      targetSettings.delivery_enabled = true;
+      targetSettings.takeaway_enabled = true;
+      targetSettings.auto_reopen_at = null;
+      targetSettings.closure_message = null;
+      syncStoreSettingsToSupabase(targetSettings).catch(() => {});
+      return true;
+    }
+  }
+  return false;
+}
+
+export async function syncStoreSettingsToSupabase(settings: ServerStoreSettings): Promise<void> {
+  if (!isLiveSupabase || !supabaseServer) return;
+  try {
+    const updates: Record<string, any> = {
+      delivery_enabled: settings.delivery_enabled,
+      takeaway_enabled: settings.takeaway_enabled,
+      closure_message: settings.closure_message,
+      pickup_opening_time: settings.pickup_opening_time,
+      pickup_closing_time: settings.pickup_closing_time,
+      pickup_slot_duration_minutes: settings.pickup_slot_duration_minutes,
+      pickup_max_orders_per_slot: settings.pickup_max_orders_per_slot,
+      pickup_advance_days: settings.pickup_advance_days,
+      auto_reopen_at: settings.auto_reopen_at,
+      is_store_open: settings.is_store_open,
+      business_hours: {
+        open: settings.opening_time || '08:00',
+        close: settings.closing_time || '22:00',
+        delivery_enabled: settings.delivery_enabled,
+        takeaway_enabled: settings.takeaway_enabled,
+        closure_message: settings.closure_message,
+        pickup_opening_time: settings.pickup_opening_time,
+        pickup_closing_time: settings.pickup_closing_time,
+        pickup_slot_duration_minutes: settings.pickup_slot_duration_minutes,
+        pickup_max_orders_per_slot: settings.pickup_max_orders_per_slot,
+        pickup_advance_days: settings.pickup_advance_days,
+        auto_reopen_at: settings.auto_reopen_at,
+      },
+    };
+
+    const { error } = await supabaseServer.from('store_settings').update(updates).eq('id', 1);
+    if (error) {
+      // Fallback: update business_hours and is_store_open if dedicated columns are pending migration
+      await supabaseServer.from('store_settings').update({
+        is_store_open: settings.is_store_open,
+        business_hours: updates.business_hours,
+      }).eq('id', 1);
+    }
+  } catch (err: any) {
+    console.warn('[Store] syncStoreSettingsToSupabase failed:', err?.message);
+  }
+}
+
+export function getKolkataDateParts(date: Date = new Date()) {
+  const formatter = new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(date);
+  const partMap: Record<string, string> = {};
+  for (const p of parts) partMap[p.type] = p.value;
+  return {
+    year: partMap.year,
+    month: partMap.month,
+    day: partMap.day,
+    hour: parseInt(partMap.hour || '0', 10),
+    minute: parseInt(partMap.minute || '0', 10),
+    second: parseInt(partMap.second || '0', 10),
+    dateStr: `${partMap.year}-${partMap.month}-${partMap.day}`,
+  };
+}
+
+export function formatTime12h(timeStr: string): string {
+  if (!timeStr) return '';
+  const [hStr, mStr] = timeStr.split(':');
+  let h = parseInt(hStr || '0', 10);
+  const m = mStr || '00';
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12;
+  if (h === 0) h = 12;
+  return `${String(h).padStart(2, '0')}:${m} ${ampm}`;
+}
+
+export interface PickupSlotOption {
+  slot_date: string;
+  start_time: string;
+  end_time: string;
+  time_12h: string;
+  formatted_slot: string;
+  available: boolean;
+  is_available: boolean;
+  remaining_capacity: number;
+  available_capacity: number;
+  capacity: number;
+  max_capacity: number;
+  booked_count: number;
+}
+
+export type PickupSlot = PickupSlotOption;
+
+export interface PickupDaySchedule {
+  date: string;
+  date_label: string;
+  day_name: string;
+  is_today: boolean;
+  slots: PickupSlotOption[];
+}
+
+export function generateAvailablePickupSlots(
+  targetDate: string,
+  settings?: ServerStoreSettings
+): PickupSlotOption[];
+export function generateAvailablePickupSlots(
+  settings?: ServerStoreSettings
+): PickupDaySchedule[];
+export function generateAvailablePickupSlots(
+  targetDateOrSettings?: string | ServerStoreSettings,
+  maybeSettings?: ServerStoreSettings
+): PickupSlotOption[] | PickupDaySchedule[] {
+  let targetDateStr: string | undefined;
+  let settings: ServerStoreSettings;
+
+  if (typeof targetDateOrSettings === 'string') {
+    targetDateStr = targetDateOrSettings;
+    settings = maybeSettings || inMemoryStore.storeSettings;
+  } else {
+    settings = targetDateOrSettings || inMemoryStore.storeSettings;
+  }
+
+  checkAutoReopen(settings);
+  if (!settings.takeaway_enabled || !settings.is_store_open) {
+    return [];
+  }
+
+  const durationMin = settings.pickup_slot_duration_minutes || 30;
+  const maxCap = settings.pickup_max_orders_per_slot || 10;
+  const advanceDays = Math.max(1, Math.min(30, settings.pickup_advance_days ?? 3));
+  const openTime = settings.pickup_opening_time || '08:00';
+  const closeTime = settings.pickup_closing_time || '21:30';
+
+  const [openHour, openMin] = openTime.split(':').map((x) => parseInt(x, 10));
+  const [closeHour, closeMin] = closeTime.split(':').map((x) => parseInt(x, 10));
+  const openMinutesTotal = openHour * 60 + (openMin || 0);
+  const closeMinutesTotal = closeHour * 60 + (closeMin || 0);
+
+  const now = new Date();
+  const currentKolkata = getKolkataDateParts(now);
+  const currentMinutesKolkata = currentKolkata.hour * 60 + currentKolkata.minute;
+
+  const generateSlotsForDate = (dateStr: string, isToday: boolean): PickupSlotOption[] => {
+    const slots: PickupSlotOption[] = [];
+    for (let m = openMinutesTotal; m + durationMin <= closeMinutesTotal; m += durationMin) {
+      const startH = Math.floor(m / 60);
+      const startM = m % 60;
+      const endH = Math.floor((m + durationMin) / 60);
+      const endM = (m + durationMin) % 60;
+
+      const startTimeStr = `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}`;
+      const endTimeStr = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+
+      // If today, buffer by 30 minutes from now to allow sweet preparation
+      const isPast = isToday && (m < currentMinutesKolkata + 30);
+      if (isPast) {
+        continue; // Do not offer past slots
+      }
+
+      // Count active booked orders for this slot
+      let bookedCount = 0;
+      for (const order of inMemoryStore.orders.values()) {
+        if (order.fulfilment_type === 'TAKEAWAY' || order.slot_snapshot?.fulfilment_type === 'TAKEAWAY') {
+          if (
+            order.slot_snapshot?.slot_date === dateStr &&
+            order.slot_snapshot?.start_time === startTimeStr &&
+            order.status !== 'CANCELLED' &&
+            order.status !== 'REFUNDED' &&
+            order.status !== 'PAYMENT_FAILED'
+          ) {
+            if (order.status !== 'PENDING_PAYMENT' || !order.expires_at || new Date(order.expires_at).getTime() > Date.now()) {
+              bookedCount++;
+            }
+          }
+        }
+      }
+
+      const available = bookedCount < maxCap;
+      const remaining_capacity = Math.max(0, maxCap - bookedCount);
+      const timeFormatted = `${formatTime12h(startTimeStr)} - ${formatTime12h(endTimeStr)}`;
+
+      slots.push({
+        slot_date: dateStr,
+        start_time: startTimeStr,
+        end_time: endTimeStr,
+        time_12h: timeFormatted,
+        formatted_slot: timeFormatted,
+        available,
+        is_available: available,
+        remaining_capacity,
+        available_capacity: remaining_capacity,
+        capacity: maxCap,
+        max_capacity: maxCap,
+        booked_count: bookedCount,
+      });
+    }
+    return slots;
+  };
+
+  if (targetDateStr) {
+    // Validate target date is within advance days bounds
+    const [todayY, todayM, todayD] = [
+      parseInt(currentKolkata.year, 10),
+      parseInt(currentKolkata.month, 10) - 1,
+      parseInt(currentKolkata.day, 10),
+    ];
+    const todayMidnight = new Date(Date.UTC(todayY, todayM, todayD));
+
+    const [tY, tM, tD] = targetDateStr.split('-').map(Number);
+    if (!tY || !tM || !tD) return [];
+    const targetMidnight = new Date(Date.UTC(tY, tM - 1, tD));
+
+    const diffDays = Math.round((targetMidnight.getTime() - todayMidnight.getTime()) / (24 * 60 * 60 * 1000));
+    if (diffDays < 0 || diffDays > advanceDays) {
+      return [];
+    }
+
+    return generateSlotsForDate(targetDateStr, diffDays === 0);
+  }
+
+  // Otherwise return schedules for all days
+  const schedules: PickupDaySchedule[] = [];
+  for (let dayOffset = 0; dayOffset <= advanceDays; dayOffset++) {
+    const targetDate = new Date(now.getTime() + dayOffset * 24 * 60 * 60 * 1000);
+    const kp = getKolkataDateParts(targetDate);
+    const dateStr = kp.dateStr;
+    const isToday = dayOffset === 0;
+
+    const dayName = new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      weekday: 'short',
+    }).format(targetDate);
+
+    const monthName = new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      month: 'short',
+    }).format(targetDate);
+
+    const dateLabel = isToday
+      ? `Today (${kp.day} ${monthName})`
+      : dayOffset === 1
+      ? `Tomorrow (${kp.day} ${monthName})`
+      : `${dayName}, ${kp.day} ${monthName}`;
+
+    const slots = generateSlotsForDate(dateStr, isToday);
+    if (slots.length > 0) {
+      schedules.push({
+        date: dateStr,
+        date_label: dateLabel,
+        day_name: dayName,
+        is_today: isToday,
+        slots,
+      });
+    }
+  }
+
+  return schedules;
+}
+
+const slotBookingMutex = new Map<string, Promise<any>>();
+
+export async function checkAndReserveSlotCapacity(
+  slotDate: string,
+  startTime: string,
+  endTimeOrMaxCapacity?: string | number,
+  optionalMaxCapacity?: number
+): Promise<{ allowed: boolean; activeCount: number; message?: string }> {
+  let endTime: string;
+  let maxCapacity: number;
+
+  if (typeof endTimeOrMaxCapacity === 'number') {
+    maxCapacity = endTimeOrMaxCapacity;
+    const durationMin = inMemoryStore.storeSettings.pickup_slot_duration_minutes || 30;
+    const [sH, sM] = startTime.split(':').map((x) => parseInt(x, 10));
+    const endMinutes = (sH || 0) * 60 + (sM || 0) + durationMin;
+    const eH = Math.floor(endMinutes / 60);
+    const eM = endMinutes % 60;
+    endTime = `${String(eH).padStart(2, '0')}:${String(eM).padStart(2, '0')}`;
+  } else {
+    endTime = endTimeOrMaxCapacity || '';
+    maxCapacity = typeof optionalMaxCapacity === 'number'
+      ? optionalMaxCapacity
+      : (inMemoryStore.storeSettings.pickup_max_orders_per_slot || 10);
+  }
+
+  const lockKey = `${slotDate.trim()}_${startTime.trim()}`;
+
+  while (slotBookingMutex.has(lockKey)) {
+    await slotBookingMutex.get(lockKey);
+  }
+
+  let resolveLock!: () => void;
+  const lockPromise = new Promise<void>((resolve) => {
+    resolveLock = resolve;
+  });
+  slotBookingMutex.set(lockKey, lockPromise);
+
+  try {
+    const now = Date.now();
+    let activeCount = 0;
+
+    for (const order of inMemoryStore.orders.values()) {
+      if (order.fulfilment_type === 'TAKEAWAY' || order.slot_snapshot?.fulfilment_type === 'TAKEAWAY') {
+        const sDate = order.slot_snapshot?.slot_date;
+        const sTime = order.slot_snapshot?.start_time;
+        if (sDate === slotDate && sTime === startTime) {
+          if (order.status !== 'CANCELLED' && order.status !== 'REFUNDED' && order.status !== 'PAYMENT_FAILED') {
+            if (order.status !== 'PENDING_PAYMENT' || !order.expires_at || new Date(order.expires_at).getTime() > now) {
+              activeCount++;
+            }
+          }
+        }
+      }
+    }
+
+    if (activeCount >= maxCapacity) {
+      return {
+        allowed: false,
+        activeCount,
+        message: 'This pickup slot is currently at maximum capacity. Please choose another time slot.',
+      };
+    }
+
+    if (isLiveSupabase && supabaseServer) {
+      try {
+        const { data: rpcRes, error: rpcErr } = await supabaseServer.rpc('check_and_reserve_pickup_slot', {
+          p_slot_date: slotDate,
+          p_start_time: startTime,
+          p_end_time: endTime,
+          p_max_capacity: maxCapacity,
+        });
+
+        if (!rpcErr && rpcRes && typeof rpcRes.allowed === 'boolean') {
+          if (!rpcRes.allowed) {
+            return {
+              allowed: false,
+              activeCount: rpcRes.active_count ?? activeCount,
+              message: rpcRes.message || 'Selected pickup slot is at full capacity. Please choose another slot.',
+            };
+          }
+          activeCount = Math.max(activeCount, rpcRes.active_count || 0);
+        }
+      } catch (err: any) {
+        console.warn('[SlotReservation] RPC call failed, using in-memory capacity check:', err?.message);
+      }
+    }
+
+    if (activeCount >= maxCapacity) {
+      return {
+        allowed: false,
+        activeCount,
+        message: 'This pickup slot is currently at maximum capacity. Please choose another time slot.',
+      };
+    }
+
+    return {
+      allowed: true,
+      activeCount,
+    };
+  } finally {
+    slotBookingMutex.delete(lockKey);
+    resolveLock();
+  }
+}
+
 
 
 // ==========================================================
@@ -1525,7 +1942,7 @@ export async function loadStoreState(): Promise<void> {
     const [
       cats, prods, vars, offs, bans, hampers, 
       ords, profs, addrs, pays, revs, 
-      coups, bulks, prodImgs, ordItems
+      coups, bulks, prodImgs, ordItems, settingsRes
     ] = await Promise.all([
       supabaseServer.from('categories').select('*'),
       supabaseServer.from('products').select('*'),
@@ -1541,7 +1958,8 @@ export async function loadStoreState(): Promise<void> {
       supabaseServer.from('coupons').select('*'),
       supabaseServer.from('bulk_enquiries').select('*'),
       supabaseServer.from('product_images').select('*'),
-      supabaseServer.from('order_items').select('*')
+      supabaseServer.from('order_items').select('*'),
+      supabaseServer.from('store_settings').select('*').eq('id', 1).maybeSingle()
     ]);
 
     // Populate SyncMaps (bypassing the custom .set to avoid re-upserting)
@@ -1591,6 +2009,7 @@ export async function loadStoreState(): Promise<void> {
        }
        ords.data.forEach((x: any) => {
            x.items = ordMap.get(x.id) || [];
+           x.fulfilment_type = x.fulfilment_type || x.slot_snapshot?.fulfilment_type || (Number(x.delivery_charge) === 0 && x.slot_snapshot ? 'TAKEAWAY' : 'DELIVERY');
            inMemoryStore.orders.set(x.id, x);
        });
     }
@@ -1634,6 +2053,38 @@ export async function loadStoreState(): Promise<void> {
     if (revs.data) { inMemoryStore.reviews.clear(); revs.data.forEach(x => inMemoryStore.reviews.set(x.id, x)); }
     if (coups.data) { inMemoryStore.coupons.clear(); coups.data.forEach(x => inMemoryStore.coupons.set(x.code, x)); }
     if (bulks.data) { inMemoryStore.bulkEnquiries.clear(); bulks.data.forEach(x => inMemoryStore.bulkEnquiries.set(x.id, x)); }
+
+    if (settingsRes && settingsRes.data) {
+      const row = settingsRes.data;
+      const bh = (row.business_hours && typeof row.business_hours === 'object') ? row.business_hours : {};
+      inMemoryStore.storeSettings = {
+        store_name: row.store_name || inMemoryStore.storeSettings.store_name,
+        tagline: row.tagline || inMemoryStore.storeSettings.tagline,
+        store_phone: row.store_phone || row.phone || inMemoryStore.storeSettings.store_phone,
+        whatsapp: row.whatsapp || inMemoryStore.storeSettings.whatsapp,
+        store_email: row.store_email || row.email || inMemoryStore.storeSettings.store_email,
+        address_text: row.address_text || row.address || inMemoryStore.storeSettings.address_text,
+        serviceable_pincodes: row.serviceable_pincodes || row.allowed_pincodes || inMemoryStore.storeSettings.serviceable_pincodes,
+        delivery_charge_flat: typeof row.delivery_charge_flat === 'number' ? row.delivery_charge_flat : (typeof row.delivery_charge === 'number' ? row.delivery_charge : 50),
+        free_delivery_above: typeof row.free_delivery_above === 'number' ? row.free_delivery_above : 0,
+        cod_limit_amount: typeof row.cod_limit_amount === 'number' ? row.cod_limit_amount : 2000,
+        tax_rate_percent: typeof row.tax_rate_percent === 'number' ? row.tax_rate_percent : 5,
+        opening_time: row.opening_time || bh.open || '08:00',
+        closing_time: row.closing_time || bh.close || '22:00',
+        is_store_open: typeof row.is_store_open === 'boolean' ? row.is_store_open : true,
+        delivery_enabled: typeof row.delivery_enabled === 'boolean' ? row.delivery_enabled : (typeof bh.delivery_enabled === 'boolean' ? bh.delivery_enabled : true),
+        takeaway_enabled: typeof row.takeaway_enabled === 'boolean' ? row.takeaway_enabled : (typeof bh.takeaway_enabled === 'boolean' ? bh.takeaway_enabled : true),
+        closure_message: row.closure_message ?? bh.closure_message ?? null,
+        pickup_opening_time: row.pickup_opening_time || bh.pickup_opening_time || '08:00',
+        pickup_closing_time: row.pickup_closing_time || bh.pickup_closing_time || '21:30',
+        pickup_slot_duration_minutes: row.pickup_slot_duration_minutes || bh.pickup_slot_duration_minutes || 30,
+        pickup_max_orders_per_slot: row.pickup_max_orders_per_slot || bh.pickup_max_orders_per_slot || 10,
+        pickup_advance_days: row.pickup_advance_days || bh.pickup_advance_days || 2,
+        auto_reopen_at: row.auto_reopen_at || bh.auto_reopen_at || null,
+      };
+      checkAutoReopen(inMemoryStore.storeSettings);
+      console.log(`[Store] Loaded persistent store_settings from Postgres (Delivery: ${inMemoryStore.storeSettings.delivery_enabled ? 'ON' : 'OFF'}, Takeaway: ${inMemoryStore.storeSettings.takeaway_enabled ? 'ON' : 'OFF'}).`);
+    }
 
     console.log(`[Store] Loaded persistent state from Postgres (${inMemoryStore.products.size} products, ${inMemoryStore.orders.size} orders).`);
   } catch (err) {

@@ -40,6 +40,8 @@ import {
   VolumeX,
   Receipt,
   Eye,
+  Truck,
+  Store,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -125,6 +127,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
   // Orders Tab filters & search
   const [orderSearchQuery, setOrderSearchQuery] = useState('');
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>('ALL');
+  const [orderFulfilmentFilter, setOrderFulfilmentFilter] = useState<'ALL' | 'DELIVERY' | 'TAKEAWAY'>('ALL');
   const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<any | null>(null);
 
   // Confirmation Modal state
@@ -1221,6 +1224,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
   // Filtered orders list
   const filteredOrders = orders.filter((o) => {
     if (orderStatusFilter !== 'ALL' && o.status !== orderStatusFilter) return false;
+    if (orderFulfilmentFilter !== 'ALL') {
+      const type = o.fulfilment_type || 'DELIVERY';
+      if (type !== orderFulfilmentFilter) return false;
+    }
     if (orderSearchQuery.trim()) {
       const q = orderSearchQuery.toLowerCase();
       const matchNum = o.order_number?.toLowerCase().includes(q);
@@ -1639,19 +1646,52 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
             </div>
           </div>
 
-          {/* Search & Status Filters */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-[#6B6258] absolute left-3.5 top-3" />
-              <input
-                type="text"
-                placeholder="Search order #, patron name, or phone..."
-                value={orderSearchQuery}
-                onChange={(e) => setOrderSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs focus:outline-none focus:border-[#8A1538]"
-              />
+          {/* Search, Fulfilment & Status Filters */}
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-[#6B6258] absolute left-3.5 top-3" />
+                <input
+                  type="text"
+                  placeholder="Search order #, patron name, or phone..."
+                  value={orderSearchQuery}
+                  onChange={(e) => setOrderSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs focus:outline-none focus:border-[#8A1538]"
+                />
+              </div>
+
+              {/* Fulfilment Filter Buttons */}
+              <div className="flex items-center gap-1.5 shrink-0 bg-[#FBF7F1] p-1 rounded-xl border border-[#E8DFD2]">
+                {(['ALL', 'DELIVERY', 'TAKEAWAY'] as const).map((ft) => (
+                  <button
+                    key={ft}
+                    type="button"
+                    onClick={() => setOrderFulfilmentFilter(ft)}
+                    className={`min-h-[34px] px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                      orderFulfilmentFilter === ft
+                        ? 'bg-[#8A1538] text-white shadow-xs'
+                        : 'text-[#6B6258] hover:text-[#1F1B16] hover:bg-white/60'
+                    }`}
+                  >
+                    {ft === 'ALL' ? (
+                      <span>All ({orders.length})</span>
+                    ) : ft === 'DELIVERY' ? (
+                      <>
+                        <Truck className="w-3.5 h-3.5" />
+                        <span>Delivery ({orders.filter((o) => (o.fulfilment_type || 'DELIVERY') === 'DELIVERY').length})</span>
+                      </>
+                    ) : (
+                      <>
+                        <Store className="w-3.5 h-3.5" />
+                        <span>Takeaway ({orders.filter((o) => o.fulfilment_type === 'TAKEAWAY').length})</span>
+                      </>
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
 
+            {/* Status Filter Badges */}
             <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
               {[
                 'ALL',
@@ -1667,13 +1707,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   key={st}
                   type="button"
                   onClick={() => setOrderStatusFilter(st)}
-                  className={`min-h-[36px] px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+                  className={`min-h-[32px] px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
                     orderStatusFilter === st
                       ? 'bg-[#8A1538] text-white shadow-xs'
                       : 'bg-stone-100 text-[#6B6258] hover:text-[#1F1B16]'
                   }`}
                 >
-                  {st === 'ALL' ? 'All Orders' : st}
+                  {st === 'ALL' ? 'All Statuses' : st}
                 </button>
               ))}
             </div>
@@ -1688,6 +1728,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
             <div className="divide-y divide-[#E8DFD2]">
               {filteredOrders.map((order) => {
                 const status = order.status;
+                const isTakeaway = order.fulfilment_type === 'TAKEAWAY';
                 const isPaidOnline = order.payment_method === 'ONLINE' && order.payment_status === 'CAPTURED';
 
                 // Complete, authoritative financial values
@@ -1697,16 +1738,37 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                 const productDiscount = order.discount_amount || 0;
                 const deliveryFee = (order.delivery_charge !== undefined && order.delivery_charge !== null)
                   ? order.delivery_charge
-                  : 50;
+                  : (isTakeaway ? 0 : 50);
                 const applicableTaxes = order.tax_amount || 0;
                 const finalOrderTotal = order.total_amount;
 
                 return (
                   <div key={order.id} className="py-4 space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div className="flex items-center gap-2.5 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-mono font-bold text-sm text-[#8A1538]">
                           #{order.order_number}
+                        </span>
+
+                        {/* Fulfilment Type Badge */}
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1 border ${
+                            isTakeaway
+                              ? 'bg-emerald-50 text-[#2E7D4F] border-emerald-300'
+                              : 'bg-blue-50 text-blue-800 border-blue-200'
+                          }`}
+                        >
+                          {isTakeaway ? (
+                            <>
+                              <Store className="w-3 h-3" />
+                              <span>Store Takeaway</span>
+                            </>
+                          ) : (
+                            <>
+                              <Truck className="w-3 h-3" />
+                              <span>Doorstep Delivery</span>
+                            </>
+                          )}
                         </span>
 
                         <span
@@ -1753,10 +1815,28 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                       </div>
                     </div>
 
+                    {/* Scheduled Counter Slot for Takeaway */}
+                    {isTakeaway && (
+                      <div className="text-xs text-[#8A1538] font-semibold flex items-center gap-1.5 bg-[#FAF4DE] px-3 py-1.5 rounded-lg border border-[#C79A3D]/40">
+                        <Clock className="w-3.5 h-3.5 text-[#8A1538] shrink-0" />
+                        <span>
+                          Scheduled Counter Pickup:{' '}
+                          <strong className="text-[#1F1B16]">
+                            {order.slot_snapshot?.slot_time_formatted || 'Standard Slot'}
+                            {order.slot_snapshot?.slot_date ? ` (${order.slot_snapshot.slot_date})` : ''}
+                          </strong>
+                        </span>
+                      </div>
+                    )}
+
                     <div className="text-xs text-[#6B6258] leading-relaxed">
                       Customer: <strong className="text-[#1F1B16]">{order.address_snapshot?.recipient_name}</strong> (
-                      {order.address_snapshot?.recipient_phone}) • Destination:{' '}
-                      {order.address_snapshot?.street_address}, {order.address_snapshot?.pincode}
+                      {order.address_snapshot?.recipient_phone}) •{' '}
+                      {isTakeaway ? (
+                        <span className="text-[#2E7D4F] font-semibold">Store Counter Pickup (Barabanki)</span>
+                      ) : (
+                        <span>Destination: {order.address_snapshot?.street_address}, {order.address_snapshot?.pincode}</span>
+                      )}
                     </div>
 
                     <div className="text-xs text-[#1F1B16] font-medium">
@@ -1764,7 +1844,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                       {order.items?.map((it: any) => `${it.product_name} (${it.variant_label}) × ${it.quantity}`).join(' • ')}
                     </div>
 
-                    {order.delivery_partner_name && (
+                    {!isTakeaway && order.delivery_partner_name && (
                       <div className="text-xs text-[#2E7D4F] flex items-center gap-1 font-semibold">
                         <Bike className="w-3.5 h-3.5" />
                         <span>Rider Assigned: {order.delivery_partner_name} ({order.delivery_partner_phone})</span>
@@ -1790,8 +1870,16 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                           </span>
                         </div>
                         <div>
-                          <span className="block text-[10px] uppercase font-bold tracking-wider text-[#6B6258]">Delivery Fee</span>
-                          <span className="font-semibold text-[#1F1B16] tabular-nums">{formatINR(deliveryFee)}</span>
+                          <span className="block text-[10px] uppercase font-bold tracking-wider text-[#6B6258]">
+                            {isTakeaway ? 'Pickup Fee' : 'Delivery Fee'}
+                          </span>
+                          <span className="font-semibold text-[#1F1B16] tabular-nums">
+                            {deliveryFee === 0 ? (
+                              <span className="text-[#2E7D4F] font-bold">FREE (₹0)</span>
+                            ) : (
+                              formatINR(deliveryFee)
+                            )}
+                          </span>
                         </div>
                         <div>
                           <span className="block text-[10px] uppercase font-bold tracking-wider text-[#8A1538]">Final Order Total</span>
@@ -2509,6 +2597,209 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   }
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
                 />
+              </div>
+
+              {/* ==================================================== */}
+              {/* STORE OPERATIONS & PICKUP SCHEDULING CONTROLS        */}
+              {/* ==================================================== */}
+              <div className="sm:col-span-2 pt-4 border-t border-[#E8DFD2] space-y-4">
+                <div className="flex items-center gap-2">
+                  <Store className="w-5 h-5 text-[#8A1538]" />
+                  <h4 className="font-display font-bold text-base text-[#1F1B16]">
+                    Store Operations & Takeaway Capacity Scheduling
+                  </h4>
+                </div>
+                <p className="text-xs text-[#6B6258]">
+                  Control live online availability, pause deliveries or takeaways, configure pickup hours, and cap per-slot kitchen load.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#FBF7F1] p-4 rounded-xl border border-[#E8DFD2]">
+                  {/* Delivery Toggle */}
+                  <div className="flex items-center justify-between p-3.5 rounded-xl bg-white border border-[#E8DFD2]">
+                    <div>
+                      <div className="font-bold text-xs text-[#1F1B16] flex items-center gap-1.5">
+                        <Truck className="w-4 h-4 text-[#8A1538]" />
+                        <span>Home Delivery Service</span>
+                      </div>
+                      <p className="text-[11px] text-[#6B6258] mt-0.5">
+                        {storeSettings.delivery_enabled ?? true ? 'Currently Accepting Doorstep Orders' : 'Paused by Management'}
+                      </p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        disabled={!isAdmin}
+                        checked={storeSettings.delivery_enabled ?? true}
+                        onChange={(e) => setStoreSettings({ ...storeSettings, delivery_enabled: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-10 h-6 bg-stone-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#2E7D4F]"></div>
+                    </label>
+                  </div>
+
+                  {/* Takeaway Toggle */}
+                  <div className="flex items-center justify-between p-3.5 rounded-xl bg-white border border-[#E8DFD2]">
+                    <div>
+                      <div className="font-bold text-xs text-[#1F1B16] flex items-center gap-1.5">
+                        <Store className="w-4 h-4 text-[#2E7D4F]" />
+                        <span>Store Pickup / Takeaway</span>
+                      </div>
+                      <p className="text-[11px] text-[#6B6258] mt-0.5">
+                        {storeSettings.takeaway_enabled ?? true ? 'Currently Accepting Counter Pickups' : 'Paused by Management'}
+                      </p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        disabled={!isAdmin}
+                        checked={storeSettings.takeaway_enabled ?? true}
+                        onChange={(e) => setStoreSettings({ ...storeSettings, takeaway_enabled: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-10 h-6 bg-stone-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#2E7D4F]"></div>
+                    </label>
+                  </div>
+
+                  {/* Closure / Announcement Message */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                      Customer Closure Notice / Announcement (Shown when services are paused)
+                    </label>
+                    <input
+                      type="text"
+                      disabled={!isAdmin}
+                      value={storeSettings.closure_message || ''}
+                      placeholder="e.g. Fresh batch cooking in progress. Online orders will resume at 4:30 PM."
+                      onChange={(e) => setStoreSettings({ ...storeSettings, closure_message: e.target.value })}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-white text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
+                    />
+                  </div>
+
+                  {/* Pickup Operating Hours */}
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                      Counter Opening Time (IST)
+                    </label>
+                    <input
+                      type="time"
+                      disabled={!isAdmin}
+                      value={storeSettings.pickup_opening_time || '09:00'}
+                      onChange={(e) => setStoreSettings({ ...storeSettings, pickup_opening_time: e.target.value })}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-white text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                      Counter Closing Time (IST)
+                    </label>
+                    <input
+                      type="time"
+                      disabled={!isAdmin}
+                      value={storeSettings.pickup_closing_time || '21:30'}
+                      onChange={(e) => setStoreSettings({ ...storeSettings, pickup_closing_time: e.target.value })}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-white text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
+                    />
+                  </div>
+
+                  {/* Slot Duration */}
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                      Pickup Slot Window (Minutes)
+                    </label>
+                    <select
+                      disabled={!isAdmin}
+                      value={storeSettings.pickup_slot_duration_minutes || 30}
+                      onChange={(e) =>
+                        setStoreSettings({
+                          ...storeSettings,
+                          pickup_slot_duration_minutes: Number(e.target.value),
+                        })
+                      }
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-white text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
+                    >
+                      <option value={15}>15 Minutes</option>
+                      <option value={30}>30 Minutes (Recommended)</option>
+                      <option value={45}>45 Minutes</option>
+                      <option value={60}>60 Minutes</option>
+                    </select>
+                  </div>
+
+                  {/* Max Orders Per Slot */}
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                      Max Orders Per Slot (Kitchen Capacity)
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      disabled={!isAdmin}
+                      value={storeSettings.pickup_max_orders_per_slot || 10}
+                      onChange={(e) =>
+                        setStoreSettings({
+                          ...storeSettings,
+                          pickup_max_orders_per_slot: Number(e.target.value),
+                        })
+                      }
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-white text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
+                    />
+                  </div>
+
+                  {/* Advance Booking Days */}
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                      Advance Booking Window (Days)
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={14}
+                      disabled={!isAdmin}
+                      value={storeSettings.pickup_advance_days || 3}
+                      onChange={(e) =>
+                        setStoreSettings({
+                          ...storeSettings,
+                          pickup_advance_days: Number(e.target.value),
+                        })
+                      }
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-white text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
+                    />
+                  </div>
+
+                  {/* Auto-Reopen Timestamp */}
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                      Auto-Reopen Timestamp (Optional)
+                    </label>
+                    <div className="flex gap-2 items-center">
+                      <input
+                        type="datetime-local"
+                        disabled={!isAdmin}
+                        value={storeSettings.auto_reopen_at ? storeSettings.auto_reopen_at.slice(0, 16) : ''}
+                        onChange={(e) =>
+                          setStoreSettings({
+                            ...storeSettings,
+                            auto_reopen_at: e.target.value ? new Date(e.target.value).toISOString() : null,
+                          })
+                        }
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-white text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
+                      />
+                      {storeSettings.auto_reopen_at && isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => setStoreSettings({ ...storeSettings, auto_reopen_at: null })}
+                          className="px-2.5 py-1 text-xs text-red-600 hover:text-red-800 underline shrink-0 font-medium"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-[#6B6258] mt-1">
+                      Automatically turns Delivery & Takeaway back ON when time passes.
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <div className="sm:col-span-2 pt-2">
@@ -3567,13 +3858,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       {/* MODAL 9: INDIVIDUAL ORDER DETAILS & FINANCIAL BREAKDOWN */}
       {/* ==================================================== */}
       {selectedOrderForDetails && (() => {
+        const modalIsTakeaway = selectedOrderForDetails.fulfilment_type === 'TAKEAWAY';
         const modalSubtotal = (selectedOrderForDetails.subtotal && selectedOrderForDetails.subtotal > 0)
           ? selectedOrderForDetails.subtotal
           : (selectedOrderForDetails.items?.reduce((acc: number, it: any) => acc + (it.total_price || ((it.unit_price || 0) * (it.quantity || 1)) || 0), 0) || 0);
         const modalDiscount = selectedOrderForDetails.discount_amount || 0;
         const modalDeliveryFee = (selectedOrderForDetails.delivery_charge !== undefined && selectedOrderForDetails.delivery_charge !== null)
           ? selectedOrderForDetails.delivery_charge
-          : 50;
+          : (modalIsTakeaway ? 0 : 50);
         const modalTaxes = selectedOrderForDetails.tax_amount || 0;
         const modalFinalTotal = selectedOrderForDetails.total_amount;
         const modalStatus = selectedOrderForDetails.status;
@@ -3589,6 +3881,15 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                     <h3 className="font-display font-bold text-lg text-[#1F1B16]">
                       Order #{selectedOrderForDetails.order_number}
                     </h3>
+                    <span
+                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                        modalIsTakeaway
+                          ? 'bg-emerald-100 text-[#2E7D4F] border border-emerald-300'
+                          : 'bg-blue-100 text-blue-800 border border-blue-200'
+                      }`}
+                    >
+                      {modalIsTakeaway ? '🏪 Store Takeaway' : '🚚 Doorstep Delivery'}
+                    </span>
                     <span
                       className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
                         modalStatus === 'DELIVERED'
@@ -3621,7 +3922,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
 
               {/* Scrollable Content Body */}
               <div className="p-6 overflow-y-auto space-y-5">
-                {/* 1. Customer & Delivery Information */}
+                {/* 1. Customer & Fulfilment Information */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-stone-50/70 p-4 rounded-xl border border-[#E8DFD2]/60 text-xs">
                   <div className="space-y-1">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B6258] block">Customer Details</span>
@@ -3632,24 +3933,47 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                       <Phone className="w-3.5 h-3.5 text-[#8A1538]" />
                       <span>{selectedOrderForDetails.address_snapshot?.recipient_phone || selectedOrderForDetails.guest_phone || 'N/A'}</span>
                     </div>
+                    <div className="pt-1">
+                      <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded ${modalIsTakeaway ? 'bg-emerald-50 text-[#2E7D4F] border border-emerald-200' : 'bg-blue-50 text-blue-800 border border-blue-200'}`}>
+                        {modalIsTakeaway ? '🏪 Store Counter Pickup' : '🚚 Doorstep Delivery'}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="space-y-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B6258] block">Delivery Destination</span>
-                    <div className="text-[#1F1B16] leading-relaxed flex items-start gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-[#8A1538] shrink-0 mt-0.5" />
-                      <span>
-                        {selectedOrderForDetails.address_snapshot?.street_address}
-                        {selectedOrderForDetails.address_snapshot?.landmark ? `, Near ${selectedOrderForDetails.address_snapshot?.landmark}` : ''}
-                        <br />
-                        {selectedOrderForDetails.address_snapshot?.city || 'Barabanki'}, {selectedOrderForDetails.address_snapshot?.state || 'Uttar Pradesh'} - {selectedOrderForDetails.address_snapshot?.pincode || '225001'}
-                      </span>
-                    </div>
-                    {selectedOrderForDetails.delivery_partner_name && (
-                      <div className="text-[#2E7D4F] flex items-center gap-1 font-semibold pt-1">
-                        <Bike className="w-3.5 h-3.5" />
-                        <span>Rider: {selectedOrderForDetails.delivery_partner_name} ({selectedOrderForDetails.delivery_partner_phone})</span>
-                      </div>
+                    {modalIsTakeaway ? (
+                      <>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B6258] block">Pickup Window & Counter</span>
+                        <div className="text-[#1F1B16] leading-relaxed flex items-start gap-1.5 font-bold text-sm text-[#8A1538]">
+                          <Clock className="w-4 h-4 text-[#8A1538] shrink-0 mt-0.5" />
+                          <span>
+                            {selectedOrderForDetails.slot_snapshot?.slot_time_formatted || 'Standard Slot'}
+                            {selectedOrderForDetails.slot_snapshot?.slot_date ? ` (${selectedOrderForDetails.slot_snapshot.slot_date})` : ''}
+                          </span>
+                        </div>
+                        <div className="text-[#6B6258] text-[11px] pt-1">
+                          Counter: Saraswati Sweets Main Market, Barabanki
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B6258] block">Delivery Destination</span>
+                        <div className="text-[#1F1B16] leading-relaxed flex items-start gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-[#8A1538] shrink-0 mt-0.5" />
+                          <span>
+                            {selectedOrderForDetails.address_snapshot?.street_address}
+                            {selectedOrderForDetails.address_snapshot?.landmark ? `, Near ${selectedOrderForDetails.address_snapshot?.landmark}` : ''}
+                            <br />
+                            {selectedOrderForDetails.address_snapshot?.city || 'Barabanki'}, {selectedOrderForDetails.address_snapshot?.state || 'Uttar Pradesh'} - {selectedOrderForDetails.address_snapshot?.pincode || '225001'}
+                          </span>
+                        </div>
+                        {selectedOrderForDetails.delivery_partner_name && (
+                          <div className="text-[#2E7D4F] flex items-center gap-1 font-semibold pt-1">
+                            <Bike className="w-3.5 h-3.5" />
+                            <span>Rider: {selectedOrderForDetails.delivery_partner_name} ({selectedOrderForDetails.delivery_partner_phone})</span>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
@@ -3741,13 +4065,23 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                       </span>
                     </div>
 
-                    {/* Delivery Fee */}
+                    {/* Delivery / Pickup Fee */}
                     <div className="flex justify-between items-center">
                       <div>
-                        <span className="font-medium text-[#1F1B16]">Delivery Fee</span>
-                        <span className="text-[10px] text-[#6B6258] block">Flat delivery fee across Barabanki</span>
+                        <span className="font-medium text-[#1F1B16]">
+                          {modalIsTakeaway ? 'Store Counter Pickup Fee' : 'Delivery Fee'}
+                        </span>
+                        <span className="text-[10px] text-[#6B6258] block">
+                          {modalIsTakeaway ? 'FREE (₹0 Counter Pickup)' : 'Flat delivery fee across Barabanki'}
+                        </span>
                       </div>
-                      <span className="font-semibold text-[#1F1B16] tabular-nums text-sm">{formatINR(modalDeliveryFee)}</span>
+                      <span className="font-semibold text-[#1F1B16] tabular-nums text-sm">
+                        {modalDeliveryFee === 0 ? (
+                          <span className="text-[#2E7D4F] font-bold">FREE (₹0)</span>
+                        ) : (
+                          formatINR(modalDeliveryFee)
+                        )}
+                      </span>
                     </div>
 
                     {/* Taxes */}

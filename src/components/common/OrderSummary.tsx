@@ -23,8 +23,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
   checkoutButtonLabel = 'Proceed to Checkout',
   isProceedDisabled = false,
 }) => {
-  const isFreeDelivery = false;
-  const effectiveDeliveryCharge = subtotal === 0 ? 0 : 50;
+  const effectiveDeliveryCharge = subtotal === 0 ? 0 : (deliveryCharge !== undefined ? deliveryCharge : 50);
   const grandTotal = Math.max(0, subtotal - discount + effectiveDeliveryCharge);
 
   return (
@@ -34,10 +33,19 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
       </h3>
 
       {/* Flat delivery prompt bar */}
-      <div className="p-3 rounded-xl bg-[#F3EBE0]/70 border border-[#E8DFD2]">
+      <div className={`p-3 rounded-xl border ${effectiveDeliveryCharge === 0 ? 'bg-emerald-50/70 border-emerald-200' : 'bg-[#F3EBE0]/70 border-[#E8DFD2]'}`}>
         <div className="flex items-center gap-2 text-xs font-semibold text-[#1F1B16]">
-          <Truck className="w-4 h-4 text-[#8A1538]" />
-          <span>Flat <strong className="text-[#8A1538]">₹50 Delivery Fee</strong> across all Barabanki orders</span>
+          {effectiveDeliveryCharge === 0 ? (
+            <>
+              <CheckCircle2 className="w-4 h-4 text-[#2E7D4F]" />
+              <span>Store Pickup / Takeaway: <strong className="text-[#2E7D4F]">FREE (₹0 Delivery Fee)</strong></span>
+            </>
+          ) : (
+            <>
+              <Truck className="w-4 h-4 text-[#8A1538]" />
+              <span>Flat <strong className="text-[#8A1538]">₹50 Delivery Fee</strong> across all Barabanki orders</span>
+            </>
+          )}
         </div>
       </div>
 
@@ -65,7 +73,11 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
         <div className="flex justify-between items-center">
           <span>Delivery Charge</span>
           <span className="text-[#1F1B16] font-medium tabular-nums">
-            {formatINR(effectiveDeliveryCharge)}
+            {effectiveDeliveryCharge === 0 ? (
+              <span className="text-[#2E7D4F] font-semibold">FREE</span>
+            ) : (
+              formatINR(effectiveDeliveryCharge)
+            )}
           </span>
         </div>
 

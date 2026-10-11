@@ -17,12 +17,53 @@ import {
   isLiveSupabase,
   supabaseServer,
   findOrderInSupabase,
+  checkAutoReopen,
+  generateAvailablePickupSlots,
+  checkAndReserveSlotCapacity,
+  getKolkataDateParts,
+  formatTime12h,
 } from '../db';
 import { createCashfreeOrder, getCashfreeAppId, fetchCashfreeOrderDetails } from '../services/cashfreeService';
 import { notifyOrderPlaced, notifyOrderStatusChanged } from '../services/notificationService';
 import { confirmOrderPayment } from '../services/paymentPersistenceService';
 
 const router = Router();
+
+// GET /api/checkout/availability - Current store fulfilment availability & notices
+router.get('/checkout/availability', (_req: Request, res: Response) => {
+  checkAutoReopen(inMemoryStore.storeSettings);
+  res.json({
+    success: true,
+    is_store_open: inMemoryStore.storeSettings.is_store_open,
+    delivery_enabled: inMemoryStore.storeSettings.delivery_enabled,
+    takeaway_enabled: inMemoryStore.storeSettings.takeaway_enabled,
+    closure_message: inMemoryStore.storeSettings.closure_message,
+    pickup_opening_time: inMemoryStore.storeSettings.pickup_opening_time,
+    pickup_closing_time: inMemoryStore.storeSettings.pickup_closing_time,
+    pickup_slot_duration_minutes: inMemoryStore.storeSettings.pickup_slot_duration_minutes,
+    pickup_max_orders_per_slot: inMemoryStore.storeSettings.pickup_max_orders_per_slot,
+    pickup_advance_days: inMemoryStore.storeSettings.pickup_advance_days,
+    auto_reopen_at: inMemoryStore.storeSettings.auto_reopen_at,
+  });
+});
+
+// GET /api/checkout/pickup-slots - Available pickup dates & capacity-checked slots
+router.get('/checkout/pickup-slots', (req: Request, res: Response) => {
+  checkAutoReopen(inMemoryStore.storeSettings);
+  const requestedDate = typeof req.query.date === 'string' ? req.query.date.trim() : undefined;
+  const todayDateStr = getKolkataDateParts().dateStr;
+  const dateForSlots = requestedDate || todayDateStr;
+  const slots = generateAvailablePickupSlots(dateForSlots, inMemoryStore.storeSettings);
+  const schedules = generateAvailablePickupSlots(inMemoryStore.storeSettings);
+  res.json({
+    success: true,
+    takeaway_enabled: inMemoryStore.storeSettings.takeaway_enabled,
+    is_store_open: inMemoryStore.storeSettings.is_store_open,
+    closure_message: inMemoryStore.storeSettings.closure_message,
+    slots,
+    schedules,
+  });
+});
 
 // POST /api/checkout - Atomic Order Placement with Server Authoritative Calculations & Idempotency
 router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
@@ -70,10 +111,49 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
     guest_phone,
     guest_email,
     payment_method = 'COD',
+    fulfilment_type = 'DELIVERY',
+    pickup_slot,
+    customer_name,
+    customer_phone,
   } = req.body;
 
-  // Run auto-expire check on pending orders
+  // Run auto-expire check on pending orders and check store-wide auto-reopen
   expireUnpaidOrders();
+  checkAutoReopen(inMemoryStore.storeSettings);
+
+  const cleanFulfilmentType: 'DELIVERY' | 'TAKEAWAY' =
+    String(fulfilment_type || 'DELIVERY').toUpperCase() === 'TAKEAWAY' ? 'TAKEAWAY' : 'DELIVERY';
+
+  // 1. Store Operations & Fulfilment Availability Check
+  if (!inMemoryStore.storeSettings.is_store_open || (!inMemoryStore.storeSettings.delivery_enabled && !inMemoryStore.storeSettings.takeaway_enabled)) {
+    res.status(400).json({
+      error: 'STORE_CLOSED',
+      message: inMemoryStore.storeSettings.closure_message || 'Our store is temporarily unable to accept orders at this time. Please check back later.',
+      delivery_enabled: false,
+      takeaway_enabled: false,
+    });
+    return;
+  }
+
+  if (cleanFulfilmentType === 'DELIVERY' && !inMemoryStore.storeSettings.delivery_enabled) {
+    res.status(400).json({
+      error: 'DELIVERY_UNAVAILABLE',
+      message: inMemoryStore.storeSettings.closure_message || 'Home Delivery is currently paused due to high rush. Store pickup is available!',
+      delivery_enabled: false,
+      takeaway_enabled: inMemoryStore.storeSettings.takeaway_enabled,
+    });
+    return;
+  }
+
+  if (cleanFulfilmentType === 'TAKEAWAY' && !inMemoryStore.storeSettings.takeaway_enabled) {
+    res.status(400).json({
+      error: 'TAKEAWAY_UNAVAILABLE',
+      message: inMemoryStore.storeSettings.closure_message || 'Store pickup / takeaway is currently unavailable.',
+      delivery_enabled: inMemoryStore.storeSettings.delivery_enabled,
+      takeaway_enabled: false,
+    });
+    return;
+  }
 
   // 2. Validate Items
   if (!Array.isArray(items) || items.length === 0) {
@@ -84,23 +164,159 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
     return;
   }
 
-  // 3. Validate Address & Pincode serviceability
-  if (!address || !address.recipient_name || !address.recipient_phone || !address.street_address || !address.pincode) {
-    res.status(400).json({
-      error: 'INVALID_ADDRESS',
-      message: 'Recipient name, phone, address, and pincode are required.',
-    });
-    return;
-  }
+  // 3. Fulfilment-Specific Validations & Address Construction
+  let finalAddress: any = null;
+  let slotSnapshot: any = null;
 
-  const cleanPincode = String(address.pincode).trim();
-  if (!SERVICEABLE_PINCODES.includes(cleanPincode)) {
-    res.status(400).json({
-      error: 'PINCODE_NOT_SERVICEABLE',
-      message: `Pincode ${cleanPincode} is outside Barabanki delivery limits.`,
-      allowedPincodes: SERVICEABLE_PINCODES,
-    });
-    return;
+  if (cleanFulfilmentType === 'TAKEAWAY') {
+    // MANDATORY POLICY: Takeaway orders must be paid online in advance via Cashfree
+    if (payment_method !== 'ONLINE') {
+      res.status(400).json({
+        error: 'TAKEAWAY_PREPAYMENT_REQUIRED',
+        message: 'Store pickup / takeaway orders must be paid online in advance. Cash on pickup is not accepted.',
+      });
+      return;
+    }
+
+    // Validate Pickup Slot
+    if (!pickup_slot || !pickup_slot.slot_date || !pickup_slot.start_time || !pickup_slot.end_time) {
+      res.status(400).json({
+        error: 'PICKUP_SLOT_REQUIRED',
+        message: 'Please select a valid pickup date and time slot for takeaway collection.',
+      });
+      return;
+    }
+
+    const slotDateStr = String(pickup_slot.slot_date).trim();
+    const startTimeStr = String(pickup_slot.start_time).trim();
+    const endTimeStr = String(pickup_slot.end_time).trim();
+
+    // Verify slot date against advance booking window in Asia/Kolkata
+    const nowKolkata = getKolkataDateParts();
+    const todayStr = nowKolkata.dateStr;
+    const maxAdvanceDays = Math.max(1, inMemoryStore.storeSettings.pickup_advance_days || 2);
+
+    const slotDateObj = new Date(`${slotDateStr}T00:00:00+05:30`);
+    const todayDateObj = new Date(`${todayStr}T00:00:00+05:30`);
+    const diffDays = Math.round((slotDateObj.getTime() - todayDateObj.getTime()) / (24 * 60 * 60 * 1000));
+
+    if (isNaN(diffDays) || diffDays < 0) {
+      res.status(400).json({
+        error: 'PAST_PICKUP_SLOT',
+        message: 'The selected pickup date has already passed. Please select a valid future date.',
+      });
+      return;
+    }
+
+    if (diffDays > maxAdvanceDays) {
+      res.status(400).json({
+        error: 'SLOT_EXCEEDS_ADVANCE_WINDOW',
+        message: `Pickup bookings are accepted up to ${maxAdvanceDays} days in advance.`,
+      });
+      return;
+    }
+
+    // If slot is today, ensure start time is in future + at least 30 min buffer
+    if (diffDays === 0) {
+      const [sH, sM] = startTimeStr.split(':').map((x: string) => parseInt(x, 10));
+      const slotMinutes = sH * 60 + (sM || 0);
+      const currentMinutes = nowKolkata.hour * 60 + nowKolkata.minute;
+      if (slotMinutes < currentMinutes + 30) {
+        res.status(400).json({
+          error: 'PAST_PICKUP_TIME',
+          message: 'Selected pickup time slot is no longer available. Please select a time slot at least 30 minutes in advance.',
+        });
+        return;
+      }
+    }
+
+    // Check operating hours
+    const openTime = inMemoryStore.storeSettings.pickup_opening_time || '08:00';
+    const closeTime = inMemoryStore.storeSettings.pickup_closing_time || '21:30';
+    if (startTimeStr < openTime || endTimeStr > closeTime) {
+      res.status(400).json({
+        error: 'SLOT_OUTSIDE_HOURS',
+        message: `Pickup slots are available only between ${formatTime12h(openTime)} and ${formatTime12h(closeTime)}.`,
+      });
+      return;
+    }
+
+    // Concurrency-safe capacity reservation
+    const maxCap = inMemoryStore.storeSettings.pickup_max_orders_per_slot || 10;
+    const capRes = await checkAndReserveSlotCapacity(slotDateStr, startTimeStr, endTimeStr, maxCap);
+    if (!capRes.allowed) {
+      res.status(400).json({
+        error: 'SLOT_CAPACITY_FULL',
+        message: capRes.message || 'This pickup slot is currently at full capacity. Please choose another slot.',
+      });
+      return;
+    }
+
+    // Customer Name & Phone for Counter Collection
+    const recName = (req.user?.full_name || customer_name || address?.recipient_name || '').trim();
+    const recPhone = (req.user?.phone || customer_phone || address?.recipient_phone || '').replace(/\D/g, '').slice(-10);
+
+    if (!recName) {
+      res.status(400).json({
+        error: 'RECIPIENT_NAME_REQUIRED',
+        message: 'Customer name is required for takeaway pickup collection.',
+      });
+      return;
+    }
+
+    if (recPhone.length !== 10) {
+      res.status(400).json({
+        error: 'INVALID_PHONE',
+        message: 'A valid 10-digit mobile number is required for takeaway order notifications.',
+      });
+      return;
+    }
+
+    finalAddress = {
+      id: 'takeaway-store-pickup',
+      profile_id: verifiedUserId,
+      label: 'Store Pickup',
+      recipient_name: recName,
+      recipient_phone: recPhone,
+      street_address: 'Store Pickup: Saraswati Sweets Counter, Indira Market, Begum Gunj',
+      city: 'Barabanki',
+      state: 'Uttar Pradesh',
+      pincode: '225001',
+      is_pickup: true,
+    };
+
+    slotSnapshot = {
+      fulfilment_type: 'TAKEAWAY',
+      slot_date: slotDateStr,
+      start_time: startTimeStr,
+      end_time: endTimeStr,
+      formatted_slot: `${formatTime12h(startTimeStr)} - ${formatTime12h(endTimeStr)}`,
+      pickup_instructions: 'Please collect your fresh sweets at Saraswati Sweets counter, Indira Market, Begum Gunj, Barabanki. Show your order confirmation.',
+    };
+  } else {
+    // HOME DELIVERY
+    if (!address || !address.recipient_name || !address.recipient_phone || !address.street_address || !address.pincode) {
+      res.status(400).json({
+        error: 'INVALID_ADDRESS',
+        message: 'Recipient name, phone, address, and pincode are required for home delivery.',
+      });
+      return;
+    }
+
+    const cleanPincode = String(address.pincode).trim();
+    if (!SERVICEABLE_PINCODES.includes(cleanPincode)) {
+      res.status(400).json({
+        error: 'PINCODE_NOT_SERVICEABLE',
+        message: `Pincode ${cleanPincode} is outside Barabanki delivery limits.`,
+        allowedPincodes: SERVICEABLE_PINCODES,
+      });
+      return;
+    }
+
+    finalAddress = address;
+    slotSnapshot = {
+      fulfilment_type: 'DELIVERY',
+    };
   }
 
 
@@ -228,8 +444,8 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
     validatedCouponObj = couponRes.coupon;
   }
 
-  // 7. Calculate Delivery & Tax (Enforce fixed ₹50 flat delivery fee for all new orders)
-  const deliveryCharge = 50;
+  // 7. Calculate Delivery & Tax (Strict ₹0 for Takeaway, Flat ₹50 for Delivery)
+  const deliveryCharge = cleanFulfilmentType === 'TAKEAWAY' ? 0 : 50;
   const tax = 0; // Inclusive in MRP per sweets standard in UP
   const total = Math.max(0, subtotal - discount + deliveryCharge + tax);
 
@@ -237,7 +453,15 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
   const isOnlinePayment = payment_method === 'ONLINE';
 
   if (!isOnlinePayment) {
-    // COD Limit Check
+    if (cleanFulfilmentType === 'TAKEAWAY') {
+      res.status(400).json({
+        error: 'TAKEAWAY_PREPAYMENT_REQUIRED',
+        message: 'Store pickup / takeaway orders must be paid online in advance. Cash on pickup is not accepted.',
+      });
+      return;
+    }
+
+    // COD Limit Check for delivery
     if (total > STORE_SETTINGS.cod_limit_amount) {
       res.status(400).json({
         error: 'COD_LIMIT_EXCEEDED',
@@ -258,13 +482,15 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
     id: orderId,
     order_number: orderNumber,
     user_id: verifiedUserId,
-    guest_phone: req.user.phone || address?.recipient_phone || undefined,
+    guest_phone: req.user.phone || finalAddress?.recipient_phone || undefined,
     guest_email: req.user.email || undefined,
     address_snapshot: {
-      ...address,
+      ...finalAddress,
       city: 'Barabanki',
       state: 'Uttar Pradesh',
     },
+    fulfilment_type: cleanFulfilmentType,
+    slot_snapshot: slotSnapshot,
     subtotal,
     discount_amount: discount,
     coupon_code: appliedCouponCode,
@@ -296,8 +522,8 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
         orderNumber, 
         {
           customer_id: verifiedUserId || 'guest',
-          customer_phone: address.recipient_phone,
-          customer_name: address.recipient_name,
+          customer_phone: finalAddress.recipient_phone,
+          customer_name: finalAddress.recipient_name,
         },
         {
           order_id: orderId,
@@ -410,7 +636,8 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
     guest_email: newOrder.guest_email,
     address_snapshot: newOrder.address_snapshot,
     delivery_slot_id: null,
-    slot_snapshot: null,
+    slot_snapshot: newOrder.slot_snapshot,
+    fulfilment_type: newOrder.fulfilment_type || 'DELIVERY',
     subtotal: newOrder.subtotal,
     discount_amount: newOrder.discount_amount,
     coupon_code: newOrder.coupon_code,
@@ -426,7 +653,14 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
     placed_at: newOrder.placed_at,
   };
 
-  const { error: orderErr } = await supabaseServer.from('orders').insert([orderRow]);
+  let { error: orderErr } = await supabaseServer.from('orders').insert([orderRow]);
+
+  if (orderErr && (orderErr.code === '42703' || orderErr.message?.includes('fulfilment_type'))) {
+    // Column pending migration fallback: preserve in slot_snapshot and retry without top-level column
+    delete orderRow.fulfilment_type;
+    const retryRes = await supabaseServer.from('orders').insert([orderRow]);
+    orderErr = retryRes.error;
+  }
 
   if (orderErr) {
     console.error('Order insert failed', orderErr);

@@ -22,6 +22,8 @@ import {
   loadStoreState,
   isLiveSupabase,
   supabaseServer,
+  checkAutoReopen,
+  syncStoreSettingsToSupabase,
 } from '../db';
 import { createCashfreeRefund, fetchCashfreeRefund } from '../services/cashfreeService';
 import { adminOrderEvents, AdminOrderNotificationPayload, emailProvider, getAdminNotificationRecipient } from '../services/notificationService';
@@ -58,7 +60,11 @@ router.get('/overview', (req: AuthenticatedRequest, res: Response) => {
       o.status !== 'PAYMENT_FAILED'
   );
 
-  const todayRevenue = todayOrders.reduce((sum, o) => sum + o.total_amount, 0);
+  // Collected revenue strictly excludes unpaid or pending payments
+  const todayCollectedOrders = todayOrders.filter(
+    (o) => o.payment_status === 'CAPTURED' || (o.payment_method === 'COD' && o.status !== 'CANCELLED' && o.status !== 'PENDING_PAYMENT')
+  );
+  const todayRevenue = todayCollectedOrders.reduce((sum, o) => sum + o.total_amount, 0);
 
   const pendingOrders = allOrders.filter(
     (o) => o.status === 'PLACED' || o.status === 'PENDING_PAYMENT'
@@ -83,10 +89,13 @@ router.get('/overview', (req: AuthenticatedRequest, res: Response) => {
         o.status !== 'CANCELLED' &&
         o.status !== 'PAYMENT_FAILED'
     );
+    const dayCollected = dayOrders.filter(
+      (o) => o.payment_status === 'CAPTURED' || (o.payment_method === 'COD' && o.status !== 'CANCELLED' && o.status !== 'PENDING_PAYMENT')
+    );
     trend7Days.push({
       date: dateStr,
       label: d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }),
-      revenue: dayOrders.reduce((acc, o) => acc + o.total_amount, 0),
+      revenue: dayCollected.reduce((acc, o) => acc + o.total_amount, 0),
       orders: dayOrders.length,
     });
   }
@@ -1154,6 +1163,7 @@ router.patch('/delivery-partners/:id/status', async (req: AuthenticatedRequest, 
 // 9. STORE SETTINGS (ADMIN ONLY)
 // ==========================================================
 router.get('/store/settings', (_req: AuthenticatedRequest, res: Response) => {
+  checkAutoReopen(inMemoryStore.storeSettings);
   res.json({ settings: inMemoryStore.storeSettings });
 });
 
@@ -1162,44 +1172,66 @@ router.put('/store/settings', requireRole(['ADMIN']), async (req: AuthenticatedR
 
   // Explicit whitelist — NEVER spread req.body directly
   const {
-    store_name, tagline, store_phone, whatsapp, store_email, address_text,
-    delivery_charge_flat, free_delivery_above, cod_limit_amount,
-    tax_rate_percent, opening_time, closing_time, is_store_open, serviceable_pincodes,
+    store_name, tagline, store_phone, phone, whatsapp, store_email, email, address_text, address,
+    delivery_charge_flat, delivery_charge, free_delivery_above, free_delivery_threshold,
+    cod_limit_amount, cod_max_limit, tax_rate_percent, opening_time, closing_time,
+    is_store_open, serviceable_pincodes, allowed_pincodes,
+    // Operations & Scheduling fields
+    delivery_enabled, takeaway_enabled, closure_message,
+    pickup_opening_time, pickup_closing_time, pickup_slot_duration_minutes,
+    pickup_max_orders_per_slot, pickup_advance_days, auto_reopen_at,
   } = req.body;
 
   const updates: Partial<ServerStoreSettings> = {};
   if (store_name !== undefined) updates.store_name = String(store_name).trim();
   if (tagline !== undefined) updates.tagline = String(tagline).trim();
-  if (store_phone !== undefined) updates.store_phone = String(store_phone).trim();
+  if (store_phone !== undefined || phone !== undefined) updates.store_phone = String(store_phone || phone).trim();
   if (whatsapp !== undefined) updates.whatsapp = String(whatsapp).trim();
-  if (store_email !== undefined) updates.store_email = String(store_email).trim();
-  if (address_text !== undefined) updates.address_text = String(address_text).trim();
-  if (delivery_charge_flat !== undefined) updates.delivery_charge_flat = Number(delivery_charge_flat);
-  if (free_delivery_above !== undefined) updates.free_delivery_above = Number(free_delivery_above);
-  if (cod_limit_amount !== undefined) updates.cod_limit_amount = Number(cod_limit_amount);
+  if (store_email !== undefined || email !== undefined) updates.store_email = String(store_email || email).trim();
+  if (address_text !== undefined || address !== undefined) updates.address_text = String(address_text || address).trim();
+  if (delivery_charge_flat !== undefined || delivery_charge !== undefined) updates.delivery_charge_flat = Number(delivery_charge_flat ?? delivery_charge);
+  if (free_delivery_above !== undefined || free_delivery_threshold !== undefined) updates.free_delivery_above = Number(free_delivery_above ?? free_delivery_threshold);
+  if (cod_limit_amount !== undefined || cod_max_limit !== undefined) updates.cod_limit_amount = Number(cod_limit_amount ?? cod_max_limit);
   if (tax_rate_percent !== undefined) updates.tax_rate_percent = Number(tax_rate_percent);
   if (opening_time !== undefined) updates.opening_time = String(opening_time);
   if (closing_time !== undefined) updates.closing_time = String(closing_time);
   if (is_store_open !== undefined) updates.is_store_open = Boolean(is_store_open);
-  if (serviceable_pincodes !== undefined) updates.serviceable_pincodes = Array.isArray(serviceable_pincodes) ? serviceable_pincodes : String(serviceable_pincodes).split(',').map(p => p.trim());
 
-  const { error } = await supabaseServer!.from('store_settings').update(updates).eq('id', 1);
-  if (error) {
-    console.error('[Admin] Store settings update failed:', error);
-    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
-    return;
+  const pincodesRaw = serviceable_pincodes !== undefined ? serviceable_pincodes : allowed_pincodes;
+  if (pincodesRaw !== undefined) {
+    updates.serviceable_pincodes = Array.isArray(pincodesRaw) ? pincodesRaw : String(pincodesRaw).split(',').map((p) => p.trim());
   }
 
+  // Operations controls
+  if (delivery_enabled !== undefined) updates.delivery_enabled = Boolean(delivery_enabled);
+  if (takeaway_enabled !== undefined) updates.takeaway_enabled = Boolean(takeaway_enabled);
+  if (closure_message !== undefined) updates.closure_message = closure_message ? String(closure_message).trim() : null;
+  if (pickup_opening_time !== undefined) updates.pickup_opening_time = String(pickup_opening_time);
+  if (pickup_closing_time !== undefined) updates.pickup_closing_time = String(pickup_closing_time);
+  if (pickup_slot_duration_minutes !== undefined) updates.pickup_slot_duration_minutes = Math.max(10, Math.min(120, Number(pickup_slot_duration_minutes) || 30));
+  if (pickup_max_orders_per_slot !== undefined) updates.pickup_max_orders_per_slot = Math.max(1, Math.min(50, Number(pickup_max_orders_per_slot) || 10));
+  if (pickup_advance_days !== undefined) updates.pickup_advance_days = Math.max(1, Math.min(7, Number(pickup_advance_days) || 2));
+  if (auto_reopen_at !== undefined) updates.auto_reopen_at = auto_reopen_at ? String(auto_reopen_at).trim() : null;
+
+  // Update in-memory state
   inMemoryStore.storeSettings = { ...inMemoryStore.storeSettings, ...updates };
+
+  // Persist to Supabase (columns + business_hours fallback)
+  await syncStoreSettingsToSupabase(inMemoryStore.storeSettings);
 
   logAuditEvent(req.user, 'STORE_SETTINGS_UPDATED', 'STORE_SETTINGS', '1', {
     fields_updated: Object.keys(updates),
-    is_store_open: updates.is_store_open,
-    delivery_charge: updates.delivery_charge_flat,
+    delivery_enabled: inMemoryStore.storeSettings.delivery_enabled,
+    takeaway_enabled: inMemoryStore.storeSettings.takeaway_enabled,
+    is_store_open: inMemoryStore.storeSettings.is_store_open,
+    auto_reopen_at: inMemoryStore.storeSettings.auto_reopen_at,
   });
 
-  res.json({ success: true, message: 'Store settings updated successfully.', settings: inMemoryStore.storeSettings });
-  
+  res.json({
+    success: true,
+    message: 'Store operations settings updated successfully.',
+    settings: inMemoryStore.storeSettings,
+  });
 });
 
 // ==========================================================

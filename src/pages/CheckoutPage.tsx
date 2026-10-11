@@ -16,11 +16,39 @@ import {
   ArrowRight,
   Plus,
   Package,
+  Truck,
+  Store,
+  Clock,
+  Calendar,
 } from 'lucide-react';
 
 interface CheckoutPageProps {
   onBackToMenu: () => void;
   onOrderSuccess: (orderNumber: string) => void;
+}
+
+export interface StoreAvailability {
+  delivery_enabled: boolean;
+  takeaway_enabled: boolean;
+  closure_message: string | null;
+  pickup_opening_time: string;
+  pickup_closing_time: string;
+  pickup_slot_duration_minutes: number;
+  pickup_max_orders_per_slot: number;
+  pickup_advance_days: number;
+  auto_reopen_at: string | null;
+  store_address?: string;
+  store_phone?: string;
+}
+
+export interface PickupSlot {
+  time_12h: string;
+  start_time: string;
+  end_time: string;
+  capacity: number;
+  booked_count: number;
+  available_capacity: number;
+  is_available: boolean;
 }
 
 export const CheckoutPage: React.FC<CheckoutPageProps> = ({
@@ -31,6 +59,17 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
   const { addresses, defaultAddress, addAddress } = useAddresses();
   const { user, isAuthenticated, isLoading: isAuthLoading, openAuthModal, getAuthHeaders, getValidAuthHeaders, refreshAuthSession } = useAuth();
   const { showToast } = useToast();
+
+  const [fulfilmentType, setFulfilmentType] = useState<'DELIVERY' | 'TAKEAWAY'>('DELIVERY');
+  const [storeAvailability, setStoreAvailability] = useState<StoreAvailability | null>(null);
+  const [isLoadingAvailability, setIsLoadingAvailability] = useState(true);
+  const [pickupSlots, setPickupSlots] = useState<PickupSlot[]>([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const [selectedPickupDate, setSelectedPickupDate] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
+  const [selectedPickupSlot, setSelectedPickupSlot] = useState<PickupSlot | null>(null);
 
   const [selectedAddressId, setSelectedAddressId] = useState<string>('');
   const [couponCode, setCouponCode] = useState<string>('');
@@ -52,9 +91,29 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
   const [guestPhoneInput, setGuestPhoneInput] = useState('');
   const [isPromptingGuestPhone, setIsPromptingGuestPhone] = useState(false);
 
+  // Helper to generate selectable pickup dates based on advance days
+  const getAvailableDates = (advanceDays: number = 3) => {
+    const dates: { dateStr: string; label: string }[] = [];
+    const now = new Date();
+    for (let i = 0; i < Math.max(1, advanceDays); i++) {
+      const d = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      let label = '';
+      if (i === 0) label = 'Today';
+      else if (i === 1) label = 'Tomorrow';
+      else {
+        label = d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+      }
+      dates.push({ dateStr, label });
+    }
+    return dates;
+  };
+
   // Inline address creation state (for guest or when user has no saved address)
   const [guestAddress, setGuestAddress] = useState({
-    // Bug #2 fix: Start recipient_name blank; the useEffect below will pre-fill only if user has a real name.
     recipient_name: '',
     recipient_phone: user?.phone ? user.phone.replace(/\D/g, '').slice(-10) : '',
     street_address: '',
@@ -65,6 +124,77 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
   });
 
   const [showAddAddressForm, setShowAddAddressForm] = useState(addresses.length === 0);
+
+  // Fetch store operational availability
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchAvailability() {
+      try {
+        setIsLoadingAvailability(true);
+        const res = await fetch('/api/checkout/availability');
+        if (res.ok) {
+          const data: StoreAvailability = await res.json();
+          if (isMounted) {
+            setStoreAvailability(data);
+            if (!data.delivery_enabled && data.takeaway_enabled) {
+              setFulfilmentType('TAKEAWAY');
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load store availability:', err);
+      } finally {
+        if (isMounted) setIsLoadingAvailability(false);
+      }
+    }
+    fetchAvailability();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Fetch pickup slots when takeaway mode is active or pickup date changes
+  useEffect(() => {
+    if (fulfilmentType !== 'TAKEAWAY') return;
+
+    let isMounted = true;
+    async function fetchSlots() {
+      try {
+        setIsLoadingSlots(true);
+        const res = await fetch(`/api/checkout/pickup-slots?date=${selectedPickupDate}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted) {
+            const slots: PickupSlot[] = data.slots || [];
+            setPickupSlots(slots);
+            // Default to first available slot if not selected
+            const currentStillValid = slots.find(
+              (s) => s.start_time === selectedPickupSlot?.start_time && s.is_available
+            );
+            if (!currentStillValid) {
+              const firstAvail = slots.find((s) => s.is_available);
+              setSelectedPickupSlot(firstAvail || null);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load pickup slots:', err);
+      } finally {
+        if (isMounted) setIsLoadingSlots(false);
+      }
+    }
+    fetchSlots();
+    return () => {
+      isMounted = false;
+    };
+  }, [fulfilmentType, selectedPickupDate]);
+
+  // Lock to Online payment when Takeaway is chosen
+  useEffect(() => {
+    if (fulfilmentType === 'TAKEAWAY') {
+      setPaymentMethod('ONLINE');
+    }
+  }, [fulfilmentType]);
 
   useEffect(() => {
     if (user) {
@@ -123,7 +253,8 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
     }
   };
 
-  const effectiveTotal = Math.max(0, total - couponDiscount);
+  const effectiveDeliveryCharge = fulfilmentType === 'TAKEAWAY' ? 0 : (subtotal > 0 ? 50 : 0);
+  const effectiveTotal = Math.max(0, subtotal - couponDiscount + effectiveDeliveryCharge);
   const isCodLimitExceeded = effectiveTotal > 2000;
 
   // Place Order Action
@@ -151,20 +282,64 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
       return;
     }
 
-    // Determine target address
-    let finalAddress: any = null;
-    if (addresses.length > 0 && selectedAddressId && !showAddAddressForm) {
-      finalAddress = addresses.find((a) => a.id === selectedAddressId);
-    } else {
-      if (!guestAddress.recipient_name || !guestAddress.recipient_phone || !guestAddress.street_address) {
-        setErrorMessage('Please enter complete recipient name, phone, and street address.');
+    // Check store availability
+    if (storeAvailability) {
+      if (fulfilmentType === 'DELIVERY' && !storeAvailability.delivery_enabled) {
+        setErrorMessage(storeAvailability.closure_message || 'Home delivery is currently paused by store management.');
         return;
       }
-      finalAddress = guestAddress;
+      if (fulfilmentType === 'TAKEAWAY' && !storeAvailability.takeaway_enabled) {
+        setErrorMessage(storeAvailability.closure_message || 'Store pickup / takeaway is currently paused by store management.');
+        return;
+      }
     }
 
-    if (paymentMethod === 'COD' && isCodLimitExceeded) {
-      setErrorMessage('Cash on Delivery is limited to orders up to ₹2,000 per store policy. Please choose Online Payment.');
+    // Determine target address & validate based on fulfilment type
+    let finalAddress: any = null;
+    if (fulfilmentType === 'TAKEAWAY') {
+      if (!selectedPickupSlot) {
+        setErrorMessage('Please select a pickup time slot for your takeaway order.');
+        return;
+      }
+      if (!selectedPickupSlot.is_available) {
+        setErrorMessage('The selected pickup time slot is no longer available. Please select another slot.');
+        return;
+      }
+      if (!guestAddress.recipient_name || !guestAddress.recipient_phone) {
+        setErrorMessage('Please enter your full name and 10-digit mobile number for counter pickup verification.');
+        return;
+      }
+      if (paymentMethod !== 'ONLINE') {
+        setErrorMessage('Store pickup / takeaway orders require advance online payment via Cashfree.');
+        return;
+      }
+
+      finalAddress = {
+        recipient_name: guestAddress.recipient_name.trim(),
+        recipient_phone: guestAddress.recipient_phone.trim(),
+        street_address: 'Store Pickup Counter, Saraswati Sweets',
+        city: 'Barabanki',
+        state: 'Uttar Pradesh',
+        pincode: '225001',
+      };
+    } else {
+      if (addresses.length > 0 && selectedAddressId && !showAddAddressForm) {
+        finalAddress = addresses.find((a) => a.id === selectedAddressId);
+      } else {
+        if (!guestAddress.recipient_name || !guestAddress.recipient_phone || !guestAddress.street_address) {
+          setErrorMessage('Please enter complete recipient name, phone, and street address.');
+          return;
+        }
+        finalAddress = guestAddress;
+      }
+    }
+
+    if (paymentMethod === 'COD' && (fulfilmentType === 'TAKEAWAY' || isCodLimitExceeded)) {
+      setErrorMessage(
+        fulfilmentType === 'TAKEAWAY'
+          ? 'Store takeaway orders must be prepaid online via Cashfree.'
+          : 'Cash on Delivery is limited to orders up to ₹2,000 per store policy. Please choose Online Payment.'
+      );
       return;
     }
 
@@ -187,6 +362,16 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
             quantity: i.quantity,
             item_type: i.item_type || (i.variantId.startsWith('hamper-') ? 'HAMPER' : 'PRODUCT'),
           })),
+          fulfilment_type: fulfilmentType,
+          pickup_slot:
+            fulfilmentType === 'TAKEAWAY' && selectedPickupSlot
+              ? {
+                  slot_date: selectedPickupDate,
+                  slot_time_formatted: selectedPickupSlot.time_12h,
+                  start_time: selectedPickupSlot.start_time,
+                  end_time: selectedPickupSlot.end_time,
+                }
+              : undefined,
           address: finalAddress,
           coupon_code: appliedCoupon || undefined,
           special_instructions: specialInstructions || undefined,
@@ -616,69 +801,149 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left Column: Form & Options */}
         <div className="lg:col-span-7 space-y-6">
-          {/* 1. Address Section */}
+
+          {/* Fulfilment Method Choice */}
           <div className="bg-white rounded-2xl border border-[#E8DFD2] p-6 shadow-xs space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 font-display font-bold text-lg text-[#1F1B16]">
-                <MapPin className="w-5 h-5 text-[#8A1538]" />
-                <span>1. Delivery Address in Barabanki</span>
+                <Package className="w-5 h-5 text-[#8A1538]" />
+                <span>Choose How You'll Receive Your Order</span>
               </div>
-
-              {addresses.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setShowAddAddressForm(!showAddAddressForm)}
-                  className="text-xs font-semibold text-[#8A1538] hover:underline"
-                >
-                  {showAddAddressForm ? 'Select from Saved' : '+ New Address'}
-                </button>
-              )}
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-[#FAF4DE] text-[#8A1538] border border-[#C79A3D]/40">
+                Fresh from Barabanki
+              </span>
             </div>
 
-            {/* Saved Address List (if available and not entering new) */}
-            {addresses.length > 0 && !showAddAddressForm ? (
-              <div className="space-y-3">
-                {addresses.map((addr) => (
-                  <label
-                    key={addr.id}
-                    className={`block p-4 rounded-xl border cursor-pointer transition-all ${
-                      selectedAddressId === addr.id
-                        ? 'border-[#8A1538] bg-[#F7E9EE] shadow-xs'
-                        : 'border-[#E8DFD2] hover:bg-[#FBF7F1]'
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <input
-                        type="radio"
-                        name="address_choice"
-                        checked={selectedAddressId === addr.id}
-                        onChange={() => setSelectedAddressId(addr.id)}
-                        className="mt-1 text-[#8A1538] focus:ring-[#8A1538]"
-                      />
-                      <div className="flex-1 text-xs">
-                        <div className="font-bold text-sm text-[#1F1B16] flex items-center justify-between">
-                          <span>{addr.recipient_name} ({addr.label})</span>
-                          {addr.is_default && (
-                            <span className="text-[10px] font-bold text-[#2E7D4F] bg-emerald-50 px-2 py-0.5 rounded">
-                              Default
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[#6B6258] mt-0.5">Phone: {addr.recipient_phone}</div>
-                        <div className="text-[#1F1B16] mt-1 leading-relaxed">
-                          {addr.street_address}{addr.landmark ? `, Near ${addr.landmark}` : ''}, {addr.city} - <strong className="text-[#8A1538]">{addr.pincode}</strong>
-                        </div>
-                      </div>
-                    </div>
-                  </label>
-                ))}
+            {storeAvailability && !storeAvailability.delivery_enabled && !storeAvailability.takeaway_enabled ? (
+              <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 space-y-2">
+                <div className="flex items-center gap-2 font-bold text-sm">
+                  <AlertCircle className="w-5 h-5 text-amber-600" />
+                  <span>Store Currently Closed for New Orders</span>
+                </div>
+                <p className="text-xs leading-relaxed">
+                  {storeAvailability.closure_message ||
+                    'We are temporarily paused for both home delivery and takeaway. Please check back shortly!'}
+                </p>
+                {storeAvailability.auto_reopen_at && (
+                  <div className="text-[11px] font-semibold text-amber-800">
+                    Expected reopening: {new Date(storeAvailability.auto_reopen_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                )}
               </div>
             ) : (
-              /* Inline Address Form */
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* 1. Home Delivery Option */}
+                <button
+                  type="button"
+                  disabled={storeAvailability ? !storeAvailability.delivery_enabled : false}
+                  onClick={() => setFulfilmentType('DELIVERY')}
+                  className={`p-4 rounded-xl border text-left transition-all relative flex flex-col justify-between gap-3 ${
+                    fulfilmentType === 'DELIVERY'
+                      ? 'border-[#8A1538] bg-[#F7E9EE] shadow-xs ring-1 ring-[#8A1538]'
+                      : 'border-[#E8DFD2] hover:bg-[#FBF7F1]'
+                  } ${storeAvailability && !storeAvailability.delivery_enabled ? 'opacity-50 cursor-not-allowed bg-stone-100' : ''}`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+                        fulfilmentType === 'DELIVERY' ? 'bg-[#8A1538] text-white' : 'bg-[#FAF4DE] text-[#8A1538]'
+                      }`}
+                    >
+                      <Truck className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-sm text-[#1F1B16]">Home Delivery</span>
+                        <span className="text-xs font-bold text-[#8A1538] bg-white px-2 py-0.5 rounded border border-[#E8DFD2]">
+                          Flat ₹50
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#6B6258] mt-1">
+                        Doorstep delivery across Barabanki serviceable pincodes.
+                      </p>
+                    </div>
+                  </div>
+                  {storeAvailability && !storeAvailability.delivery_enabled && (
+                    <div className="text-[11px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded">
+                      Temporarily Paused
+                    </div>
+                  )}
+                </button>
+
+                {/* 2. Store Pickup / Takeaway Option */}
+                <button
+                  type="button"
+                  disabled={storeAvailability ? !storeAvailability.takeaway_enabled : false}
+                  onClick={() => setFulfilmentType('TAKEAWAY')}
+                  className={`p-4 rounded-xl border text-left transition-all relative flex flex-col justify-between gap-3 ${
+                    fulfilmentType === 'TAKEAWAY'
+                      ? 'border-[#8A1538] bg-[#F7E9EE] shadow-xs ring-1 ring-[#8A1538]'
+                      : 'border-[#E8DFD2] hover:bg-[#FBF7F1]'
+                  } ${storeAvailability && !storeAvailability.takeaway_enabled ? 'opacity-50 cursor-not-allowed bg-stone-100' : ''}`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+                        fulfilmentType === 'TAKEAWAY' ? 'bg-[#2E7D4F] text-white' : 'bg-emerald-50 text-[#2E7D4F]'
+                      }`}
+                    >
+                      <Store className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-sm text-[#1F1B16]">Store Pickup (Takeaway)</span>
+                        <span className="text-xs font-bold text-[#2E7D4F] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                          FREE (₹0)
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#6B6258] mt-1">
+                        Packaged fresh for your selected slot at our Barabanki counter.
+                      </p>
+                    </div>
+                  </div>
+                  {storeAvailability && !storeAvailability.takeaway_enabled && (
+                    <div className="text-[11px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded">
+                      Temporarily Paused
+                    </div>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Conditional Step 1: Takeaway Scheduling vs Delivery Address */}
+          {fulfilmentType === 'TAKEAWAY' ? (
+            /* 1. Store Pickup Scheduling & Customer Details */
+            <div className="bg-white rounded-2xl border border-[#E8DFD2] p-6 shadow-xs space-y-5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 font-display font-bold text-lg text-[#1F1B16]">
+                  <Store className="w-5 h-5 text-[#8A1538]" />
+                  <span>1. Pickup Scheduling & Customer Details</span>
+                </div>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-50 text-[#2E7D4F] border border-emerald-200">
+                  ₹0 Delivery Fee
+                </span>
+              </div>
+
+              {/* Counter Location Card */}
+              <div className="p-4 rounded-xl bg-[#FAF4DE]/70 border border-[#C79A3D]/40 space-y-1.5 text-xs">
+                <div className="font-bold text-sm text-[#1F1B16] flex items-center gap-1.5">
+                  <MapPin className="w-4 h-4 text-[#8A1538]" />
+                  <span>Saraswati Sweets Store Counter</span>
+                </div>
+                <div className="text-[#6B6258]">
+                  Main Market, Opposite Ghantaghar, Barabanki, UP - 225001
+                </div>
+                <div className="text-[#8A1538] font-medium pt-0.5">
+                  Counter Operating Hours: {storeAvailability?.pickup_opening_time || '09:00'} - {storeAvailability?.pickup_closing_time || '21:30'} IST
+                </div>
+              </div>
+
+              {/* Recipient Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
-                    Recipient Full Name *
+                    Your Name (For Counter Pickup) *
                   </label>
                   <input
                     type="text"
@@ -692,65 +957,241 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
 
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
-                    Mobile Number *
+                    Mobile Number (For Verification SMS) *
                   </label>
                   <input
                     type="tel"
                     required
                     value={guestAddress.recipient_phone}
                     onChange={(e) => setGuestAddress({ ...guestAddress, recipient_phone: e.target.value })}
-                    placeholder="10-digit mobile"
+                    placeholder="10-digit mobile number"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-sm focus:outline-none focus:border-[#8A1538] focus:bg-white"
                   />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
-                    House / Street Address *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={guestAddress.street_address}
-                    onChange={(e) => setGuestAddress({ ...guestAddress, street_address: e.target.value })}
-                    placeholder="House number, apartment name, street"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-sm focus:outline-none focus:border-[#8A1538] focus:bg-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
-                    Landmark (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={guestAddress.landmark}
-                    onChange={(e) => setGuestAddress({ ...guestAddress, landmark: e.target.value })}
-                    placeholder="e.g. Near Ghantaghar"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-sm focus:outline-none focus:border-[#8A1538] focus:bg-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
-                    Barabanki Pincode *
-                  </label>
-                  <select
-                    value={guestAddress.pincode}
-                    onChange={(e) => setGuestAddress({ ...guestAddress, pincode: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-white text-sm font-medium focus:outline-none focus:border-[#8A1538]"
-                  >
-                    <option value="225001">225001 (City / Ghantaghar)</option>
-                    <option value="225002">225002 (Civil Lines)</option>
-                    <option value="225003">225003 (Deva Road)</option>
-                    <option value="225122">225122 (Satrikh Road)</option>
-                  </select>
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* 3. Payment Method: Online Cashfree vs COD */}
+              {/* Pickup Date Selector */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16]">
+                  Select Pickup Date
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {getAvailableDates(storeAvailability?.pickup_advance_days || 3).map((d) => (
+                    <button
+                      key={d.dateStr}
+                      type="button"
+                      onClick={() => setSelectedPickupDate(d.dateStr)}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                        selectedPickupDate === d.dateStr
+                          ? 'bg-[#8A1538] text-white shadow-xs'
+                          : 'bg-[#FBF7F1] text-[#6B6258] border border-[#E8DFD2] hover:bg-stone-100'
+                      }`}
+                    >
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Pickup Time Slots */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16]">
+                    Select Pickup Time Slot
+                  </label>
+                  <span className="text-[11px] text-[#6B6258]">
+                    Duration: {storeAvailability?.pickup_slot_duration_minutes || 30} mins
+                  </span>
+                </div>
+
+                {isLoadingSlots ? (
+                  <div className="py-8 text-center text-xs text-[#6B6258]">
+                    <div className="w-6 h-6 border-2 border-[#8A1538] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                    Checking slot availability...
+                  </div>
+                ) : pickupSlots.length === 0 ? (
+                  <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
+                    No pickup slots remaining for this date. Store may be past operating hours.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto pr-1">
+                    {pickupSlots.map((slot) => {
+                      const isSelected = selectedPickupSlot?.start_time === slot.start_time;
+                      return (
+                        <button
+                          key={slot.start_time}
+                          type="button"
+                          disabled={!slot.is_available}
+                          onClick={() => setSelectedPickupSlot(slot)}
+                          className={`p-2.5 rounded-xl border text-left transition-all ${
+                            isSelected
+                              ? 'border-[#8A1538] bg-[#F7E9EE] ring-1 ring-[#8A1538]'
+                              : slot.is_available
+                              ? 'border-[#E8DFD2] hover:bg-[#FBF7F1]'
+                              : 'border-stone-200 bg-stone-100 opacity-50 cursor-not-allowed'
+                          }`}
+                        >
+                          <div className="font-bold text-xs text-[#1F1B16] flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-[#8A1538]" />
+                            <span>{slot.time_12h}</span>
+                          </div>
+                          <div className="text-[10px] mt-1">
+                            {slot.is_available ? (
+                              <span className="text-[#2E7D4F] font-semibold">
+                                {slot.available_capacity} slots left
+                              </span>
+                            ) : (
+                              <span className="text-stone-400 font-medium">Sold Out / Passed</span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* 1. Delivery Address in Barabanki */
+            <div className="bg-white rounded-2xl border border-[#E8DFD2] p-6 shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 font-display font-bold text-lg text-[#1F1B16]">
+                  <MapPin className="w-5 h-5 text-[#8A1538]" />
+                  <span>1. Delivery Address in Barabanki</span>
+                </div>
+
+                {addresses.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddAddressForm(!showAddAddressForm)}
+                    className="text-xs font-semibold text-[#8A1538] hover:underline"
+                  >
+                    {showAddAddressForm ? 'Select from Saved' : '+ New Address'}
+                  </button>
+                )}
+              </div>
+
+              {/* Saved Address List */}
+              {addresses.length > 0 && !showAddAddressForm ? (
+                <div className="space-y-3">
+                  {addresses.map((addr) => (
+                    <label
+                      key={addr.id}
+                      className={`block p-4 rounded-xl border cursor-pointer transition-all ${
+                        selectedAddressId === addr.id
+                          ? 'border-[#8A1538] bg-[#F7E9EE] shadow-xs'
+                          : 'border-[#E8DFD2] hover:bg-[#FBF7F1]'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="radio"
+                          name="address_choice"
+                          checked={selectedAddressId === addr.id}
+                          onChange={() => setSelectedAddressId(addr.id)}
+                          className="mt-1 text-[#8A1538] focus:ring-[#8A1538]"
+                        />
+                        <div className="flex-1 text-xs">
+                          <div className="font-bold text-sm text-[#1F1B16] flex items-center justify-between">
+                            <span>
+                              {addr.recipient_name} ({addr.label})
+                            </span>
+                            {addr.is_default && (
+                              <span className="text-[10px] font-bold text-[#2E7D4F] bg-emerald-50 px-2 py-0.5 rounded">
+                                Default
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[#6B6258] mt-0.5">Phone: {addr.recipient_phone}</div>
+                          <div className="text-[#1F1B16] mt-1 leading-relaxed">
+                            {addr.street_address}
+                            {addr.landmark ? `, Near ${addr.landmark}` : ''}, {addr.city} -{' '}
+                            <strong className="text-[#8A1538]">{addr.pincode}</strong>
+                          </div>
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                /* Inline Address Form */
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                      Recipient Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={guestAddress.recipient_name}
+                      onChange={(e) => setGuestAddress({ ...guestAddress, recipient_name: e.target.value })}
+                      placeholder="e.g. Ramesh Srivastava"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-sm focus:outline-none focus:border-[#8A1538] focus:bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                      Mobile Number *
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      value={guestAddress.recipient_phone}
+                      onChange={(e) => setGuestAddress({ ...guestAddress, recipient_phone: e.target.value })}
+                      placeholder="10-digit mobile"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-sm focus:outline-none focus:border-[#8A1538] focus:bg-white"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                      House / Street Address *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={guestAddress.street_address}
+                      onChange={(e) => setGuestAddress({ ...guestAddress, street_address: e.target.value })}
+                      placeholder="House number, apartment name, street"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-sm focus:outline-none focus:border-[#8A1538] focus:bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                      Landmark (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={guestAddress.landmark}
+                      onChange={(e) => setGuestAddress({ ...guestAddress, landmark: e.target.value })}
+                      placeholder="e.g. Near Ghantaghar"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-sm focus:outline-none focus:border-[#8A1538] focus:bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                      Barabanki Pincode *
+                    </label>
+                    <select
+                      value={guestAddress.pincode}
+                      onChange={(e) => setGuestAddress({ ...guestAddress, pincode: e.target.value })}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-white text-sm font-medium focus:outline-none focus:border-[#8A1538]"
+                    >
+                      <option value="225001">225001 (City / Ghantaghar)</option>
+                      <option value="225002">225002 (Civil Lines)</option>
+                      <option value="225003">225003 (Deva Road)</option>
+                      <option value="225122">225122 (Satrikh Road)</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 2. Payment Method */}
           <div className="bg-white rounded-2xl border border-[#E8DFD2] p-6 shadow-xs space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 font-display font-bold text-lg text-[#1F1B16]">
@@ -761,6 +1202,15 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                 {paymentMethod === 'ONLINE' ? 'Cashfree Secure' : 'Cash on Delivery'}
               </span>
             </div>
+
+            {fulfilmentType === 'TAKEAWAY' && (
+              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-[#2E7D4F] font-medium flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>
+                  Advance online payment via Cashfree is required for all store takeaway orders to reserve your preparation slot.
+                </span>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Option 1: Online Payment (Cashfree) */}
@@ -783,7 +1233,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                     <div className="font-bold text-sm text-[#1F1B16] flex items-center gap-1.5">
                       <span>Online Payment</span>
                       <span className="text-[10px] font-bold text-[#8A1538] bg-[#FAF4DE] px-1.5 py-0.5 rounded border border-[#C9A227]/40">
-                        Recommended
+                        {fulfilmentType === 'TAKEAWAY' ? 'Required for Takeaway' : 'Recommended'}
                       </span>
                     </div>
                     <p className="text-xs text-[#6B6258] mt-1 leading-relaxed">
@@ -797,43 +1247,49 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                 </div>
               </label>
 
-              {/* Option 2: Cash on Delivery (COD) */}
+              {/* Option 2: Cash on Delivery (COD) - Disabled for takeaway */}
               <label
-                className={`p-4 rounded-xl border cursor-pointer transition-all flex flex-col justify-between gap-3 ${
-                  isCodLimitExceeded
-                    ? 'opacity-60 cursor-not-allowed bg-stone-100 border-stone-200'
+                className={`p-4 rounded-xl border transition-all flex flex-col justify-between gap-3 ${
+                  fulfilmentType === 'TAKEAWAY' || isCodLimitExceeded
+                    ? 'opacity-50 cursor-not-allowed bg-stone-100 border-stone-200'
                     : paymentMethod === 'COD'
-                    ? 'border-[#8A1538] bg-[#F7E9EE] shadow-xs ring-1 ring-[#8A1538]'
-                    : 'border-[#E8DFD2] hover:bg-[#FBF7F1]'
+                    ? 'border-[#8A1538] bg-[#F7E9EE] shadow-xs ring-1 ring-[#8A1538] cursor-pointer'
+                    : 'border-[#E8DFD2] hover:bg-[#FBF7F1] cursor-pointer'
                 }`}
               >
                 <div className="flex items-start gap-3">
                   <input
                     type="radio"
                     name="payment_method_choice"
-                    disabled={isCodLimitExceeded}
+                    disabled={fulfilmentType === 'TAKEAWAY' || isCodLimitExceeded}
                     checked={paymentMethod === 'COD'}
                     onChange={() => {
-                      if (!isCodLimitExceeded) setPaymentMethod('COD');
+                      if (fulfilmentType !== 'TAKEAWAY' && !isCodLimitExceeded) setPaymentMethod('COD');
                     }}
                     className="mt-1 text-[#8A1538] focus:ring-[#8A1538]"
                   />
                   <div>
                     <div className="font-bold text-sm text-[#1F1B16] flex items-center gap-1.5">
                       <span>Cash on Delivery</span>
-                      {isCodLimitExceeded && (
+                      {fulfilmentType === 'TAKEAWAY' ? (
+                        <span className="text-[10px] font-bold text-stone-500 bg-stone-200 px-1.5 py-0.5 rounded">
+                          Delivery Only
+                        </span>
+                      ) : isCodLimitExceeded ? (
                         <span className="text-[10px] font-bold text-[#B3261E] bg-red-100 px-1.5 py-0.5 rounded">
                           Exceeds ₹2,000
                         </span>
-                      )}
+                      ) : null}
                     </div>
                     <p className="text-xs text-[#6B6258] mt-1 leading-relaxed">
-                      Pay cash or executive UPI QR upon doorstep delivery in Barabanki.
+                      {fulfilmentType === 'TAKEAWAY'
+                        ? 'COD is unavailable for store takeaway orders.'
+                        : 'Pay cash or QR upon doorstep delivery in Barabanki.'}
                     </p>
                   </div>
                 </div>
                 <div className="text-[11px] text-[#8A1538] font-semibold border-t border-black/5 pt-2">
-                  • Allowed up to ₹2,000
+                  {fulfilmentType === 'TAKEAWAY' ? '• Not available for takeaway' : '• Allowed up to ₹2,000'}
                 </div>
               </label>
             </div>
@@ -846,7 +1302,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
             )}
           </div>
 
-          {/* 4. Special Instructions & Packaging Notes */}
+          {/* 3. Special Instructions & Packaging Notes */}
           <div className="bg-white rounded-2xl border border-[#E8DFD2] p-6 shadow-xs space-y-4">
             <div className="flex items-center gap-2 font-display font-bold text-lg text-[#1F1B16]">
               <Package className="w-5 h-5 text-[#8A1538]" />
@@ -869,13 +1325,17 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold text-[#6B6258] mb-1">
-                  Special Delivery Instructions
+                  Special Instructions
                 </label>
                 <input
                   type="text"
                   value={specialInstructions}
                   onChange={(e) => setSpecialInstructions(e.target.value)}
-                  placeholder="e.g. Call upon arriving at gate, ring second bell"
+                  placeholder={
+                    fulfilmentType === 'TAKEAWAY'
+                      ? 'e.g. Pack cold, add extra paper bags'
+                      : 'e.g. Call upon arriving at gate, ring second bell'
+                  }
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs focus:outline-none focus:border-[#8A1538]"
                 />
               </div>
@@ -978,15 +1438,27 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                 </div>
               )}
 
-              <div className="flex justify-between">
-                <span>Barabanki Delivery Charge</span>
+              <div className="flex justify-between items-center">
+                <span>
+                  {fulfilmentType === 'TAKEAWAY' ? 'Store Counter Pickup Fee' : 'Barabanki Delivery Charge'}
+                </span>
                 <span className="text-[#1F1B16] font-medium tabular-nums">
-                  {deliveryCharge === 0 ? 'FREE' : formatINR(deliveryCharge)}
+                  {effectiveDeliveryCharge === 0 ? (
+                    <span className="text-[#2E7D4F] font-semibold">FREE (₹0)</span>
+                  ) : (
+                    formatINR(effectiveDeliveryCharge)
+                  )}
                 </span>
               </div>
 
               <div className="pt-3 border-t border-[#E8DFD2] flex justify-between items-baseline text-base font-bold text-[#1F1B16]">
-                <span>{paymentMethod === 'ONLINE' ? 'Total (Online via Cashfree)' : 'Total (Pay with Cash)'}</span>
+                <span>
+                  {fulfilmentType === 'TAKEAWAY'
+                    ? 'Total (Prepay via Cashfree)'
+                    : paymentMethod === 'ONLINE'
+                    ? 'Total (Online via Cashfree)'
+                    : 'Total (Pay with Cash)'}
+                </span>
                 <span className="text-2xl font-display text-[#8A1538] tabular-nums">
                   {formatINR(effectiveTotal)}
                 </span>
@@ -1009,6 +1481,8 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                 disabled={
                   isPlacingOrder ||
                   items.length === 0 ||
+                  (storeAvailability && !storeAvailability.delivery_enabled && !storeAvailability.takeaway_enabled) ||
+                  (fulfilmentType === 'TAKEAWAY' && !selectedPickupSlot) ||
                   (paymentMethod === 'COD' && isCodLimitExceeded)
                 }
                 onClick={handlePlaceOrder}
@@ -1017,6 +1491,8 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                 <span>
                   {isPlacingOrder
                     ? 'Connecting Secure Gateway...'
+                    : fulfilmentType === 'TAKEAWAY'
+                    ? `Pay ${formatINR(effectiveTotal)} & Confirm Takeaway`
                     : paymentMethod === 'ONLINE'
                     ? `Pay ${formatINR(effectiveTotal)} with Cashfree`
                     : 'Place Cash on Delivery Order'}

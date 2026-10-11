@@ -165,6 +165,7 @@ CREATE TABLE IF NOT EXISTS public.orders (
     guest_phone VARCHAR(20),
     guest_email VARCHAR(255),
     slot_snapshot JSONB,
+    fulfilment_type VARCHAR(20) NOT NULL DEFAULT 'DELIVERY' CHECK (fulfilment_type IN ('DELIVERY', 'TAKEAWAY')),
     coupon_code VARCHAR(50),
     refund_reason TEXT
 );
@@ -360,6 +361,15 @@ CREATE TABLE IF NOT EXISTS public.store_settings (
     opening_time TIME DEFAULT '06:30:00',
     closing_time TIME DEFAULT '22:00:00',
     is_store_open BOOLEAN NOT NULL DEFAULT TRUE,
+    delivery_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    takeaway_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    closure_message TEXT,
+    pickup_opening_time TIME DEFAULT '08:00:00',
+    pickup_closing_time TIME DEFAULT '21:30:00',
+    pickup_slot_duration_minutes INT NOT NULL DEFAULT 30,
+    pickup_max_orders_per_slot INT NOT NULL DEFAULT 10,
+    pickup_advance_days INT NOT NULL DEFAULT 2,
+    auto_reopen_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

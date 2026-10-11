@@ -114,6 +114,15 @@ export interface StoreSettings {
   opening_time: string;
   closing_time: string;
   is_store_open: boolean;
+  delivery_enabled?: boolean;
+  takeaway_enabled?: boolean;
+  closure_message?: string | null;
+  pickup_opening_time?: string;
+  pickup_closing_time?: string;
+  pickup_slot_duration_minutes?: number;
+  pickup_max_orders_per_slot?: number;
+  pickup_advance_days?: number;
+  auto_reopen_at?: string | null;
 }
 
 export interface Review {

@@ -30,6 +30,9 @@ export interface AdminOrderNotificationPayload {
   item_count: number;
   items_summary?: string;
   order_snapshot?: ServerOrder;
+  fulfilment_type?: 'DELIVERY' | 'TAKEAWAY';
+  slot_time_formatted?: string;
+  pickup_date?: string;
 }
 
 export interface EmailMessage {
@@ -297,26 +300,35 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
   const targetUserId = order.user_id || order.guest_phone || order.address_snapshot.recipient_phone;
   const customerPhone = order.address_snapshot.recipient_phone || order.guest_phone || 'N/A';
 
-  console.log(`[notifyOrderPlaced] Order #${order.order_number} | customer email: ${realCustomerEmail || '(none — phone user)'} | phone: ${customerPhone}`);
+  const isTakeaway = order.fulfilment_type === 'TAKEAWAY';
+  const pickupTimeText = order.slot_snapshot?.slot_time_formatted
+    ? `${order.slot_snapshot.slot_time_formatted}${order.slot_snapshot.slot_date ? ` (${order.slot_snapshot.slot_date})` : ''}`
+    : 'scheduled slot';
+
+  console.log(`[notifyOrderPlaced] Order #${order.order_number} [${order.fulfilment_type || 'DELIVERY'}] | customer email: ${realCustomerEmail || '(none — phone user)'} | phone: ${customerPhone}`);
 
   // In-app notification for Customer
   if (targetUserId) {
     addInAppNotification({
       userId: targetUserId,
       title: `Order #${order.order_number} Placed!`,
-      message: `Your fresh mithai order of ₹${order.total_amount} has been confirmed for preparation and delivery.`,
+      message: isTakeaway
+        ? `Your fresh mithai order of ₹${order.total_amount} is confirmed for takeaway. Pickup scheduled for ${pickupTimeText} at the Saraswati Sweets counter.`
+        : `Your fresh mithai order of ₹${order.total_amount} has been confirmed for preparation and delivery.`,
       type: 'ORDER_PLACED',
-      metadata: { orderId: order.id, orderNumber: order.order_number, total: order.total_amount },
+      metadata: { orderId: order.id, orderNumber: order.order_number, total: order.total_amount, fulfilment_type: order.fulfilment_type },
     });
   }
 
   // In-app notification for Store Owner / Admin
   addInAppNotification({
     userId: 'ADMIN',
-    title: `New Order Received: #${order.order_number}`,
-    message: `₹${order.total_amount} (${order.payment_method}) from ${order.address_snapshot.recipient_name} (${order.address_snapshot.recipient_phone}). Destination: ${order.address_snapshot.street_address}`, 
+    title: `New ${isTakeaway ? 'Takeaway' : 'Delivery'} Order: #${order.order_number}`,
+    message: isTakeaway
+      ? `₹${order.total_amount} (${order.payment_method}) from ${order.address_snapshot.recipient_name} (${order.address_snapshot.recipient_phone}). Pickup slot: ${pickupTimeText}`
+      : `₹${order.total_amount} (${order.payment_method}) from ${order.address_snapshot.recipient_name} (${order.address_snapshot.recipient_phone}). Destination: ${order.address_snapshot.street_address}`,
     type: 'ORDER_PLACED',
-    metadata: { orderId: order.id, orderNumber: order.order_number, total: order.total_amount },
+    metadata: { orderId: order.id, orderNumber: order.order_number, total: order.total_amount, fulfilment_type: order.fulfilment_type },
   });
 
   // Transactional Email to Customer
@@ -354,7 +366,9 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
             order_id: order.order_number,
             payment_method: order.payment_method,
             total_amount: `₹${order.total_amount}`,
-            delivery_address: `${order.address_snapshot.street_address}, Barabanki - ${order.address_snapshot.pincode}`,
+            delivery_address: isTakeaway
+              ? `Store Counter Pickup (${pickupTimeText}) - Saraswati Sweets, Main Road, Barabanki`
+              : `${order.address_snapshot.street_address}, Barabanki - ${order.address_snapshot.pincode}`,
             order_tracking_url: `${(process.env.PUBLIC_SITE_URL || process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '')}/order-confirmation/${order.order_number}`
           }
         };
@@ -409,8 +423,15 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
             <p>Thank you for choosing Saraswati Sweets. Our master sweetmakers have begun preparing your fresh mithai with 100% cow desi ghee.</p>
             
             <div style="background-color: #fbf7f1; padding: 12px 16px; border-radius: 6px; margin: 16px 0;">
-              <p style="margin: 0; font-size: 14px;"><strong>Fulfillment:</strong> Fresh Direct Delivery (Barabanki)</p>
-              <p style="margin: 4px 0 0; font-size: 14px;"><strong>Delivery Address:</strong> ${order.address_snapshot.street_address}, Barabanki - ${order.address_snapshot.pincode}</p>
+              <p style="margin: 0; font-size: 14px;"><strong>Fulfillment:</strong> ${isTakeaway ? '🏪 Store Pickup / Takeaway' : '🚚 Fresh Direct Delivery (Barabanki)'}</p>
+              ${isTakeaway ? `
+                <p style="margin: 4px 0 0; font-size: 14px;"><strong>Pickup Slot:</strong> ${pickupTimeText}</p>
+                <p style="margin: 4px 0 0; font-size: 14px;"><strong>Pickup Location:</strong> Saraswati Sweets Counter, Barabanki</p>
+                <p style="margin: 4px 0 0; font-size: 12px; color: #8A1538;">* Please present your Order #${order.order_number} confirmation at the counter for quick pickup.</p>
+              ` : `
+                <p style="margin: 4px 0 0; font-size: 14px;"><strong>Delivery Address:</strong> ${order.address_snapshot.street_address}, Barabanki - ${order.address_snapshot.pincode}</p>
+              `}
+              <p style="margin: 4px 0 0; font-size: 14px;"><strong>Delivery Fee:</strong> ${order.delivery_charge === 0 ? 'FREE (Store Pickup)' : `₹${order.delivery_charge}`}</p>
               <p style="margin: 4px 0 0; font-size: 14px;"><strong>Payment Method:</strong> ${order.payment_method} (${order.payment_status})</p>
             </div>
   
@@ -446,13 +467,13 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
     to: getAdminNotificationRecipient(),
     recipientName: 'Saraswati Sweets Store Owner',
     notificationType: 'ADMIN_NEW_ORDER_ALERT',
-    subject: `[NEW ORDER ALERT] #${order.order_number} - ₹${order.total_amount} (${order.payment_method})`,
+    subject: `[NEW ${isTakeaway ? 'TAKEAWAY' : 'DELIVERY'} ORDER ALERT] #${order.order_number} - ₹${order.total_amount} (${order.payment_method})`,
     html: `
       <div style="font-family: Arial, sans-serif; padding: 20px;">
-        <h2>New Order Received: #${order.order_number}</h2>
+        <h2>New Order Received: #${order.order_number} [${isTakeaway ? 'TAKEAWAY / STORE PICKUP' : 'HOME DELIVERY'}]</h2>
         <p><strong>Customer:</strong> ${order.address_snapshot.recipient_name} (${order.address_snapshot.recipient_phone})</p>
-        <p><strong>Fulfillment:</strong> Fresh Direct Delivery</p>
-        <p><strong>Address:</strong> ${order.address_snapshot.street_address}, Barabanki - ${order.address_snapshot.pincode}</p>
+        <p><strong>Fulfillment:</strong> ${isTakeaway ? `Store Counter Pickup (${pickupTimeText})` : 'Fresh Direct Delivery'}</p>
+        ${isTakeaway ? `<p><strong>Scheduled Slot:</strong> ${pickupTimeText}</p>` : `<p><strong>Address:</strong> ${order.address_snapshot.street_address}, Barabanki - ${order.address_snapshot.pincode}</p>`}
         <p><strong>Items:</strong></p>
         <ul>
           ${order.items.map((i) => `<li>${i.product_name} (${i.variant_label}) x ${i.quantity} = ₹${i.total_price}</li>`).join('')}
@@ -483,6 +504,9 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
         ? order.items.map((i) => `${i.product_name} (${i.variant_label || ''}) × ${i.quantity}`).join(', ')
         : '',
       order_snapshot: order,
+      fulfilment_type: order.fulfilment_type || 'DELIVERY',
+      slot_time_formatted: order.slot_snapshot?.slot_time_formatted,
+      pickup_date: order.slot_snapshot?.slot_date,
     };
 
     adminOrderEvents.emit('new_order', payload);
@@ -501,13 +525,14 @@ export async function notifyOrderStatusChanged(
 ): Promise<void> {
   const targetUserId = order.user_id || order.guest_phone || order.address_snapshot.recipient_phone;
   const targetEmail = order.guest_email || undefined;
+  const isTakeaway = order.fulfilment_type === 'TAKEAWAY';
 
   const statusLabels: Record<string, string> = {
     CONFIRMED: 'Order Confirmed by Store',
     PREPARING: 'Freshly Cooking in Desi Ghee Kitchen',
-    READY_FOR_PICKUP: 'Packaged & Ready for Dispatch',
+    READY_FOR_PICKUP: isTakeaway ? 'Freshly Packaged & Ready for Store Counter Pickup' : 'Packaged & Ready for Dispatch',
     OUT_FOR_DELIVERY: `Out for Delivery ${order.delivery_partner_name ? `with ${order.delivery_partner_name}` : ''}`,
-    DELIVERED: 'Delivered Fresh to Your Doorstep',
+    DELIVERED: isTakeaway ? 'Picked Up from Counter' : 'Delivered Fresh to Your Doorstep',
     CANCELLED: 'Order Cancelled',
     REFUNDED: 'Order Refund Processed',
   };
