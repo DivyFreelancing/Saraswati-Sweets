@@ -1839,7 +1839,7 @@ router.get('/notifications', (_req: AuthenticatedRequest, res: Response) => {
 });
 
 router.post('/notifications/test-email', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
-  const { to = 'order@saraswatisweets.in', subject = 'Saraswati Sweets Test Email', isPromotional = false } = req.body;
+  const { to = 'order@saraswatisweetsbarabanki.com', subject = 'Saraswati Sweets Test Email', isPromotional = false } = req.body;
 
   const result = await emailProvider.sendEmail({
     to,

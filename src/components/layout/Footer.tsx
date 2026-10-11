@@ -221,10 +221,10 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 </div>
                 <div className="pt-1">
                   <a
-                    href="mailto:order@saraswatisweets.in"
+                    href="mailto:order@saraswatisweetsbarabanki.com"
                     className="text-xs hover:text-[#7A1129] text-[#7A1129] underline"
                   >
-                    order@saraswatisweets.in
+                    order@saraswatisweetsbarabanki.com
                   </a>
                 </div>
                 <div className="pt-2">

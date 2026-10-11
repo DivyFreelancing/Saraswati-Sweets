@@ -96,7 +96,7 @@ async function runNotificationRecipientTests() {
     // Test 1.4: Empty or whitespace-only ADMIN_ORDER_EMAIL falls through to new verified fallback
     process.env.ADMIN_ORDER_EMAIL = '   ';
     if (inMemoryStore.storeSettings) {
-      inMemoryStore.storeSettings.store_email = 'order@saraswatisweets.in';
+      inMemoryStore.storeSettings.store_email = 'order@saraswatisweetsbarabanki.com';
     }
     assert(
       getAdminNotificationRecipient() === 'order@saraswatisweetsbarabanki.com',
@@ -345,7 +345,7 @@ async function runNotificationRecipientTests() {
     const providerInstance: any = new ZeptoMailProvider();
 
     assert(
-      providerInstance.fromAddress === (process.env.ZEPTOMAIL_FROM_ADDRESS || 'order@saraswatisweets.in'),
+      providerInstance.fromAddress === (process.env.ZEPTOMAIL_FROM_ADDRESS || 'order@saraswatisweetsbarabanki.com'),
       'ZeptoMail fromAddress is governed by ZEPTOMAIL_FROM_ADDRESS independently of admin recipient'
     );
 

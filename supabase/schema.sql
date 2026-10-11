@@ -350,7 +350,7 @@ CREATE TABLE IF NOT EXISTS public.store_settings (
     tagline VARCHAR(255) DEFAULT 'Artisanal Mithai & Namkeen Since 1978',
     phone VARCHAR(30) DEFAULT '+91 91611 10030',
     whatsapp VARCHAR(30) DEFAULT '+91 91611 10030',
-    email VARCHAR(100) DEFAULT 'order@saraswatisweets.in',
+    email VARCHAR(100) DEFAULT 'order@saraswatisweetsbarabanki.com',
     address TEXT DEFAULT 'Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001, Uttar Pradesh 225001',
     allowed_pincodes TEXT[] DEFAULT ARRAY['225001', '225002', '225003', '225122'],
     delivery_charge NUMERIC(10, 2) NOT NULL DEFAULT 40.00,

@@ -6,7 +6,7 @@ export const SEED_STORE_SETTINGS: StoreSettings = {
   tagline: 'Pure Desi Ghee Mithai & Artisanal Namkeen Since 1989',
   store_phone: '+91 91611 10030',
   whatsapp: '+91 91611 10030',
-  store_email: 'order@saraswatisweets.in',
+  store_email: 'order@saraswatisweetsbarabanki.com',
   address_text: 'Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001, Uttar Pradesh 225001',
   allowed_pincodes: ['225001', '225002', '225003', '225122'],
   delivery_charge_flat: 40,

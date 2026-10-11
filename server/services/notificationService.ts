@@ -122,7 +122,7 @@ export function formatZeptoAuthHeader(apiKey: string): string {
 /**
  * Resolves the recipient email address for administrative notification emails (e.g. new orders, bulk enquiries).
  * Priority:
- * 1. process.env.ADMIN_ORDER_EMAIL if non-empty after trimming (and not the invalid order@saraswatisweets.in)
+ * 1. process.env.ADMIN_ORDER_EMAIL if non-empty after trimming (and not the old invalid order@saraswatisweets.in)
  * 2. Verified fallback 'order@saraswatisweetsbarabanki.com'
  *
  * Guaranteed: Under no circumstances does this fall back to the old invalid 'order@saraswatisweets.in'.
@@ -150,7 +150,7 @@ export class ZeptoMailProvider implements IEmailProvider {
 
   constructor() {
     this.apiKey = process.env.ZEPTOMAIL_API_KEY || '';
-    this.fromAddress = process.env.ZEPTOMAIL_FROM_ADDRESS || 'order@saraswatisweets.in';
+    this.fromAddress = process.env.ZEPTOMAIL_FROM_ADDRESS || 'order@saraswatisweetsbarabanki.com';
     this.fromName = process.env.ZEPTOMAIL_FROM_NAME || 'Saraswati Sweets';
     this.baseUrl = process.env.ZEPTOMAIL_BASE_URL || 'https://cpaas.zoho.in';
   }
@@ -339,7 +339,7 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
     const zeptoMailApiKey = process.env.ZEPTOMAIL_API_KEY;
     const zeptoMailTemplateKey = process.env.ZEPTOMAIL_TEMPLATE_KEY;
     const baseUrl = process.env.ZEPTOMAIL_BASE_URL || 'https://cpaas.zoho.in';
-    const fromAddress = process.env.ZEPTOMAIL_FROM_ADDRESS || 'order@saraswatisweets.in';
+    const fromAddress = process.env.ZEPTOMAIL_FROM_ADDRESS || 'order@saraswatisweetsbarabanki.com';
 
     if (zeptoMailApiKey && !zeptoMailApiKey.includes('placeholder') && zeptoMailTemplateKey) {
       try {

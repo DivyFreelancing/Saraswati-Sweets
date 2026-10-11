@@ -25,7 +25,7 @@ INSERT INTO public.store_settings (
     'Pure Desi Ghee Mithai & Artisanal Namkeen Since 1978',
     '+91 91611 10030',
     '+91 91611 10030',
-    'order@saraswatisweets.in',
+    'order@saraswatisweetsbarabanki.com',
     'Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001, Uttar Pradesh 225001',
     ARRAY['225001', '225002', '225003', '225122'],
     40.00,

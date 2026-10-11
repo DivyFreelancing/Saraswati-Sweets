@@ -449,7 +449,7 @@ export const STORE_SETTINGS = {
   tagline: 'Pure Desi Ghee Mithai & Artisanal Namkeen Since 1978',
   store_phone: '+91 91611 10030',
   whatsapp: '+91 91611 10030',
-  store_email: 'order@saraswatisweets.in',
+  store_email: 'order@saraswatisweetsbarabanki.com',
   address_text: 'Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001, Uttar Pradesh 225001',
   delivery_charge: 40,
   free_delivery_above: 499,
@@ -1106,7 +1106,7 @@ export const inMemoryStore = {
     tagline: 'Pure Desi Ghee Mithai & Artisanal Namkeen Since 1978',
     store_phone: '+91 91611 10030',
     whatsapp: '+91 91611 10030',
-    store_email: 'order@saraswatisweets.in',
+    store_email: 'order@saraswatisweetsbarabanki.com',
     address_text: 'Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001, Uttar Pradesh 225001',
     serviceable_pincodes: ['225001', '225002', '225003', '225122'],
     delivery_charge_flat: 40,
@@ -1462,7 +1462,7 @@ setInterval(async () => {
 // Seed admin profile
 inMemoryStore.profiles.set('admin-default', {
   id: 'admin-default',
-  email: 'admin@saraswatisweets.in',
+  email: 'admin@saraswatisweetsbarabanki.com',
   phone: '+919161110030',
   full_name: 'Shop Owner (Admin)',
   role: 'ADMIN',
@@ -1472,7 +1472,7 @@ inMemoryStore.profiles.set('admin-default', {
 
 inMemoryStore.profiles.set('staff-default', {
   id: 'staff-default',
-  email: 'staff@saraswatisweets.in',
+  email: 'staff@saraswatisweetsbarabanki.com',
   phone: '+919450012346',
   full_name: 'Store Counter Staff',
   role: 'STAFF',
@@ -1612,7 +1612,7 @@ export async function loadStoreState(): Promise<void> {
     // Always preserve default admin and staff operational profiles
     inMemoryStore.profiles.set('admin-default', {
       id: 'admin-default',
-      email: 'admin@saraswatisweets.in',
+      email: 'admin@saraswatisweetsbarabanki.com',
       phone: '+919161110030',
       full_name: 'Shop Owner (Admin)',
       role: 'ADMIN',
@@ -1621,7 +1621,7 @@ export async function loadStoreState(): Promise<void> {
     });
     inMemoryStore.profiles.set('staff-default', {
       id: 'staff-default',
-      email: 'staff@saraswatisweets.in',
+      email: 'staff@saraswatisweetsbarabanki.com',
       phone: '+919450012346',
       full_name: 'Store Counter Staff',
       role: 'STAFF',

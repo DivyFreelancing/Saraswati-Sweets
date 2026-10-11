@@ -46,7 +46,7 @@ export const AdminNotificationsTab: React.FC<AdminNotificationsTabProps> = ({
   showToast,
 }) => {
   // Test email state
-  const [testEmail, setTestEmail] = useState('order@saraswatisweets.in');
+  const [testEmail, setTestEmail] = useState('order@saraswatisweetsbarabanki.com');
   const [testSubject, setTestSubject] = useState('Saraswati Sweets Transactional Test');
   const [isPromotional, setIsPromotional] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -209,7 +209,7 @@ export const AdminNotificationsTab: React.FC<AdminNotificationsTabProps> = ({
                     required
                     value={testEmail}
                     onChange={(e) => setTestEmail(e.target.value)}
-                    placeholder="e.g. order@saraswatisweets.in"
+                    placeholder="e.g. order@saraswatisweetsbarabanki.com"
                     className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] focus:outline-none focus:border-[#8A1538]"
                   />
                 </div>

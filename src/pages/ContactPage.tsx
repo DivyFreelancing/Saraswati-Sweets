@@ -61,8 +61,8 @@ export const ContactPage: React.FC = () => {
             </p>
             <p>
               Email:{' '}
-              <a href="mailto:order@saraswatisweets.in" className="text-[#1F1B16] hover:text-[#8A1538]">
-                order@saraswatisweets.in
+              <a href="mailto:order@saraswatisweetsbarabanki.com" className="text-[#1F1B16] hover:text-[#8A1538]">
+                order@saraswatisweetsbarabanki.com
               </a>
             </p>
           </div>
