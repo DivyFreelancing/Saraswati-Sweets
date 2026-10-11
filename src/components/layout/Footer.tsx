@@ -226,6 +226,9 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   >
                     order@saraswatisweetsbarabanki.com
                   </a>
+                  <span className="block text-[11px] text-[#6E6259] mt-0.5">
+                    or <a href="mailto:saraswatisweetsbarabanki@gmail.com" className="hover:text-[#7A1129] underline">saraswatisweetsbarabanki@gmail.com</a>
+                  </span>
                 </div>
                 <div className="pt-2">
                   <PWAInstallButton variant="footer" />

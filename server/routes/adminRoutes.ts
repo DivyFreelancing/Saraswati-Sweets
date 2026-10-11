@@ -24,7 +24,7 @@ import {
   supabaseServer,
 } from '../db';
 import { createCashfreeRefund, fetchCashfreeRefund } from '../services/cashfreeService';
-import { adminOrderEvents, AdminOrderNotificationPayload, emailProvider } from '../services/notificationService';
+import { adminOrderEvents, AdminOrderNotificationPayload, emailProvider, getAdminNotificationRecipient } from '../services/notificationService';
 
 const router = Router();
 
@@ -1839,7 +1839,9 @@ router.get('/notifications', (_req: AuthenticatedRequest, res: Response) => {
 });
 
 router.post('/notifications/test-email', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
-  const { to = 'order@saraswatisweetsbarabanki.com', subject = 'Saraswati Sweets Test Email', isPromotional = false } = req.body;
+  const customTo = typeof req.body.to === 'string' && req.body.to.trim() ? req.body.to.trim() : undefined;
+  const to = customTo || getAdminNotificationRecipient();
+  const { subject = 'Saraswati Sweets Test Email', isPromotional = false } = req.body;
 
   const result = await emailProvider.sendEmail({
     to,

@@ -543,14 +543,14 @@ async function runDatabaseConcurrencyTests() {
       'In-memory store settings cannot override process.env.ADMIN_ORDER_EMAIL'
     );
 
-    // 6.3 Priority 2: When ADMIN_ORDER_EMAIL is unset, strictly fall back to order@saraswatisweetsbarabanki.com
+    // 6.3 Priority 2: When ADMIN_ORDER_EMAIL is unset, strictly fall back to saraswatisweetsbarabanki@gmail.com
     delete process.env.ADMIN_ORDER_EMAIL;
     if (inMemoryStore.storeSettings) {
       inMemoryStore.storeSettings.store_email = 'order@saraswatisweets.in';
     }
     assert(
-      getAdminNotificationRecipient() === 'order@saraswatisweetsbarabanki.com',
-      'Priority 2: Unset ADMIN_ORDER_EMAIL falls back to order@saraswatisweetsbarabanki.com'
+      getAdminNotificationRecipient() === 'saraswatisweetsbarabanki@gmail.com',
+      'Priority 2: Unset ADMIN_ORDER_EMAIL falls back to saraswatisweetsbarabanki@gmail.com'
     );
     assert(
       getAdminNotificationRecipient() !== 'order@saraswatisweets.in',
@@ -560,7 +560,7 @@ async function runDatabaseConcurrencyTests() {
     // 6.4 Safety: Explicitly setting or passing order@saraswatisweets.in is rejected
     process.env.ADMIN_ORDER_EMAIL = 'order@saraswatisweets.in';
     assert(
-      getAdminNotificationRecipient() === 'order@saraswatisweetsbarabanki.com',
+      getAdminNotificationRecipient() === 'saraswatisweetsbarabanki@gmail.com',
       'Configuring old invalid order@saraswatisweets.in safely rejects and uses verified fallback'
     );
     delete process.env.ADMIN_ORDER_EMAIL;

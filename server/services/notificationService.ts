@@ -119,24 +119,26 @@ export function formatZeptoAuthHeader(apiKey: string): string {
   return `Zoho-enczapikey ${token}`;
 }
 
+import {
+  getSenderEmail,
+  getAdminRecipientEmail,
+  DEFAULT_SENDER_EMAIL,
+  DEFAULT_ADMIN_RECIPIENT_EMAIL,
+} from '../config/emailConfig';
+
 /**
  * Resolves the recipient email address for administrative notification emails (e.g. new orders, bulk enquiries).
+ * Delegates to centralized emailConfig module.
  * Priority:
- * 1. process.env.ADMIN_ORDER_EMAIL if non-empty after trimming (and not the old invalid order@saraswatisweets.in)
- * 2. Verified fallback 'order@saraswatisweetsbarabanki.com'
+ * 1. process.env.ADMIN_ORDER_EMAIL if non-empty after trimming
+ * 2. process.env.ADMIN_EMAIL
+ * 3. customFallback if provided and valid
+ * 4. Default admin inbox: 'saraswatisweetsbarabanki@gmail.com'
  *
  * Guaranteed: Under no circumstances does this fall back to the old invalid 'order@saraswatisweets.in'.
  */
 export function getAdminNotificationRecipient(customFallback?: string | null): string {
-  const envAdminEmail = process.env.ADMIN_ORDER_EMAIL?.trim();
-  if (envAdminEmail && !envAdminEmail.toLowerCase().includes('saraswatisweets.in')) {
-    return envAdminEmail;
-  }
-  const fallback = customFallback?.trim();
-  if (fallback && !fallback.toLowerCase().includes('saraswatisweets.in')) {
-    return fallback;
-  }
-  return 'order@saraswatisweetsbarabanki.com';
+  return getAdminRecipientEmail(customFallback);
 }
 
 /**
@@ -150,7 +152,7 @@ export class ZeptoMailProvider implements IEmailProvider {
 
   constructor() {
     this.apiKey = process.env.ZEPTOMAIL_API_KEY || '';
-    this.fromAddress = process.env.ZEPTOMAIL_FROM_ADDRESS || 'order@saraswatisweetsbarabanki.com';
+    this.fromAddress = getSenderEmail();
     this.fromName = process.env.ZEPTOMAIL_FROM_NAME || 'Saraswati Sweets';
     this.baseUrl = process.env.ZEPTOMAIL_BASE_URL || 'https://cpaas.zoho.in';
   }
@@ -339,7 +341,7 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
     const zeptoMailApiKey = process.env.ZEPTOMAIL_API_KEY;
     const zeptoMailTemplateKey = process.env.ZEPTOMAIL_TEMPLATE_KEY;
     const baseUrl = process.env.ZEPTOMAIL_BASE_URL || 'https://cpaas.zoho.in';
-    const fromAddress = process.env.ZEPTOMAIL_FROM_ADDRESS || 'order@saraswatisweetsbarabanki.com';
+    const fromAddress = getSenderEmail();
 
     if (zeptoMailApiKey && !zeptoMailApiKey.includes('placeholder') && zeptoMailTemplateKey) {
       try {

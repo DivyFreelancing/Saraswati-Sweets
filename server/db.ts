@@ -4,6 +4,7 @@ import path from 'path';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 dotenv.config();
+import { getAdminRecipientEmail } from './config/emailConfig';
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
@@ -449,7 +450,7 @@ export const STORE_SETTINGS = {
   tagline: 'Pure Desi Ghee Mithai & Artisanal Namkeen Since 1978',
   store_phone: '+91 91611 10030',
   whatsapp: '+91 91611 10030',
-  store_email: 'order@saraswatisweetsbarabanki.com',
+  store_email: getAdminRecipientEmail(),
   address_text: 'Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001, Uttar Pradesh 225001',
   delivery_charge: 40,
   free_delivery_above: 499,
@@ -1106,7 +1107,7 @@ export const inMemoryStore = {
     tagline: 'Pure Desi Ghee Mithai & Artisanal Namkeen Since 1978',
     store_phone: '+91 91611 10030',
     whatsapp: '+91 91611 10030',
-    store_email: 'order@saraswatisweetsbarabanki.com',
+    store_email: getAdminRecipientEmail(),
     address_text: 'Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001, Uttar Pradesh 225001',
     serviceable_pincodes: ['225001', '225002', '225003', '225122'],
     delivery_charge_flat: 40,

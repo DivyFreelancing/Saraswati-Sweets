@@ -1,17 +1,20 @@
 /**
- * Unit & Integration Test Suite: Saraswati Sweets Admin Notification Recipient Priority
+ * Unit & Integration Test Suite: Saraswati Sweets Project-Wide Email Configuration
  * 
  * Verifies:
- * 1. Tier 1 Priority: process.env.ADMIN_ORDER_EMAIL takes precedence when defined and non-empty.
- * 2. Tier 2 Fallback: STORE_SETTINGS.store_email / inMemoryStore.storeSettings.store_email used when ADMIN_ORDER_EMAIL is absent.
- * 3. Tier 3 Fallback: 'order@saraswatisweetsbarabanki.com' used when both ADMIN_ORDER_EMAIL and store email are absent/empty.
- * 4. In-Memory Isolation: Mutating inMemoryStore.storeSettings does NOT override process.env.ADMIN_ORDER_EMAIL.
+ * 1. Admin Recipient Priority: process.env.ADMIN_ORDER_EMAIL takes precedence when defined and non-empty.
+ * 2. Secondary Admin Var: process.env.ADMIN_EMAIL is honored when ADMIN_ORDER_EMAIL is unset.
+ * 3. Default Admin Inbox Fallback: 'saraswatisweetsbarabanki@gmail.com' is the canonical fallback.
+ * 4. In-Memory Isolation: Mutating database/in-memory store settings does NOT override environment configuration.
  * 5. Whitespace Handling: process.env.ADMIN_ORDER_EMAIL is trimmed; whitespace-only strings fall through to fallback.
- * 6. Admin Order Alert: notifyOrderPlaced delivers ADMIN_NEW_ORDER_ALERT to getAdminNotificationRecipient().
- * 7. Customer Order Confirmation: notifyOrderPlaced delivers customer confirmation strictly to customer's email.
- * 8. Bulk Enquiry Admin Alert: notifyNewBulkEnquiry delivers BULK_ENQUIRY_ADMIN_ALERT to getAdminNotificationRecipient().
- * 9. Bulk Enquiry Customer Ack: notifyNewBulkEnquiry delivers BULK_ENQUIRY_CUSTOMER_ACK strictly to customer's email.
- * 10. Sender Independence: ZEPTOMAIL_FROM_ADDRESS governs sender, completely separate from recipient.
+ * 6. Disallowed Domain Rejection: 'saraswatisweets.in' is strictly rejected and never used as active fallback.
+ * 7. Verified Sender Independence: ZEPTOMAIL_FROM_ADDRESS governs sender ('order@saraswatisweetsbarabanki.com'),
+ *    completely separate from the admin recipient inbox.
+ * 8. Admin Order Alert: notifyOrderPlaced delivers ADMIN_NEW_ORDER_ALERT to getAdminNotificationRecipient().
+ * 9. Customer Order Confirmation: notifyOrderPlaced delivers customer confirmation strictly to customer's email.
+ * 10. Bulk Enquiry Admin Alert: notifyNewBulkEnquiry delivers BULK_ENQUIRY_ADMIN_ALERT to getAdminNotificationRecipient().
+ * 11. Bulk Enquiry Customer Ack: notifyNewBulkEnquiry delivers BULK_ENQUIRY_CUSTOMER_ACK strictly to customer's email.
+ * 12. Customer OTP Safety: Customer authentication OTPs remain strictly routed to customer's entered address.
  */
 
 process.env.UNIT_TEST = 'true';
@@ -26,7 +29,15 @@ import {
   EmailSendResult,
 } from '../server/services/notificationService';
 import {
-  STORE_SETTINGS,
+  getSenderEmail,
+  getAdminRecipientEmail,
+  DEFAULT_SENDER_EMAIL,
+  DEFAULT_ADMIN_RECIPIENT_EMAIL,
+  isValidEmail,
+  isDisallowedDomain,
+  getEmailConfigSummary,
+} from '../server/config/emailConfig';
+import {
   inMemoryStore,
   ServerOrder,
   ServerBulkEnquiry,
@@ -34,7 +45,7 @@ import {
 
 async function runNotificationRecipientTests() {
   console.log('======================================================================');
-  console.log('SARASWATI SWEETS: ADMIN NOTIFICATION RECIPIENT TEST SUITE');
+  console.log('SARASWATI SWEETS: PROJECT-WIDE EMAIL CONFIGURATION TEST SUITE');
   console.log('======================================================================');
 
   let passed = 0;
@@ -52,6 +63,8 @@ async function runNotificationRecipientTests() {
 
   // Backup original env & store settings
   const originalAdminOrderEmail = process.env.ADMIN_ORDER_EMAIL;
+  const originalAdminEmail = process.env.ADMIN_EMAIL;
+  const originalFromAddress = process.env.ZEPTOMAIL_FROM_ADDRESS;
   const originalStoreEmail = inMemoryStore.storeSettings?.store_email;
 
   // Mock Email Provider to inspect outgoing messages
@@ -66,15 +79,16 @@ async function runNotificationRecipientTests() {
 
   try {
     // -------------------------------------------------------------------------
-    // 1. RECIPIENT PRIORITY TESTS
+    // 1. RECIPIENT PRIORITY & FALLBACK TESTS
     // -------------------------------------------------------------------------
-    console.log('\n--- 1. Recipient Priority Tests ---');
+    console.log('\n--- 1. Admin Recipient Priority & Fallback Tests ---');
 
     // Test 1.1: ADMIN_ORDER_EMAIL is preferred when set
+    delete process.env.ADMIN_EMAIL;
     process.env.ADMIN_ORDER_EMAIL = 'custom-admin@saraswatisweetsbarabanki.com';
     assert(
       getAdminNotificationRecipient() === 'custom-admin@saraswatisweetsbarabanki.com',
-      'Priority 1: process.env.ADMIN_ORDER_EMAIL is preferred over store settings'
+      'Priority 1: process.env.ADMIN_ORDER_EMAIL is preferred over all other settings'
     );
 
     // Test 1.2: In-memory store settings do NOT override ADMIN_ORDER_EMAIL
@@ -100,24 +114,22 @@ async function runNotificationRecipientTests() {
       'process.env.ADMIN_ORDER_EMAIL is properly trimmed of whitespace'
     );
 
-    // Test 1.4: Empty or whitespace-only ADMIN_ORDER_EMAIL falls through to new verified fallback
+    // Test 1.4: Empty or whitespace-only ADMIN_ORDER_EMAIL falls through to admin personal inbox
     process.env.ADMIN_ORDER_EMAIL = '   ';
-    if (inMemoryStore.storeSettings) {
-      inMemoryStore.storeSettings.store_email = 'order@saraswatisweetsbarabanki.com';
-    }
     assert(
-      getAdminNotificationRecipient() === 'order@saraswatisweetsbarabanki.com',
-      'Whitespace-only process.env.ADMIN_ORDER_EMAIL falls back to order@saraswatisweetsbarabanki.com'
+      getAdminNotificationRecipient() === 'saraswatisweetsbarabanki@gmail.com',
+      'Whitespace-only process.env.ADMIN_ORDER_EMAIL falls back to saraswatisweetsbarabanki@gmail.com'
     );
 
-    // Test 1.5: Unset ADMIN_ORDER_EMAIL falls back to order@saraswatisweetsbarabanki.com (NOT order@saraswatisweets.in)
+    // Test 1.5: Unset ADMIN_ORDER_EMAIL falls back to saraswatisweetsbarabanki@gmail.com (NOT order@saraswatisweets.in)
     delete process.env.ADMIN_ORDER_EMAIL;
+    delete process.env.ADMIN_EMAIL;
     if (inMemoryStore.storeSettings) {
       inMemoryStore.storeSettings.store_email = 'order@saraswatisweets.in';
     }
     assert(
-      getAdminNotificationRecipient() === 'order@saraswatisweetsbarabanki.com',
-      'Unset ADMIN_ORDER_EMAIL falls back to order@saraswatisweetsbarabanki.com'
+      getAdminNotificationRecipient() === 'saraswatisweetsbarabanki@gmail.com',
+      'Unset ADMIN_ORDER_EMAIL falls back to saraswatisweetsbarabanki@gmail.com'
     );
     assert(
       getAdminNotificationRecipient() !== 'order@saraswatisweets.in',
@@ -127,37 +139,83 @@ async function runNotificationRecipientTests() {
     // Test 1.6: If ADMIN_ORDER_EMAIL is explicitly set to old invalid order@saraswatisweets.in, reject and use fallback
     process.env.ADMIN_ORDER_EMAIL = 'order@saraswatisweets.in';
     assert(
-      getAdminNotificationRecipient() === 'order@saraswatisweetsbarabanki.com',
+      getAdminNotificationRecipient() === 'saraswatisweetsbarabanki@gmail.com',
       'Accidentally configuring old invalid order@saraswatisweets.in safely rejects and uses verified fallback'
     );
     delete process.env.ADMIN_ORDER_EMAIL;
 
-    // Test 1.7: Custom fallback parameter
+    // Test 1.7: ADMIN_EMAIL is used if ADMIN_ORDER_EMAIL is unset
+    process.env.ADMIN_EMAIL = 'general-admin@saraswatisweetsbarabanki.com';
+    assert(
+      getAdminNotificationRecipient() === 'general-admin@saraswatisweetsbarabanki.com',
+      'ADMIN_EMAIL is honored as secondary fallback when ADMIN_ORDER_EMAIL is unset'
+    );
+    delete process.env.ADMIN_EMAIL;
+
+    // Test 1.8: Custom fallback parameter
     assert(
       getAdminNotificationRecipient('branch-manager@saraswatisweetsbarabanki.com') === 'branch-manager@saraswatisweetsbarabanki.com',
-      'Custom valid fallback parameter is honored when ADMIN_ORDER_EMAIL is unset'
+      'Custom valid fallback parameter is honored when env vars are unset'
     );
 
-    // Test 1.8: Custom fallback parameter of order@saraswatisweets.in is rejected
+    // Test 1.9: Custom fallback parameter of order@saraswatisweets.in is rejected
     assert(
-      getAdminNotificationRecipient('order@saraswatisweets.in') === 'order@saraswatisweetsbarabanki.com',
+      getAdminNotificationRecipient('order@saraswatisweets.in') === 'saraswatisweetsbarabanki@gmail.com',
       'Passing old invalid order@saraswatisweets.in as custom fallback is safely rejected in favor of verified fallback'
     );
 
-    // Test 1.9: Empty or null fallback uses verified fallback
+    // Test 1.10: Empty or null fallback uses verified fallback
     assert(
-      getAdminNotificationRecipient('') === 'order@saraswatisweetsbarabanki.com' &&
-      getAdminNotificationRecipient(null) === 'order@saraswatisweetsbarabanki.com',
-      'Empty or null fallback cleanly resolves to order@saraswatisweetsbarabanki.com'
+      getAdminNotificationRecipient('') === 'saraswatisweetsbarabanki@gmail.com' &&
+      getAdminNotificationRecipient(null) === 'saraswatisweetsbarabanki@gmail.com',
+      'Empty or null fallback cleanly resolves to saraswatisweetsbarabanki@gmail.com'
     );
 
     // -------------------------------------------------------------------------
-    // 2. ORDER PLACED NOTIFICATION DISPATCH TESTS
+    // 2. SENDER RESOLUTION & INDEPENDENCE TESTS
     // -------------------------------------------------------------------------
-    console.log('\n--- 2. Order Placed Notification Dispatch Tests ---');
+    console.log('\n--- 2. Sender Resolution & Independence Tests ---');
+
+    delete process.env.ZEPTOMAIL_FROM_ADDRESS;
+    assert(
+      getSenderEmail() === 'order@saraswatisweetsbarabanki.com',
+      'Default sender email resolves to order@saraswatisweetsbarabanki.com'
+    );
+
+    process.env.ZEPTOMAIL_FROM_ADDRESS = 'custom-sender@saraswatisweetsbarabanki.com';
+    assert(
+      getSenderEmail() === 'custom-sender@saraswatisweetsbarabanki.com',
+      'Custom ZEPTOMAIL_FROM_ADDRESS is honored'
+    );
+
+    process.env.ZEPTOMAIL_FROM_ADDRESS = '   trimmed-sender@saraswatisweetsbarabanki.com   ';
+    assert(
+      getSenderEmail() === 'trimmed-sender@saraswatisweetsbarabanki.com',
+      'ZEPTOMAIL_FROM_ADDRESS whitespace is trimmed properly'
+    );
+
+    process.env.ZEPTOMAIL_FROM_ADDRESS = 'order@saraswatisweets.in';
+    assert(
+      getSenderEmail() === 'order@saraswatisweetsbarabanki.com',
+      'Configuring invalid old domain in ZEPTOMAIL_FROM_ADDRESS safely falls back to order@saraswatisweetsbarabanki.com'
+    );
+    delete process.env.ZEPTOMAIL_FROM_ADDRESS;
+
+    // Sender and admin recipient are completely decoupled
+    process.env.ADMIN_ORDER_EMAIL = 'saraswatisweetsbarabanki@gmail.com';
+    assert(
+      getSenderEmail() === 'order@saraswatisweetsbarabanki.com' &&
+      getAdminNotificationRecipient() === 'saraswatisweetsbarabanki@gmail.com',
+      'Sender address and admin recipient address are completely decoupled and distinct'
+    );
+
+    // -------------------------------------------------------------------------
+    // 3. ORDER PLACED NOTIFICATION DISPATCH TESTS
+    // -------------------------------------------------------------------------
+    console.log('\n--- 3. Order Placed Notification Dispatch Tests ---');
     sentEmails.length = 0;
 
-    process.env.ADMIN_ORDER_EMAIL = 'order@saraswatisweetsbarabanki.com';
+    process.env.ADMIN_ORDER_EMAIL = 'saraswatisweetsbarabanki@gmail.com';
 
     const testOrderWithCustomerEmail: ServerOrder = {
       id: 'ord-test-notif-001',
@@ -210,7 +268,7 @@ async function runNotificationRecipientTests() {
     const originalTemplateKey = process.env.ZEPTOMAIL_TEMPLATE_KEY;
     const originalFetch = globalThis.fetch;
 
-    // Test 2.1: Direct ZeptoMail customer confirmation (when template key is not set)
+    // Test 3.1: Direct ZeptoMail customer confirmation (when template key is not set)
     delete process.env.ZEPTOMAIL_TEMPLATE_KEY;
 
     await notifyOrderPlaced(testOrderWithCustomerEmail);
@@ -227,8 +285,8 @@ async function runNotificationRecipientTests() {
       'notifyOrderPlaced dispatches ADMIN_NEW_ORDER_ALERT'
     );
     assert(
-      adminOrderAlert?.to === 'order@saraswatisweetsbarabanki.com',
-      'ADMIN_NEW_ORDER_ALERT recipient matches process.env.ADMIN_ORDER_EMAIL'
+      adminOrderAlert?.to === 'saraswatisweetsbarabanki@gmail.com',
+      'ADMIN_NEW_ORDER_ALERT recipient matches ADMIN_ORDER_EMAIL (saraswatisweetsbarabanki@gmail.com)'
     );
     assert(
       customerOrderAck !== undefined,
@@ -239,7 +297,7 @@ async function runNotificationRecipientTests() {
       'Customer direct order confirmation recipient remains strictly customer email (unchanged)'
     );
 
-    // Test 2.2: Template-based customer confirmation (when template key is set)
+    // Test 3.2: Template-based customer confirmation (when template key is set)
     let interceptedTemplatePayload: any = null;
     process.env.ZEPTOMAIL_TEMPLATE_KEY = 'mock_template_key_123';
     globalThis.fetch = async (_url: any, options: any) => {
@@ -258,6 +316,10 @@ async function runNotificationRecipientTests() {
       interceptedTemplatePayload?.to?.[0]?.email_address?.address === 'customer.real@gmail.com',
       'Template-based customer order confirmation recipient remains strictly customer email (unchanged)'
     );
+    assert(
+      interceptedTemplatePayload?.from?.address === 'order@saraswatisweetsbarabanki.com',
+      'Template-based sender address uses verified sender order@saraswatisweetsbarabanki.com'
+    );
 
     // Restore fetch and template key
     globalThis.fetch = originalFetch;
@@ -267,7 +329,7 @@ async function runNotificationRecipientTests() {
       delete process.env.ZEPTOMAIL_TEMPLATE_KEY;
     }
 
-    // Test phone-only guest order (no customer email)
+    // Test 3.3: Phone-only guest order (no customer email)
     sentEmails.length = 0;
     const testOrderPhoneOnly: ServerOrder = {
       ...testOrderWithCustomerEmail,
@@ -286,8 +348,8 @@ async function runNotificationRecipientTests() {
     );
 
     assert(
-      adminAlertPhoneOnly?.to === 'order@saraswatisweetsbarabanki.com',
-      'Admin receives order alert even when customer has no email address'
+      adminAlertPhoneOnly?.to === 'saraswatisweetsbarabanki@gmail.com',
+      'Admin receives order alert at saraswatisweetsbarabanki@gmail.com even when customer has no email address'
     );
     assert(
       customerAlertPhoneOnly === undefined,
@@ -295,9 +357,9 @@ async function runNotificationRecipientTests() {
     );
 
     // -------------------------------------------------------------------------
-    // 3. BULK ENQUIRY NOTIFICATION DISPATCH TESTS
+    // 4. BULK ENQUIRY NOTIFICATION DISPATCH TESTS
     // -------------------------------------------------------------------------
-    console.log('\n--- 3. Bulk Enquiry Notification Dispatch Tests ---');
+    console.log('\n--- 4. Bulk Enquiry Notification Dispatch Tests ---');
     sentEmails.length = 0;
 
     process.env.ADMIN_ORDER_EMAIL = 'orders-hq@saraswatisweetsbarabanki.com';
@@ -345,15 +407,27 @@ async function runNotificationRecipientTests() {
     );
 
     // -------------------------------------------------------------------------
-    // 4. ZEPTOMAIL SENDER ADDRESS INTEGRITY
+    // 5. ZEPTOMAIL PROVIDER INTEGRATION TEST
     // -------------------------------------------------------------------------
-    console.log('\n--- 4. ZeptoMail Sender Address Integrity ---');
+    console.log('\n--- 5. ZeptoMail Provider Integration ---');
     const { ZeptoMailProvider } = await import('../server/services/notificationService');
     const providerInstance: any = new ZeptoMailProvider();
 
     assert(
-      providerInstance.fromAddress === (process.env.ZEPTOMAIL_FROM_ADDRESS || 'order@saraswatisweetsbarabanki.com'),
-      'ZeptoMail fromAddress is governed by ZEPTOMAIL_FROM_ADDRESS independently of admin recipient'
+      providerInstance.fromAddress === 'order@saraswatisweetsbarabanki.com',
+      'ZeptoMailProvider instance fromAddress defaults to order@saraswatisweetsbarabanki.com'
+    );
+
+    // -------------------------------------------------------------------------
+    // 6. CONFIG SUMMARY UTILITY TEST
+    // -------------------------------------------------------------------------
+    console.log('\n--- 6. Config Summary Utility Test ---');
+    const summary = getEmailConfigSummary();
+    assert(
+      summary.defaultSender === 'order@saraswatisweetsbarabanki.com' &&
+      summary.defaultAdminInbox === 'saraswatisweetsbarabanki@gmail.com' &&
+      summary.disallowedDomains.includes('saraswatisweets.in'),
+      'getEmailConfigSummary provides accurate non-sensitive summary'
     );
 
   } finally {
@@ -363,13 +437,23 @@ async function runNotificationRecipientTests() {
     } else {
       delete process.env.ADMIN_ORDER_EMAIL;
     }
+    if (originalAdminEmail !== undefined) {
+      process.env.ADMIN_EMAIL = originalAdminEmail;
+    } else {
+      delete process.env.ADMIN_EMAIL;
+    }
+    if (originalFromAddress !== undefined) {
+      process.env.ZEPTOMAIL_FROM_ADDRESS = originalFromAddress;
+    } else {
+      delete process.env.ZEPTOMAIL_FROM_ADDRESS;
+    }
     if (inMemoryStore.storeSettings && originalStoreEmail !== undefined) {
       inMemoryStore.storeSettings.store_email = originalStoreEmail;
     }
   }
 
   console.log('======================================================================');
-  console.log(`ADMIN NOTIFICATION SUITE: ${passed} Passed, ${failed} Failed`);
+  console.log(`EMAIL CONFIGURATION SUITE: ${passed} Passed, ${failed} Failed`);
   console.log('======================================================================');
 
   process.exit(failed > 0 ? 1 : 0);
