@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import dotenv from 'dotenv';
 import {
   ServerOrder,
+  ServerOrderItem,
   ServerBulkEnquiry,
   ServerNotification,
   ServerProfile,
@@ -352,6 +353,492 @@ export function buildOrderTrackingUrl(orderNumber: string): string {
 }
 
 /**
+ * Safe HTML escaping for customer-controlled text and product names.
+ */
+export function escapeHtml(str: string | undefined | null): string {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Format currency consistently in Indian Rupees (INR)
+ */
+export function formatINR(amount: number | undefined | null): string {
+  const num = typeof amount === 'number' && !isNaN(amount) ? amount : 0;
+  return `₹${Math.round(num).toLocaleString('en-IN')}`;
+}
+
+/**
+ * Format order date in IST (Asia/Kolkata)
+ */
+export function formatOrderDate(dateString?: string): string {
+  try {
+    const d = dateString ? new Date(dateString) : new Date();
+    if (isNaN(d.getTime())) return new Date().toLocaleDateString('en-IN');
+    return new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    }).format(d);
+  } catch {
+    return dateString || '';
+  }
+}
+
+/**
+ * Authoritative payment status resolution:
+ * Only labels an order as paid if verified by Cashfree (CAPTURED).
+ */
+export function getAuthoritativePaymentStatus(order: ServerOrder): {
+  statusText: string;
+  isPaid: boolean;
+  statusBadgeColor: string;
+} {
+  if (order.payment_status === 'CAPTURED') {
+    return {
+      statusText: 'Paid Online (Verified)',
+      isPaid: true,
+      statusBadgeColor: '#2E7D4F',
+    };
+  }
+  if (order.payment_method === 'COD') {
+    return {
+      statusText: 'Pay on Delivery (Cash / UPI)',
+      isPaid: false,
+      statusBadgeColor: '#B25E00',
+    };
+  }
+  if (order.payment_status === 'FAILED') {
+    return {
+      statusText: 'Payment Failed',
+      isPaid: false,
+      statusBadgeColor: '#B3261E',
+    };
+  }
+  if (order.payment_status === 'REFUNDED') {
+    return {
+      statusText: 'Refunded',
+      isPaid: false,
+      statusBadgeColor: '#5B626A',
+    };
+  }
+  return {
+    statusText: 'Payment Pending',
+    isPaid: false,
+    statusBadgeColor: '#B25E00',
+  };
+}
+
+/**
+ * Resolves fulfilment & address details cleanly separating delivery vs takeaway.
+ */
+export function getOrderTypeDetails(order: ServerOrder): {
+  isTakeaway: boolean;
+  orderTypeLabel: string;
+  fulfilmentLabel: string;
+  fulfilmentDetails: string;
+  pickupSlotText: string;
+} {
+  const isTakeaway = order.fulfilment_type === 'TAKEAWAY';
+  const pickupTimeText = order.slot_snapshot?.slot_time_formatted
+    ? `${order.slot_snapshot.slot_time_formatted}${
+        order.slot_snapshot.slot_date ? ` (${order.slot_snapshot.slot_date})` : ''
+      }`
+    : 'Scheduled Counter Slot';
+
+  if (isTakeaway) {
+    return {
+      isTakeaway: true,
+      orderTypeLabel: '🏪 Store Pickup / Takeaway',
+      fulfilmentLabel: 'Store Counter Pickup',
+      fulfilmentDetails: `Store Counter Pickup (${pickupTimeText}) — Saraswati Sweets Counter, Main Road, Barabanki`,
+      pickupSlotText: pickupTimeText,
+    };
+  }
+
+  const addr = order.address_snapshot;
+  const streetText = escapeHtml(addr?.street_address);
+  const landmarkText = addr?.landmark
+    ? addr.landmark.trim().toLowerCase().startsWith('near')
+      ? escapeHtml(addr.landmark.trim())
+      : `Near ${escapeHtml(addr.landmark.trim())}`
+    : '';
+  const cityText = escapeHtml(addr?.city || 'Barabanki');
+  const pincodeText = addr?.pincode ? `- ${escapeHtml(addr.pincode)}` : '';
+
+  const addressParts = [streetText, landmarkText, cityText, pincodeText].filter(Boolean);
+  const fullAddress = addressParts.join(', ') || 'Barabanki, Uttar Pradesh';
+
+  return {
+    isTakeaway: false,
+    orderTypeLabel: '🚚 Direct Home Delivery',
+    fulfilmentLabel: 'Home Delivery (Barabanki)',
+    fulfilmentDetails: fullAddress,
+    pickupSlotText: 'Standard Delivery Window',
+  };
+}
+
+export interface ZeptoMailOrderItemMerge {
+  product_name: string;
+  name: string;
+  variant_label: string;
+  weight: string;
+  pack: string;
+  quantity: number;
+  qty: number;
+  unit_price: string;
+  price: string;
+  line_total: string;
+  total_price: string;
+  total: string;
+}
+
+export interface ZeptoMailOrderConfirmationMergeInfo {
+  customer_name: string;
+  recipient_name: string;
+  customer_phone: string;
+  order_id: string;
+  order_number: string;
+  order_date: string;
+  order_type: string;
+  fulfilment_type: string;
+  fulfillment_type: string;
+  is_takeaway: boolean;
+  is_delivery: boolean;
+  payment_status: string;
+  payment_status_badge_color: string;
+  payment_method: string;
+  delivery_address: string;
+  shipping_address: string;
+  pickup_slot: string;
+  pickup_location: string;
+  items_subtotal: string;
+  subtotal: string;
+  delivery_fee: string;
+  shipping_fee: string;
+  discount_amount: string;
+  discount_code: string;
+  has_discount: boolean;
+  tax_amount: string;
+  tax: string;
+  total_amount: string;
+  grand_total: string;
+  order_tracking_url: string;
+  tracking_url: string;
+  store_phone: string;
+  store_whatsapp: string;
+  store_address: string;
+  items: ZeptoMailOrderItemMerge[];
+  products: ZeptoMailOrderItemMerge[];
+  order_items: ZeptoMailOrderItemMerge[];
+  order_items_html: string;
+  items_html: string;
+}
+
+/**
+ * Builds authoritative ZeptoMail merge_info object supporting both Mustache array iteration
+ * ({{#each items}}...{{/each}}) and pre-rendered safe HTML table rows ({{order_items_html}}).
+ */
+export function buildZeptoMailOrderConfirmationMergeInfo(
+  order: ServerOrder,
+  trackingUrl: string
+): ZeptoMailOrderConfirmationMergeInfo {
+  const customerName = escapeHtml(
+    order.address_snapshot?.recipient_name || 'Valued Customer'
+  );
+  const customerPhone = escapeHtml(
+    order.address_snapshot?.recipient_phone || order.guest_phone || ''
+  );
+  const orderTypeInfo = getOrderTypeDetails(order);
+  const paymentInfo = getAuthoritativePaymentStatus(order);
+  const orderDate = formatOrderDate(order.placed_at || order.created_at);
+
+  const itemsMergeList: ZeptoMailOrderItemMerge[] = (order.items || []).map((item) => {
+    const qty = Number(item.quantity) || 1;
+    const lineTotalNum =
+      typeof item.total_price === 'number'
+        ? item.total_price
+        : item.unit_price
+        ? item.unit_price * qty
+        : 0;
+    const unitPriceNum =
+      typeof item.unit_price === 'number' && item.unit_price > 0
+        ? item.unit_price
+        : lineTotalNum / qty;
+    const prodName = escapeHtml(item.product_name || 'Artisanal Mithai');
+    const variant = escapeHtml(item.variant_label || 'Standard Pack');
+
+    return {
+      product_name: prodName,
+      name: prodName,
+      variant_label: variant,
+      weight: variant,
+      pack: variant,
+      quantity: qty,
+      qty: qty,
+      unit_price: formatINR(unitPriceNum),
+      price: formatINR(unitPriceNum),
+      line_total: formatINR(lineTotalNum),
+      total_price: formatINR(lineTotalNum),
+      total: formatINR(lineTotalNum),
+    };
+  });
+
+  const itemsHtmlRows = itemsMergeList
+    .map(
+      (item) => `
+      <tr>
+        <td style="padding: 12px 10px; border-bottom: 1px solid #E8DFD2; text-align: left; vertical-align: top;">
+          <div style="font-weight: 600; color: #1F1B16; font-size: 14px; line-height: 1.4;">${item.product_name}</div>
+          <div style="color: #6B6258; font-size: 12px; margin-top: 3px;">Weight/Pack: ${item.variant_label}</div>
+        </td>
+        <td style="padding: 12px 10px; border-bottom: 1px solid #E8DFD2; text-align: center; vertical-align: top; font-size: 14px; color: #1F1B16; font-weight: 500;">
+          ${item.quantity}
+        </td>
+        <td style="padding: 12px 10px; border-bottom: 1px solid #E8DFD2; text-align: right; vertical-align: top; font-weight: 700; font-size: 14px; color: #8A1538; white-space: nowrap;">
+          ${item.total_price}
+        </td>
+      </tr>`
+    )
+    .join('');
+
+  const safeItemsHtmlRows =
+    itemsHtmlRows ||
+    `<tr><td colspan="3" style="padding: 14px; text-align: center; color: #6B6258; font-size: 13px;">Fresh Artisanal Mithai Selection</td></tr>`;
+
+  const subtotalNum =
+    typeof order.subtotal === 'number'
+      ? order.subtotal
+      : Array.isArray(order.items) && order.items.length > 0
+      ? order.items.reduce((sum, it) => sum + (Number(it.total_price) || 0), 0)
+      : order.total_amount || 0;
+
+  const discountNum = typeof order.discount_amount === 'number' ? order.discount_amount : 0;
+  const deliveryNum =
+    typeof order.delivery_charge === 'number'
+      ? order.delivery_charge
+      : order.fulfilment_type === 'TAKEAWAY'
+      ? 0
+      : 50;
+  const taxNum = typeof order.tax_amount === 'number' ? order.tax_amount : 0;
+  const totalNum =
+    typeof order.total_amount === 'number'
+      ? order.total_amount
+      : Math.max(0, subtotalNum - discountNum + deliveryNum + taxNum);
+
+  const paymentMethodLabel =
+    order.payment_method === 'COD'
+      ? 'Cash on Delivery'
+      : order.payment_method === 'ONLINE'
+      ? 'Online Payment (UPI / Cards / NetBanking)'
+      : escapeHtml(order.payment_method || 'Online');
+
+  return {
+    customer_name: customerName,
+    recipient_name: customerName,
+    customer_phone: customerPhone,
+    order_id: escapeHtml(order.order_number),
+    order_number: escapeHtml(order.order_number),
+    order_date: orderDate,
+    order_type: orderTypeInfo.orderTypeLabel,
+    fulfilment_type: orderTypeInfo.orderTypeLabel,
+    fulfillment_type: orderTypeInfo.orderTypeLabel,
+    is_takeaway: orderTypeInfo.isTakeaway,
+    is_delivery: !orderTypeInfo.isTakeaway,
+    payment_status: paymentInfo.statusText,
+    payment_status_badge_color: paymentInfo.statusBadgeColor,
+    payment_method: paymentMethodLabel,
+    delivery_address: orderTypeInfo.fulfilmentDetails,
+    shipping_address: orderTypeInfo.fulfilmentDetails,
+    pickup_slot: orderTypeInfo.pickupSlotText,
+    pickup_location: 'Saraswati Sweets Counter, Main Road, Barabanki',
+    items_subtotal: formatINR(subtotalNum),
+    subtotal: formatINR(subtotalNum),
+    delivery_fee: deliveryNum === 0 ? 'FREE (Store Pickup)' : formatINR(deliveryNum),
+    shipping_fee: deliveryNum === 0 ? 'FREE' : formatINR(deliveryNum),
+    discount_amount: discountNum > 0 ? `-${formatINR(discountNum)}` : '₹0',
+    discount_code: escapeHtml(order.coupon_code || ''),
+    has_discount: discountNum > 0,
+    tax_amount: taxNum > 0 ? formatINR(taxNum) : '₹0 (Included in MRP)',
+    tax: taxNum > 0 ? formatINR(taxNum) : '₹0 (Included in MRP)',
+    total_amount: formatINR(totalNum),
+    grand_total: formatINR(totalNum),
+    order_tracking_url: trackingUrl,
+    tracking_url: trackingUrl,
+    store_phone: STORE_SETTINGS.store_phone || '+91 94150 23456',
+    store_whatsapp: STORE_SETTINGS.whatsapp || '+91 94150 23456',
+    store_address: STORE_SETTINGS.address_text || 'Civil Lines, Main Road, Barabanki, Uttar Pradesh 225001',
+    items: itemsMergeList,
+    products: itemsMergeList,
+    order_items: itemsMergeList,
+    order_items_html: safeItemsHtmlRows,
+    items_html: safeItemsHtmlRows,
+  };
+}
+
+/**
+ * Builds responsive, branded direct HTML confirmation matching the ZeptoMail template layout.
+ */
+export function buildDirectOrderConfirmationHtml(
+  order: ServerOrder,
+  trackingUrl: string,
+  mergeInfo?: ZeptoMailOrderConfirmationMergeInfo
+): string {
+  const m = mergeInfo || buildZeptoMailOrderConfirmationMergeInfo(order, trackingUrl);
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Order Confirmation #${m.order_id} - Saraswati Sweets</title>
+  <style>
+    body { margin: 0; padding: 0; background-color: #F8F5F0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1F1B16; -webkit-font-smoothing: antialiased; }
+    table { border-collapse: collapse; }
+    @media only screen and (max-width: 620px) {
+      .container { width: 100% !important; max-width: 100% !important; }
+      .content-padding { padding: 20px 16px !important; }
+    }
+  </style>
+</head>
+<body style="margin: 0; padding: 24px 0; background-color: #F8F5F0;">
+  <center>
+    <table role="presentation" class="container" width="600" style="width: 600px; max-width: 600px; background-color: #FFFFFF; border-radius: 12px; overflow: hidden; border: 1px solid #E8DFD2; box-shadow: 0 4px 12px rgba(0,0,0,0.04); margin: 0 auto;">
+      <tr>
+        <td style="background-color: #8A1538; padding: 28px 24px; text-align: center;">
+          <h1 style="margin: 0; color: #FFFFFF; font-size: 26px; font-weight: 700; letter-spacing: 0.5px;">Saraswati Sweets</h1>
+          <p style="margin: 6px 0 0; color: #F6E08B; font-size: 13px; letter-spacing: 0.3px;">Pure Desi Ghee Mithai Since 1978 &bull; Barabanki</p>
+        </td>
+      </tr>
+      <tr>
+        <td class="content-padding" style="padding: 32px 28px;">
+          <div style="text-align: center; margin-bottom: 24px;">
+            <div style="display: inline-block; background-color: #EBF7EE; color: #2E7D4F; font-size: 12px; font-weight: 700; padding: 6px 14px; border-radius: 20px; letter-spacing: 0.5px; text-transform: uppercase;">
+              &#10003; Order #${m.order_id} Confirmed
+            </div>
+            <h2 style="margin: 12px 0 4px; color: #1F1B16; font-size: 22px; font-weight: 700;">
+              Thank You, ${m.customer_name}!
+            </h2>
+            <p style="margin: 0; color: #6B6258; font-size: 14px; line-height: 1.5;">
+              We have received your Order #${m.order_id}. Our master sweetmakers have begun preparing your pure cow desi ghee mithai fresh.
+            </p>
+          </div>
+
+          <table role="presentation" width="100%" style="width: 100%; background-color: #FBF7F1; border: 1px solid #EFE4D6; border-radius: 8px; margin-bottom: 24px; font-size: 14px;">
+            <tr>
+              <td style="padding: 16px 18px;">
+                <table role="presentation" width="100%" style="width: 100%;">
+                  <tr>
+                    <td style="padding: 4px 0; color: #6B6258; width: 38%; font-size: 13px;">Order Number:</td>
+                    <td style="padding: 4px 0; font-weight: 700; color: #8A1538; font-size: 14px;">#${m.order_id}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 0; color: #6B6258; font-size: 13px;">Placed Date:</td>
+                    <td style="padding: 4px 0; color: #1F1B16; font-weight: 500; font-size: 13px;">${m.order_date}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 0; color: #6B6258; font-size: 13px;">Order Type:</td>
+                    <td style="padding: 4px 0; color: #1F1B16; font-weight: 600; font-size: 13px;">${m.order_type}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 0; color: #6B6258; font-size: 13px;">Payment Status:</td>
+                    <td style="padding: 4px 0; font-weight: 600; font-size: 13px; color: ${m.payment_status_badge_color};">
+                      ${m.payment_status}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 0; color: #6B6258; font-size: 13px;">Payment Method:</td>
+                    <td style="padding: 4px 0; color: #1F1B16; font-size: 13px;">${m.payment_method}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 6px 0 2px; color: #6B6258; font-size: 13px; vertical-align: top;">Fulfilment Details:</td>
+                    <td style="padding: 6px 0 2px; color: #1F1B16; font-size: 13px; font-weight: 500; line-height: 1.4;">
+                      ${m.delivery_address}
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+
+          <h3 style="margin: 0 0 12px; color: #1F1B16; font-size: 16px; font-weight: 700;">Items in Your Box</h3>
+          <table role="presentation" width="100%" style="width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 14px;">
+            <thead>
+              <tr style="background-color: #F3EBE0; color: #1F1B16;">
+                <th style="padding: 10px 12px; text-align: left; font-size: 13px; font-weight: 700; border-bottom: 2px solid #E8DFD2;">Product</th>
+                <th style="padding: 10px 12px; text-align: center; font-size: 13px; font-weight: 700; border-bottom: 2px solid #E8DFD2; width: 60px;">Qty</th>
+                <th style="padding: 10px 12px; text-align: right; font-size: 13px; font-weight: 700; border-bottom: 2px solid #E8DFD2; width: 90px;">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${m.order_items_html}
+            </tbody>
+          </table>
+
+          <table role="presentation" width="100%" style="width: 100%; border-collapse: collapse; margin-bottom: 28px; font-size: 14px;">
+            <tr>
+              <td style="padding: 6px 12px; color: #6B6258; text-align: left;">Items Subtotal:</td>
+              <td style="padding: 6px 12px; text-align: right; font-weight: 600; color: #1F1B16;">${m.items_subtotal}</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px 12px; color: #6B6258; text-align: left;">Delivery / Fulfilment Fee:</td>
+              <td style="padding: 6px 12px; text-align: right; font-weight: 600; color: #1F1B16;">${m.delivery_fee}</td>
+            </tr>
+            ${m.has_discount ? `
+            <tr>
+              <td style="padding: 6px 12px; color: #2E7D4F; text-align: left;">Discount (${m.discount_code || 'Promo'}):</td>
+              <td style="padding: 6px 12px; text-align: right; font-weight: 600; color: #2E7D4F;">${m.discount_amount}</td>
+            </tr>` : ''}
+            <tr>
+              <td style="padding: 6px 12px; color: #6B6258; text-align: left;">Tax (GST):</td>
+              <td style="padding: 6px 12px; text-align: right; font-weight: 600; color: #6B6258;">${m.tax_amount}</td>
+            </tr>
+            <tr style="border-top: 2px solid #E8DFD2;">
+              <td style="padding: 12px 12px 6px; font-size: 16px; font-weight: 700; color: #1F1B16; text-align: left;">Total Amount:</td>
+              <td style="padding: 12px 12px 6px; font-size: 19px; font-weight: 700; color: #8A1538; text-align: right;">${m.total_amount}</td>
+            </tr>
+          </table>
+
+          <div style="text-align: center; margin: 30px 0 16px;">
+            <a href="${m.order_tracking_url}" target="_blank" style="display: inline-block; background-color: #8A1538; color: #FFFFFF; font-size: 15px; font-weight: 700; text-decoration: none; padding: 14px 34px; border-radius: 8px; letter-spacing: 0.5px;">
+              Track Order & View Receipt &rarr;
+            </a>
+          </div>
+
+          <p style="font-size: 12px; color: #6B6258; text-align: center; margin: 0 0 24px; word-break: break-all; line-height: 1.5;">
+            Or view directly in your browser: <br>
+            <a href="${m.order_tracking_url}" style="color: #8A1538; text-decoration: underline;">${m.order_tracking_url}</a>
+          </p>
+
+          <hr style="border: none; border-top: 1px solid #E8DFD2; margin: 24px 0;">
+
+          <p style="font-size: 13px; color: #6B6258; margin: 0; text-align: center; line-height: 1.5;">
+            Need help with your order? Call our Barabanki shop at <strong style="color: #1F1B16;">${m.store_phone}</strong> or WhatsApp <strong style="color: #1F1B16;">${m.store_whatsapp}</strong>.
+          </p>
+        </td>
+      </tr>
+      <tr>
+        <td style="background-color: #F3EBE0; padding: 20px 24px; text-align: center; font-size: 12px; color: #6B6258;">
+          <p style="margin: 0 0 4px; font-weight: 600; color: #1F1B16;">Saraswati Sweets</p>
+          <p style="margin: 0 0 6px;">${m.store_address}</p>
+          <p style="margin: 0; color: #8C827A;">&copy; 1978–2026 Saraswati Sweets. Crafted with Pure Desi Ghee in Barabanki, Uttar Pradesh.</p>
+        </td>
+      </tr>
+    </table>
+  </center>
+</body>
+</html>`;
+}
+
+/**
  * 1. Notify Order Placed (to Customer and Store Owner)
  */
 export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
@@ -363,12 +850,18 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
 
   const isTakeaway = order.fulfilment_type === 'TAKEAWAY';
   const pickupTimeText = order.slot_snapshot?.slot_time_formatted
-    ? `${order.slot_snapshot.slot_time_formatted}${order.slot_snapshot.slot_date ? ` (${order.slot_snapshot.slot_date})` : ''}`
+    ? `${order.slot_snapshot.slot_time_formatted}${
+        order.slot_snapshot.slot_date ? ` (${order.slot_snapshot.slot_date})` : ''
+      }`
     : 'scheduled slot';
 
   const trackingUrl = buildOrderTrackingUrl(order.order_number);
 
-  console.log(`[notifyOrderPlaced] Order #${order.order_number} [${order.fulfilment_type || 'DELIVERY'}] | customer email: ${realCustomerEmail || '(none — phone user)'} | phone: ${customerPhone} | tracking: ${trackingUrl}`);
+  console.log(
+    `[notifyOrderPlaced] Order #${order.order_number} [${
+      order.fulfilment_type || 'DELIVERY'
+    }] | customer email: ${realCustomerEmail || '(none — phone user)'} | phone: ${customerPhone} | tracking: ${trackingUrl}`
+  );
 
   // In-app notification for Customer
   if (targetUserId) {
@@ -379,7 +872,12 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
         ? `Your fresh mithai order of ₹${order.total_amount} is confirmed for takeaway. Pickup scheduled for ${pickupTimeText} at the Saraswati Sweets counter.`
         : `Your fresh mithai order of ₹${order.total_amount} has been confirmed for preparation and delivery.`,
       type: 'ORDER_PLACED',
-      metadata: { orderId: order.id, orderNumber: order.order_number, total: order.total_amount, fulfilment_type: order.fulfilment_type },
+      metadata: {
+        orderId: order.id,
+        orderNumber: order.order_number,
+        total: order.total_amount,
+        fulfilment_type: order.fulfilment_type,
+      },
     });
   }
 
@@ -391,49 +889,39 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
       ? `₹${order.total_amount} (${order.payment_method}) from ${order.address_snapshot.recipient_name} (${order.address_snapshot.recipient_phone}). Pickup slot: ${pickupTimeText}`
       : `₹${order.total_amount} (${order.payment_method}) from ${order.address_snapshot.recipient_name} (${order.address_snapshot.recipient_phone}). Destination: ${order.address_snapshot.street_address}`,
     type: 'ORDER_PLACED',
-    metadata: { orderId: order.id, orderNumber: order.order_number, total: order.total_amount, fulfilment_type: order.fulfilment_type },
+    metadata: {
+      orderId: order.id,
+      orderNumber: order.order_number,
+      total: order.total_amount,
+      fulfilment_type: order.fulfilment_type,
+    },
   });
 
   // Transactional Email to Customer
-  const itemsHtml = order.items
-    .map(
-      (item) => `
-      <tr>
-        <td style="padding: 8px; border-bottom: 1px solid #e8dfd2;">
-          <strong>${item.product_name}</strong> (${item.variant_label})
-          ${item.item_type === 'HAMPER' ? '<span style="color:#8A1538; font-weight:bold;"> [GIFT HAMPER]</span>' : ''}
-        </td>
-        <td style="padding: 8px; border-bottom: 1px solid #e8dfd2; text-align: center;">${item.quantity}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #e8dfd2; text-align: right;">₹${item.total_price}</td>
-      </tr>
-    `
-    )
-    .join('');
-
-  // Send transactional email to customer only if we have a real email address.
-  // Phone-only users won't have an email — skip rather than sending to a fake address.
   if (realCustomerEmail) {
     const zeptoMailApiKey = process.env.ZEPTOMAIL_API_KEY;
     const zeptoMailTemplateKey = process.env.ZEPTOMAIL_TEMPLATE_KEY;
     const baseUrl = process.env.ZEPTOMAIL_BASE_URL || 'https://cpaas.zoho.in';
     const fromAddress = getSenderEmail();
+    const mergeInfo = buildZeptoMailOrderConfirmationMergeInfo(order, trackingUrl);
+    const directHtml = buildDirectOrderConfirmationHtml(order, trackingUrl, mergeInfo);
+
+    let templateSentSuccessfully = false;
 
     if (zeptoMailApiKey && !zeptoMailApiKey.includes('placeholder') && zeptoMailTemplateKey) {
       try {
         const payload = {
           mail_template_key: zeptoMailTemplateKey,
           from: { address: fromAddress },
-          to: [{ email_address: { address: realCustomerEmail, name: order.address_snapshot.recipient_name } }],
-          merge_info: {
-            customer_name: order.address_snapshot.recipient_name,
-            order_id: order.order_number,
-            payment_method: order.payment_method,
-            total_amount: `₹${order.total_amount}`,
-            delivery_address: isTakeaway
-              ? `Store Counter Pickup (${pickupTimeText}) - Saraswati Sweets, Main Road, Barabanki`
-              : `${order.address_snapshot.street_address}, Barabanki - ${order.address_snapshot.pincode}`,
-            order_tracking_url: trackingUrl
-          }
+          to: [
+            {
+              email_address: {
+                address: realCustomerEmail,
+                name: order.address_snapshot?.recipient_name || 'Valued Customer',
+              },
+            },
+          ],
+          merge_info: mergeInfo,
         };
 
         const response = await fetch(`${baseUrl}/v1.1/email/template`, {
@@ -443,7 +931,7 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
             'Content-Type': 'application/json',
             'Authorization': formatZeptoAuthHeader(zeptoMailApiKey),
           },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(payload),
         });
 
         const data: any = await response.json().catch(() => null);
@@ -451,87 +939,38 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
           const sanitizedError = {
             code: data?.error?.code || 'UNKNOWN_ERROR',
             message: data?.error?.message || data?.message || response.statusText,
-            details: data?.error?.details?.map((d: any) => ({
-              code: d?.code,
-              message: d?.message,
-              target: d?.target,
-            })) || undefined,
+            details:
+              data?.error?.details?.map((d: any) => ({
+                code: d?.code,
+                message: d?.message,
+                target: d?.target,
+              })) || undefined,
           };
           console.warn(
             `[ZeptoMail API Error] [ORDER_CONFIRMATION_TEMPLATE] HTTP ${response.status}:`,
             JSON.stringify(sanitizedError)
           );
         } else {
-          console.log(`[ZeptoMail] [ORDER_CONFIRMATION_TEMPLATE] dispatched successfully (HTTP ${response.status})`);
+          templateSentSuccessfully = true;
+          console.log(
+            `[ZeptoMail] [ORDER_CONFIRMATION_TEMPLATE] dispatched successfully (HTTP ${response.status})`
+          );
         }
       } catch (err: any) {
         console.error('[ZeptoMail Network Error] [ORDER_CONFIRMATION_TEMPLATE]:', err.message);
       }
-    } else {
-      console.log(`[ZeptoMail] Template key not configured; sending styled HTML confirmation via direct ZeptoMail API.`);
+    }
+
+    // Resilient fallback: If template was not sent (template key missing, API error, or network error),
+    // dispatch styled direct HTML confirmation so customer is never left without confirmation.
+    if (!templateSentSuccessfully) {
+      console.log(`[ZeptoMail] Template email not sent; dispatching rich direct HTML order confirmation.`);
       await emailProvider.sendEmail({
         to: realCustomerEmail,
-        recipientName: order.address_snapshot.recipient_name,
+        recipientName: order.address_snapshot?.recipient_name || 'Customer',
         notificationType: 'ORDER_CONFIRMATION_DIRECT',
         subject: `Order Confirmation #${order.order_number} - Saraswati Sweets (Barabanki)`,
-        html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1F1B16;">
-          <div style="background-color: #8A1538; color: #fff; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-            <h1 style="margin: 0; font-size: 22px;">Saraswati Sweets</h1>
-            <p style="margin: 4px 0 0; font-size: 13px; color: #F6E08B;">Pure Desi Ghee Mithai Since 1978 • Barabanki</p>
-          </div>
-          <div style="padding: 24px; border: 1px solid #e8dfd2; border-top: none; border-radius: 0 0 8px 8px; background: #fff;">
-            <h2 style="color: #8A1538; margin-top: 0;">Order #${order.order_number} Confirmed</h2>
-            <p>Dear ${order.address_snapshot.recipient_name},</p>
-            <p>Thank you for choosing Saraswati Sweets. Our master sweetmakers have begun preparing your fresh mithai with 100% cow desi ghee.</p>
-            
-            <div style="background-color: #fbf7f1; padding: 12px 16px; border-radius: 6px; margin: 16px 0;">
-              <p style="margin: 0; font-size: 14px;"><strong>Fulfillment:</strong> ${isTakeaway ? '🏪 Store Pickup / Takeaway' : '🚚 Fresh Direct Delivery (Barabanki)'}</p>
-              ${isTakeaway ? `
-                <p style="margin: 4px 0 0; font-size: 14px;"><strong>Pickup Slot:</strong> ${pickupTimeText}</p>
-                <p style="margin: 4px 0 0; font-size: 14px;"><strong>Pickup Location:</strong> Saraswati Sweets Counter, Barabanki</p>
-                <p style="margin: 4px 0 0; font-size: 12px; color: #8A1538;">* Please present your Order #${order.order_number} confirmation at the counter for quick pickup.</p>
-              ` : `
-                <p style="margin: 4px 0 0; font-size: 14px;"><strong>Delivery Address:</strong> ${order.address_snapshot.street_address}, Barabanki - ${order.address_snapshot.pincode}</p>
-              `}
-              <p style="margin: 4px 0 0; font-size: 14px;"><strong>Delivery Fee:</strong> ${order.delivery_charge === 0 ? 'FREE (Store Pickup)' : `₹${order.delivery_charge}`}</p>
-              <p style="margin: 4px 0 0; font-size: 14px;"><strong>Payment Method:</strong> ${order.payment_method} (${order.payment_status})</p>
-            </div>
-  
-            <table style="width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px;">
-              <thead>
-                <tr style="background: #f3ebe0;">
-                  <th style="padding: 8px; text-align: left;">Item</th>
-                  <th style="padding: 8px; text-align: center;">Qty</th>
-                  <th style="padding: 8px; text-align: right;">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${itemsHtml}
-              </tbody>
-              <tfoot>
-                ${order.discount_amount > 0 ? `<tr><td colspan="2" style="padding: 8px; text-align: right; color: #2E7D4F;">Discount (${order.coupon_code || 'Promo'}):</td><td style="padding: 8px; text-align: right; color: #2E7D4F;">-₹${order.discount_amount}</td></tr>` : ''}
-                <tr>
-                  <td colspan="2" style="padding: 8px; text-align: right; font-weight: bold;">Grand Total:</td>
-                  <td style="padding: 8px; text-align: right; font-weight: bold; font-size: 16px; color: #8A1538;">₹${order.total_amount}</td>
-                </tr>
-              </tfoot>
-            </table>
-
-            <!-- Track Order Button & Link -->
-            <div style="text-align: center; margin: 24px 0 14px;">
-              <a href="${trackingUrl}" target="_blank" style="display: inline-block; background-color: #8A1538; color: #FFFFFF; font-size: 14px; font-weight: bold; text-decoration: none; padding: 12px 28px; border-radius: 8px; letter-spacing: 0.5px;">
-                Track Order & View Receipt &rarr;
-              </a>
-            </div>
-            <p style="font-size: 12px; color: #6B6258; text-align: center; margin: 0 0 16px; word-break: break-all;">
-              Or view your order directly in your browser: <a href="${trackingUrl}" style="color: #8A1538; text-decoration: underline;">${trackingUrl}</a>
-            </p>
-
-            <p style="font-size: 13px; color: #6b6258;">Need assistance? Call our Barabanki shop at ${STORE_SETTINGS.store_phone} or WhatsApp ${STORE_SETTINGS.whatsapp}.</p>
-          </div>
-        </div>
-      `,
+        html: directHtml,
       });
     }
   } // end if (realCustomerEmail)

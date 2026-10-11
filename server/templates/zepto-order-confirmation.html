@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Order Confirmation - Saraswati Sweets</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #F8F5F0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: #1F1B16;
+      -webkit-font-smoothing: antialiased;
+    }
+    table {
+      border-collapse: collapse;
+      mso-table-lspace: 0pt;
+      mso-table-rspace: 0pt;
+    }
+    img {
+      border: 0;
+      outline: none;
+      text-decoration: none;
+      display: block;
+    }
+    @media only screen and (max-width: 620px) {
+      .container {
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+      .content-padding {
+        padding: 20px 16px !important;
+      }
+      .col-stack {
+        display: block !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+      }
+    }
+  </style>
+</head>
+<body style="margin: 0; padding: 24px 0; background-color: #F8F5F0;">
+  <center>
+    <table role="presentation" class="container" width="600" style="width: 600px; max-width: 600px; background-color: #FFFFFF; border-radius: 12px; overflow: hidden; border: 1px solid #E8DFD2; box-shadow: 0 4px 12px rgba(0,0,0,0.04); margin: 0 auto;">
+      
+      <!-- HEADER BANNER -->
+      <tr>
+        <td style="background-color: #8A1538; padding: 28px 24px; text-align: center;">
+          <h1 style="margin: 0; color: #FFFFFF; font-size: 26px; font-weight: 700; letter-spacing: 0.5px;">Saraswati Sweets</h1>
+          <p style="margin: 6px 0 0; color: #F6E08B; font-size: 13px; letter-spacing: 0.3px;">Pure Desi Ghee Mithai Since 1978 &bull; Barabanki</p>
+        </td>
+      </tr>
+
+      <!-- BODY CONTENT -->
+      <tr>
+        <td class="content-padding" style="padding: 32px 28px;">
+          
+          <!-- ORDER CONFIRMED TITLE -->
+          <div style="text-align: center; margin-bottom: 24px;">
+            <div style="display: inline-block; background-color: #EBF7EE; color: #2E7D4F; font-size: 12px; font-weight: 700; padding: 6px 14px; border-radius: 20px; letter-spacing: 0.5px; text-transform: uppercase;">
+              &#10003; Order Confirmed
+            </div>
+            <h2 style="margin: 12px 0 4px; color: #1F1B16; font-size: 22px; font-weight: 700;">
+              Thank You, {{customer_name}}!
+            </h2>
+            <p style="margin: 0; color: #6B6258; font-size: 14px; line-height: 1.5;">
+              We have received your order <strong>#{{order_id}}</strong>. Our master sweetmakers have begun preparing your pure cow desi ghee mithai fresh.
+            </p>
+          </div>
+
+          <!-- ORDER & FULFILMENT SUMMARY CARD -->
+          <table role="presentation" width="100%" style="width: 100%; background-color: #FBF7F1; border: 1px solid #EFE4D6; border-radius: 8px; margin-bottom: 24px; font-size: 14px;">
+            <tr>
+              <td style="padding: 16px 18px;">
+                <table role="presentation" width="100%" style="width: 100%;">
+                  <tr>
+                    <td style="padding: 4px 0; color: #6B6258; width: 38%; font-size: 13px;">Order Number:</td>
+                    <td style="padding: 4px 0; font-weight: 700; color: #8A1538; font-size: 14px;">#{{order_id}}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 0; color: #6B6258; font-size: 13px;">Placed Date:</td>
+                    <td style="padding: 4px 0; color: #1F1B16; font-weight: 500; font-size: 13px;">{{order_date}}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 0; color: #6B6258; font-size: 13px;">Order Type:</td>
+                    <td style="padding: 4px 0; color: #1F1B16; font-weight: 600; font-size: 13px;">{{order_type}}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 0; color: #6B6258; font-size: 13px;">Payment Status:</td>
+                    <td style="padding: 4px 0; font-weight: 600; font-size: 13px;">
+                      <span style="color: #2E7D4F;">{{payment_status}}</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 0; color: #6B6258; font-size: 13px;">Payment Method:</td>
+                    <td style="padding: 4px 0; color: #1F1B16; font-size: 13px;">{{payment_method}}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 6px 0 2px; color: #6B6258; font-size: 13px; vertical-align: top;">Fulfilment Details:</td>
+                    <td style="padding: 6px 0 2px; color: #1F1B16; font-size: 13px; font-weight: 500; line-height: 1.4;">
+                      {{delivery_address}}
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+
+          <!-- ORDER ITEMS TABLE -->
+          <h3 style="margin: 0 0 12px; color: #1F1B16; font-size: 16px; font-weight: 700;">Items in Your Box</h3>
+          <table role="presentation" width="100%" style="width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 14px;">
+            <thead>
+              <tr style="background-color: #F3EBE0; color: #1F1B16;">
+                <th style="padding: 10px 12px; text-align: left; font-size: 13px; font-weight: 700; border-bottom: 2px solid #E8DFD2;">Product</th>
+                <th style="padding: 10px 12px; text-align: center; font-size: 13px; font-weight: 700; border-bottom: 2px solid #E8DFD2; width: 60px;">Qty</th>
+                <th style="padding: 10px 12px; text-align: right; font-size: 13px; font-weight: 700; border-bottom: 2px solid #E8DFD2; width: 90px;">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- ZeptoMail Loop: iterates over each item in the items array -->
+              {{#each items}}
+              <tr>
+                <td style="padding: 12px 10px; border-bottom: 1px solid #E8DFD2; text-align: left; vertical-align: top;">
+                  <div style="font-weight: 600; color: #1F1B16; font-size: 14px; line-height: 1.4;">{{product_name}}</div>
+                  <div style="color: #6B6258; font-size: 12px; margin-top: 3px;">Weight/Pack: {{variant_label}}</div>
+                </td>
+                <td style="padding: 12px 10px; border-bottom: 1px solid #E8DFD2; text-align: center; vertical-align: top; font-size: 14px; color: #1F1B16; font-weight: 500;">
+                  {{quantity}}
+                </td>
+                <td style="padding: 12px 10px; border-bottom: 1px solid #E8DFD2; text-align: right; vertical-align: top; font-weight: 700; font-size: 14px; color: #8A1538; white-space: nowrap;">
+                  {{total_price}}
+                </td>
+              </tr>
+              {{/each}}
+            </tbody>
+          </table>
+
+          <!-- FINANCIAL TOTALS BREAKDOWN -->
+          <table role="presentation" width="100%" style="width: 100%; border-collapse: collapse; margin-bottom: 28px; font-size: 14px;">
+            <tr>
+              <td style="padding: 6px 12px; color: #6B6258; text-align: left;">Items Subtotal:</td>
+              <td style="padding: 6px 12px; text-align: right; font-weight: 600; color: #1F1B16;">{{items_subtotal}}</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px 12px; color: #6B6258; text-align: left;">Delivery / Fulfilment Fee:</td>
+              <td style="padding: 6px 12px; text-align: right; font-weight: 600; color: #1F1B16;">{{delivery_fee}}</td>
+            </tr>
+            {{#if has_discount}}
+            <tr>
+              <td style="padding: 6px 12px; color: #2E7D4F; text-align: left;">Discount ({{discount_code}}):</td>
+              <td style="padding: 6px 12px; text-align: right; font-weight: 600; color: #2E7D4F;">{{discount_amount}}</td>
+            </tr>
+            {{/if}}
+            <tr>
+              <td style="padding: 6px 12px; color: #6B6258; text-align: left;">Tax (GST):</td>
+              <td style="padding: 6px 12px; text-align: right; font-weight: 600; color: #6B6258;">{{tax_amount}}</td>
+            </tr>
+            <tr style="border-top: 2px solid #E8DFD2;">
+              <td style="padding: 12px 12px 6px; font-size: 16px; font-weight: 700; color: #1F1B16; text-align: left;">Total Amount:</td>
+              <td style="padding: 12px 12px 6px; font-size: 19px; font-weight: 700; color: #8A1538; text-align: right;">{{total_amount}}</td>
+            </tr>
+          </table>
+
+          <!-- TRACK ORDER BUTTON -->
+          <div style="text-align: center; margin: 30px 0 16px;">
+            <a href="{{order_tracking_url}}" target="_blank" style="display: inline-block; background-color: #8A1538; color: #FFFFFF; font-size: 15px; font-weight: 700; text-decoration: none; padding: 14px 34px; border-radius: 8px; letter-spacing: 0.5px;">
+              Track Order & View Receipt &rarr;
+            </a>
+          </div>
+
+          <!-- FALLBACK DIRECT LINK -->
+          <p style="font-size: 12px; color: #6B6258; text-align: center; margin: 0 0 24px; word-break: break-all; line-height: 1.5;">
+            Or view directly in your browser: <br>
+            <a href="{{order_tracking_url}}" style="color: #8A1538; text-decoration: underline;">{{order_tracking_url}}</a>
+          </p>
+
+          <hr style="border: none; border-top: 1px solid #E8DFD2; margin: 24px 0;">
+
+          <!-- ASSISTANCE CONTACT -->
+          <p style="font-size: 13px; color: #6B6258; margin: 0; text-align: center; line-height: 1.5;">
+            Need help with your order? Call our Barabanki shop at <strong style="color: #1F1B16;">{{store_phone}}</strong> or WhatsApp <strong style="color: #1F1B16;">{{store_whatsapp}}</strong>.
+          </p>
+
+        </td>
+      </tr>
+
+      <!-- FOOTER -->
+      <tr>
+        <td style="background-color: #F3EBE0; padding: 20px 24px; text-align: center; font-size: 12px; color: #6B6258;">
+          <p style="margin: 0 0 4px; font-weight: 600; color: #1F1B16;">Saraswati Sweets</p>
+          <p style="margin: 0 0 6px;">{{store_address}}</p>
+          <p style="margin: 0; color: #8C827A;">&copy; 1978–2026 Saraswati Sweets. Crafted with Pure Desi Ghee in Barabanki, Uttar Pradesh.</p>
+        </td>
+      </tr>
+
+    </table>
+  </center>
+</body>
+</html>

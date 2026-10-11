@@ -25,8 +25,15 @@ import {
   EmailMessage,
   IEmailProvider,
   EmailSendResult,
+  buildZeptoMailOrderConfirmationMergeInfo,
+  buildDirectOrderConfirmationHtml,
+  getAuthoritativePaymentStatus,
+  getOrderTypeDetails,
+  escapeHtml,
+  formatINR,
+  formatOrderDate,
 } from '../server/services/notificationService';
-import { ServerOrder, inMemoryStore } from '../server/db';
+import { ServerOrder, ServerOrderItem, inMemoryStore } from '../server/db';
 
 async function runOrderTrackingUrlTests() {
   console.log('======================================================================');
@@ -375,6 +382,358 @@ async function runOrderTrackingUrlTests() {
   const rawPhone = foundOrder?.address_snapshot?.recipient_phone || '';
   const maskedPhone = `******${rawPhone.slice(-4)}`;
   assert(maskedPhone === '******43210' || maskedPhone === '******3210', `Recipient phone correctly masked for guest API: '${maskedPhone}'`);
+
+  // -------------------------------------------------------------------------
+  // TEST GROUP 6: Reconcile Exact ₹500 Test Order ZeptoMail Payload
+  // -------------------------------------------------------------------------
+  console.log('\n--- Test Group 6: Exact ₹500 Test Order ZeptoMail Payload Reconciliation ---');
+
+  // Case 6A: ₹500 Takeaway Order (Verified Online Payment)
+  const testOrder500Takeaway: ServerOrder = {
+    id: 'ord-test-500-takeaway',
+    order_number: 'SS-500-TKWY',
+    guest_email: 'test@example.com',
+    guest_phone: '9415023456',
+    subtotal: 500,
+    delivery_charge: 0,
+    discount_amount: 0,
+    tax_amount: 0,
+    total_amount: 500,
+    status: 'CONFIRMED',
+    payment_status: 'CAPTURED',
+    payment_method: 'ONLINE',
+    fulfilment_type: 'TAKEAWAY',
+    slot_snapshot: {
+      slot_id: 'slot-evening',
+      slot_date: '2026-10-12',
+      slot_time_formatted: '06:00 PM - 07:00 PM',
+    },
+    address_snapshot: {
+      id: 'addr-counter',
+      profile_id: 'usr-guest-1',
+      label: 'Store Counter',
+      recipient_name: 'Amit Verma',
+      recipient_phone: '9415023456',
+      street_address: 'Main Market',
+      city: 'Barabanki',
+      state: 'Uttar Pradesh',
+      pincode: '225001',
+      is_default: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    idempotency_key: 'idem-500-tkwy',
+    placed_at: '2026-10-11T14:30:00.000Z',
+    created_at: '2026-10-11T14:30:00.000Z',
+    updated_at: '2026-10-11T14:30:00.000Z',
+    items: [
+      {
+        id: 'item-kk-500',
+        order_id: 'ord-test-500-takeaway',
+        product_id: 'prod-kaju-katli',
+        variant_id: 'v-kk-500',
+        product_name: 'Signature Silver Leaf Kaju Katli',
+        variant_label: '500g',
+        quantity: 1,
+        unit_price: 500,
+        total_price: 500,
+      },
+    ],
+  };
+
+  const mergeInfo6A = buildZeptoMailOrderConfirmationMergeInfo(
+    testOrder500Takeaway,
+    buildOrderTrackingUrl(testOrder500Takeaway.order_number)
+  );
+
+  assert(mergeInfo6A.total_amount === '₹500', `6A: total_amount is exact ₹500 (got '${mergeInfo6A.total_amount}')`);
+  assert(mergeInfo6A.items_subtotal === '₹500', `6A: items_subtotal is ₹500 (got '${mergeInfo6A.items_subtotal}')`);
+  assert(mergeInfo6A.delivery_fee.includes('FREE') || mergeInfo6A.delivery_fee === '₹0', `6A: delivery_fee is FREE / ₹0 for takeaway (got '${mergeInfo6A.delivery_fee}')`);
+  assert(mergeInfo6A.tax_amount.includes('Included in MRP') || mergeInfo6A.tax_amount === '₹0', `6A: tax_amount is ₹0 (Included in MRP) (got '${mergeInfo6A.tax_amount}')`);
+  assert(mergeInfo6A.order_type.includes('Takeaway'), `6A: order_type indicates Takeaway (got '${mergeInfo6A.order_type}')`);
+  assert(mergeInfo6A.payment_status === 'Paid Online (Verified)', `6A: payment_status is 'Paid Online (Verified)' (got '${mergeInfo6A.payment_status}')`);
+  assert(mergeInfo6A.delivery_address.includes('06:00 PM - 07:00 PM'), `6A: delivery_address contains pickup slot (got '${mergeInfo6A.delivery_address}')`);
+  assert(mergeInfo6A.items.length === 1, '6A: items array has 1 product');
+  assert(mergeInfo6A.items[0].product_name === 'Signature Silver Leaf Kaju Katli', '6A: product name is accurate');
+  assert(mergeInfo6A.items[0].variant_label === '500g', '6A: variant label is 500g');
+  assert(mergeInfo6A.items[0].quantity === 1, '6A: quantity is 1');
+  assert(mergeInfo6A.items[0].unit_price === '₹500', '6A: unit price is ₹500');
+  assert(mergeInfo6A.items[0].total_price === '₹500', '6A: total price is ₹500');
+  assert(mergeInfo6A.order_items_html.includes('Signature Silver Leaf Kaju Katli'), '6A: HTML table rows contain product');
+
+  // Case 6B: ₹500 Delivery Order (COD, ₹450 items + ₹50 delivery)
+  const testOrder500Delivery: ServerOrder = {
+    id: 'ord-test-500-delivery',
+    order_number: 'SS-500-DELV',
+    guest_email: 'test@example.com',
+    guest_phone: '9415023456',
+    subtotal: 450,
+    delivery_charge: 50,
+    discount_amount: 0,
+    tax_amount: 0,
+    total_amount: 500,
+    status: 'PLACED',
+    payment_status: 'PENDING',
+    payment_method: 'COD',
+    fulfilment_type: 'DELIVERY',
+    address_snapshot: {
+      id: 'addr-home',
+      profile_id: 'usr-guest-2',
+      label: 'Home',
+      recipient_name: 'Priya Srivastava',
+      recipient_phone: '9415023456',
+      street_address: 'House 42, Awas Vikas Colony',
+      landmark: 'Near Water Tank',
+      city: 'Barabanki',
+      state: 'Uttar Pradesh',
+      pincode: '225001',
+      is_default: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    idempotency_key: 'idem-500-delv',
+    placed_at: '2026-10-11T15:00:00.000Z',
+    created_at: '2026-10-11T15:00:00.000Z',
+    updated_at: '2026-10-11T15:00:00.000Z',
+    items: [
+      {
+        id: 'item-ml-500',
+        order_id: 'ord-test-500-delivery',
+        product_id: 'prod-motichoor',
+        variant_id: 'v-ml-500',
+        product_name: 'Pure Shuddh Ghee Motichoor Ladoo',
+        variant_label: '500g',
+        quantity: 1,
+        unit_price: 340,
+        total_price: 340,
+      },
+      {
+        id: 'item-gj-250',
+        order_id: 'ord-test-500-delivery',
+        product_id: 'prod-gulab-jamun',
+        variant_id: 'v-gj-250',
+        product_name: 'Royal Saffron Gulab Jamun',
+        variant_label: '250g',
+        quantity: 1,
+        unit_price: 110,
+        total_price: 110,
+      },
+    ],
+  };
+
+  const mergeInfo6B = buildZeptoMailOrderConfirmationMergeInfo(
+    testOrder500Delivery,
+    buildOrderTrackingUrl(testOrder500Delivery.order_number)
+  );
+
+  assert(mergeInfo6B.total_amount === '₹500', `6B: total_amount is exact ₹500 (got '${mergeInfo6B.total_amount}')`);
+  assert(mergeInfo6B.items_subtotal === '₹450', `6B: items_subtotal is ₹450 (got '${mergeInfo6B.items_subtotal}')`);
+  assert(mergeInfo6B.delivery_fee === '₹50', `6B: delivery_fee is ₹50 (got '${mergeInfo6B.delivery_fee}')`);
+  assert(mergeInfo6B.tax_amount.includes('Included in MRP') || mergeInfo6B.tax_amount === '₹0', `6B: tax_amount is ₹0 (got '${mergeInfo6B.tax_amount}')`);
+  assert(mergeInfo6B.order_type.includes('Delivery'), `6B: order_type indicates Delivery (got '${mergeInfo6B.order_type}')`);
+  assert(mergeInfo6B.payment_status === 'Pay on Delivery (Cash / UPI)', `6B: COD payment_status is 'Pay on Delivery (Cash / UPI)' (got '${mergeInfo6B.payment_status}')`);
+  assert(mergeInfo6B.delivery_address.includes('Awas Vikas Colony') && mergeInfo6B.delivery_address.includes('225001'), `6B: delivery_address contains street & pincode (got '${mergeInfo6B.delivery_address}')`);
+  assert(mergeInfo6B.items.length === 2, '6B: items array has 2 products');
+  assert(mergeInfo6B.order_items_html.includes('Pure Shuddh Ghee Motichoor Ladoo'), '6B: HTML table rows contain item 1');
+  assert(mergeInfo6B.order_items_html.includes('Royal Saffron Gulab Jamun'), '6B: HTML table rows contain item 2');
+
+  // -------------------------------------------------------------------------
+  // TEST GROUP 7: Multi-Product Orders with Quantities & Line Totals
+  // -------------------------------------------------------------------------
+  console.log('\n--- Test Group 7: Multi-Product Orders with Quantities & Line Totals ---');
+
+  const multiItemOrder: ServerOrder = {
+    ...testOrder500Delivery,
+    id: 'ord-multi-items',
+    order_number: 'SS-MULTI-01',
+    items: [
+      {
+        id: 'it-1',
+        order_id: 'ord-multi-items',
+        product_id: 'p1',
+        variant_id: 'v1',
+        product_name: 'Kaju Katli',
+        variant_label: '250g',
+        quantity: 2,
+        unit_price: 260,
+        total_price: 520,
+      },
+      {
+        id: 'it-2',
+        order_id: 'ord-multi-items',
+        product_id: 'p2',
+        variant_id: 'v2',
+        product_name: 'Besan Ladoo',
+        variant_label: '500g',
+        quantity: 1,
+        unit_price: 300,
+        total_price: 300,
+      },
+      {
+        id: 'it-3',
+        order_id: 'ord-multi-items',
+        product_id: 'p3',
+        variant_id: 'v3',
+        product_name: 'Peda Special',
+        variant_label: '1 kg Box',
+        quantity: 3,
+        unit_price: 400,
+        total_price: 1200,
+      },
+    ],
+    subtotal: 2020,
+    delivery_charge: 50,
+    discount_amount: 100,
+    coupon_code: 'FESTIVE100',
+    tax_amount: 0,
+    total_amount: 1970,
+  };
+
+  const mergeMulti = buildZeptoMailOrderConfirmationMergeInfo(
+    multiItemOrder,
+    buildOrderTrackingUrl(multiItemOrder.order_number)
+  );
+
+  assert(mergeMulti.items.length === 3, 'Multi-product order has 3 items in merge_info.items');
+  assert(mergeMulti.items[0].quantity === 2 && mergeMulti.items[0].unit_price === '₹260' && mergeMulti.items[0].total_price === '₹520', 'Item 1 line total reconciled (2 x ₹260 = ₹520)');
+  assert(mergeMulti.items[2].quantity === 3 && mergeMulti.items[2].unit_price === '₹400' && mergeMulti.items[2].total_price === '₹1,200', 'Item 3 line total reconciled (3 x ₹400 = ₹1,200)');
+  assert(mergeMulti.items_subtotal === '₹2,020', `Subtotal formatted correctly as '₹2,020' (got '${mergeMulti.items_subtotal}')`);
+  assert(mergeMulti.discount_amount === '-₹100', `Discount formatted correctly as '-₹100' (got '${mergeMulti.discount_amount}')`);
+  assert(mergeMulti.total_amount === '₹1,970', `Grand total reconciled (2020 - 100 + 50 = 1970) (got '${mergeMulti.total_amount}')`);
+  assert(mergeMulti.has_discount === true, 'has_discount flag is true');
+  assert(mergeMulti.discount_code === 'FESTIVE100', 'discount_code matches coupon code');
+
+  // -------------------------------------------------------------------------
+  // TEST GROUP 8: Authoritative Payment Status Resolution
+  // -------------------------------------------------------------------------
+  console.log('\n--- Test Group 8: Authoritative Payment Status Resolution ---');
+
+  // 8.1 Online + CAPTURED -> Paid Online (Verified)
+  const paidStatus = getAuthoritativePaymentStatus({
+    ...testOrder500Delivery,
+    payment_method: 'ONLINE',
+    payment_status: 'CAPTURED',
+  });
+  assert(paidStatus.statusText === 'Paid Online (Verified)' && paidStatus.isPaid === true, 'ONLINE + CAPTURED is marked Paid Online (Verified)');
+
+  // 8.2 Online + PENDING -> Payment Pending (NEVER marked as paid!)
+  const pendingOnlineStatus = getAuthoritativePaymentStatus({
+    ...testOrder500Delivery,
+    payment_method: 'ONLINE',
+    payment_status: 'PENDING',
+  });
+  assert(pendingOnlineStatus.statusText === 'Payment Pending' && pendingOnlineStatus.isPaid === false, 'ONLINE + PENDING is strictly "Payment Pending" and isPaid=false');
+
+  // 8.3 COD + PENDING -> Pay on Delivery (Cash / UPI)
+  const codStatus = getAuthoritativePaymentStatus({
+    ...testOrder500Delivery,
+    payment_method: 'COD',
+    payment_status: 'PENDING',
+  });
+  assert(codStatus.statusText === 'Pay on Delivery (Cash / UPI)' && codStatus.isPaid === false, 'COD + PENDING is marked "Pay on Delivery (Cash / UPI)"');
+
+  // 8.4 Online + FAILED -> Payment Failed
+  const failedStatus = getAuthoritativePaymentStatus({
+    ...testOrder500Delivery,
+    payment_method: 'ONLINE',
+    payment_status: 'FAILED',
+  });
+  assert(failedStatus.statusText === 'Payment Failed' && failedStatus.isPaid === false, 'FAILED is marked "Payment Failed"');
+
+  // -------------------------------------------------------------------------
+  // TEST GROUP 9: Customer-Controlled HTML / XSS Escaping
+  // -------------------------------------------------------------------------
+  console.log('\n--- Test Group 9: Customer-Controlled HTML / XSS Escaping ---');
+
+  const xssOrder: ServerOrder = {
+    ...testOrder500Delivery,
+    id: 'ord-xss',
+    order_number: 'SS-XSS-1',
+    address_snapshot: {
+      ...testOrder500Delivery.address_snapshot,
+      recipient_name: '<script>alert("XSS")</script>',
+      street_address: 'Flat 4B & "Sunshine" Towers <Road>',
+    },
+    items: [
+      {
+        id: 'it-xss',
+        order_id: 'ord-xss',
+        product_id: 'p-xss',
+        variant_id: 'v-xss',
+        product_name: 'Badam <img src=x onerror=alert(1)> Barfi',
+        variant_label: '250g & 500g',
+        quantity: 1,
+        unit_price: 250,
+        total_price: 250,
+      },
+    ],
+  };
+
+  const mergeXss = buildZeptoMailOrderConfirmationMergeInfo(xssOrder, 'https://saraswatisweetsbarabanki.com/order-confirmation/SS-XSS-1');
+  assert(!mergeXss.customer_name.includes('<script>'), 'Customer name has <script> stripped/escaped');
+  assert(mergeXss.customer_name.includes('&lt;script&gt;'), 'Customer name is safely HTML-escaped');
+  assert(!mergeXss.delivery_address.includes('<Road>'), 'Address <Road> is safely HTML-escaped');
+  assert(mergeXss.delivery_address.includes('&lt;Road&gt;'), 'Address contains &lt;Road&gt;');
+  assert(!mergeXss.items[0].product_name.includes('<img'), 'Product name <img> is safely HTML-escaped');
+  assert(mergeXss.items[0].product_name.includes('&lt;img'), 'Product name contains &lt;img');
+
+  // -------------------------------------------------------------------------
+  // TEST GROUP 10: ZeptoMail Template API Payload Interception (Full Payload Verification)
+  // -------------------------------------------------------------------------
+  console.log('\n--- Test Group 10: Full ZeptoMail Template Payload Interception ---');
+
+  let fullInterceptedPayload: any = null;
+  process.env.ZEPTOMAIL_API_KEY = 'valid_test_token_123';
+  process.env.ZEPTOMAIL_TEMPLATE_KEY = 'production_zepto_order_confirmation_v1';
+  globalThis.fetch = async (_url: any, options: any) => {
+    fullInterceptedPayload = JSON.parse(options.body);
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [{ message: 'success' }] }),
+    } as any;
+  };
+
+  await notifyOrderPlaced(testOrder500Takeaway);
+
+  assert(Boolean(fullInterceptedPayload), 'Full payload intercepted from notifyOrderPlaced');
+  if (fullInterceptedPayload) {
+    const mi = fullInterceptedPayload.merge_info;
+    const requiredKeys = [
+      'customer_name',
+      'order_id',
+      'order_date',
+      'order_type',
+      'payment_status',
+      'payment_method',
+      'delivery_address',
+      'items_subtotal',
+      'delivery_fee',
+      'tax_amount',
+      'total_amount',
+      'order_tracking_url',
+      'store_phone',
+      'store_whatsapp',
+      'store_address',
+      'items',
+      'order_items_html',
+    ];
+
+    let allKeysPresent = true;
+    for (const k of requiredKeys) {
+      if (mi[k] === undefined || mi[k] === null || mi[k] === '') {
+        console.error(`  Missing required key in merge_info: ${k}`);
+        allKeysPresent = false;
+      }
+    }
+    assert(allKeysPresent, 'All required ZeptoMail merge_info keys are populated (no blanks, no undefined)');
+    assert(mi.total_amount === '₹500', `Intercepted total_amount is ₹500 (got '${mi.total_amount}')`);
+    assert(Array.isArray(mi.items) && mi.items.length > 0, 'Intercepted items is a non-empty array');
+    assert(typeof mi.order_items_html === 'string' && mi.order_items_html.includes('<tr>'), 'Intercepted order_items_html contains <tr> table rows');
+  }
+
+  // Restore fetch
+  globalThis.fetch = origFetch;
 
   // Restore original environment
   if (origNodeEnv !== undefined) process.env.NODE_ENV = origNodeEnv;
