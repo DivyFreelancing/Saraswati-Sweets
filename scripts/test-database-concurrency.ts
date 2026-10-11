@@ -285,9 +285,7 @@ async function runDatabaseConcurrencyTests() {
     'findOrderInSupabase handles missing provider_order_id column (code 42703) safely without returning error'
   );
 
-  // --- Missing provider_order_id Column Fallback in expireUnpaidOrders ---
-  let queryWithProviderAttempted = false;
-  let fallbackQueryWithoutProviderAttempted = false;
+  let queryColumnsRequested = '';
   const testCleanupOrderId = randomUUID();
   const testCleanupOrderNum = `SW-CLEAN-${Date.now()}`;
 
@@ -314,33 +312,21 @@ async function runDatabaseConcurrencyTests() {
             }),
           };
         }
-        if (cols.includes('provider_order_id')) {
-          queryWithProviderAttempted = true;
-          return {
-            eq: () => ({
-              maybeSingle: async () => ({
-                data: null,
-                error: { code: '42703', message: 'column orders.provider_order_id does not exist' },
-              }),
+        queryColumnsRequested = cols;
+        return {
+          eq: () => ({
+            maybeSingle: async () => ({
+              data: {
+                id: testCleanupOrderId,
+                status: 'PLACED',
+                payment_status: 'CAPTURED',
+                total_amount: 500,
+                order_number: testCleanupOrderNum,
+              },
+              error: null,
             }),
-          };
-        } else {
-          fallbackQueryWithoutProviderAttempted = true;
-          return {
-            eq: () => ({
-              maybeSingle: async () => ({
-                data: {
-                  id: testCleanupOrderId,
-                  status: 'PLACED',
-                  payment_status: 'CAPTURED',
-                  total_amount: 500,
-                  order_number: testCleanupOrderNum,
-                },
-                error: null,
-              }),
-            }),
-          };
-        }
+          }),
+        };
       },
     }),
   };
@@ -348,12 +334,12 @@ async function runDatabaseConcurrencyTests() {
   await expireUnpaidOrders(mockCleanupClient);
 
   assert(
-    queryWithProviderAttempted,
-    'expireUnpaidOrders queries with provider_order_id initially'
+    !queryColumnsRequested.includes('provider_order_id'),
+    'expireUnpaidOrders queries strictly valid schema columns without provider_order_id (prevents PostgreSQL 42703 error)'
   );
   assert(
-    fallbackQueryWithoutProviderAttempted,
-    'expireUnpaidOrders falls back to query without provider_order_id when column 42703 error occurs'
+    queryColumnsRequested.includes('order_number') && queryColumnsRequested.includes('payment_status'),
+    'expireUnpaidOrders queries order_number and payment_status to verify status and gateway lookup ID'
   );
 
   const orderAfterCleanupSync = inMemoryStore.orders.get(testCleanupOrderId);
@@ -528,6 +514,66 @@ async function runDatabaseConcurrencyTests() {
     migrationSql.trim().endsWith('COMMIT;'),
     'Migration is wrapped in BEGIN; ... COMMIT; with preflight queries preserved as comments at the top'
   );
+
+  // -------------------------------------------------------------------------
+  // 6. ADMIN NOTIFICATION RECIPIENT PRIORITY VERIFICATION
+  // -------------------------------------------------------------------------
+  console.log('\n--- 6. Admin Notification Recipient Priority Verification ---');
+  const { getAdminNotificationRecipient } = await import(
+    '../server/services/notificationService'
+  );
+
+  const savedEnvEmail = process.env.ADMIN_ORDER_EMAIL;
+  const savedStoreEmail = inMemoryStore.storeSettings?.store_email;
+
+  try {
+    // 6.1 Priority 1: process.env.ADMIN_ORDER_EMAIL
+    process.env.ADMIN_ORDER_EMAIL = 'admin-env@saraswatisweetsbarabanki.com';
+    assert(
+      getAdminNotificationRecipient() === 'admin-env@saraswatisweetsbarabanki.com',
+      'Priority 1: process.env.ADMIN_ORDER_EMAIL preferred over all store settings'
+    );
+
+    // 6.2 In-memory store settings do not override environment variable
+    if (inMemoryStore.storeSettings) {
+      inMemoryStore.storeSettings.store_email = 'inmemory-store@test.com';
+    }
+    assert(
+      getAdminNotificationRecipient() === 'admin-env@saraswatisweetsbarabanki.com',
+      'In-memory store settings cannot override process.env.ADMIN_ORDER_EMAIL'
+    );
+
+    // 6.3 Priority 2: When ADMIN_ORDER_EMAIL is unset, strictly fall back to order@saraswatisweetsbarabanki.com
+    delete process.env.ADMIN_ORDER_EMAIL;
+    if (inMemoryStore.storeSettings) {
+      inMemoryStore.storeSettings.store_email = 'order@saraswatisweets.in';
+    }
+    assert(
+      getAdminNotificationRecipient() === 'order@saraswatisweetsbarabanki.com',
+      'Priority 2: Unset ADMIN_ORDER_EMAIL falls back to order@saraswatisweetsbarabanki.com'
+    );
+    assert(
+      getAdminNotificationRecipient() !== 'order@saraswatisweets.in',
+      'Never falls back to old invalid order@saraswatisweets.in address'
+    );
+
+    // 6.4 Safety: Explicitly setting or passing order@saraswatisweets.in is rejected
+    process.env.ADMIN_ORDER_EMAIL = 'order@saraswatisweets.in';
+    assert(
+      getAdminNotificationRecipient() === 'order@saraswatisweetsbarabanki.com',
+      'Configuring old invalid order@saraswatisweets.in safely rejects and uses verified fallback'
+    );
+    delete process.env.ADMIN_ORDER_EMAIL;
+  } finally {
+    if (savedEnvEmail !== undefined) {
+      process.env.ADMIN_ORDER_EMAIL = savedEnvEmail;
+    } else {
+      delete process.env.ADMIN_ORDER_EMAIL;
+    }
+    if (inMemoryStore.storeSettings && savedStoreEmail !== undefined) {
+      inMemoryStore.storeSettings.store_email = savedStoreEmail;
+    }
+  }
 
   // Clean test fixtures
   inMemoryStore.orders.delete(retryTestOrderId);

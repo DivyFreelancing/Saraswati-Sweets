@@ -425,17 +425,9 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
     packaging_notes: newOrder.packaging_notes,
     idempotency_key: idempotencyKey,
     placed_at: newOrder.placed_at,
-    provider_order_id: newOrder.provider_order_id || null,
   };
 
-  let { error: orderErr } = await supabaseServer.from('orders').insert([orderRow]);
-
-  // If pending migration causes error on provider_order_id column, retry without it
-  if (orderErr && orderErr.message?.includes('provider_order_id')) {
-    delete orderRow.provider_order_id;
-    const retryNoProvider = await supabaseServer.from('orders').insert([orderRow]);
-    orderErr = retryNoProvider.error;
-  }
+  const { error: orderErr } = await supabaseServer.from('orders').insert([orderRow]);
 
   if (orderErr) {
     console.error('Order insert failed', orderErr);

@@ -260,7 +260,7 @@ async function executeConfirmOrderPayment(params: ConfirmPaymentParams): Promise
         const { data: conflictingDbOrder } = await supabaseServer
           .from('orders')
           .select('id, order_number')
-          .eq('provider_order_id', providerOrderId)
+          .eq('order_number', providerOrderId)
           .neq('id', order.id)
           .maybeSingle();
 
@@ -474,31 +474,15 @@ async function executeConfirmOrderPayment(params: ConfirmPaymentParams): Promise
         `[PaymentPersistence] ⚠️ LOUD WARNING: EXECUTING DIRECT-WRITE TABLE FALLBACK for order ${order.id} (PGRST202). Atomic RPC confirm_order_payment_atomic is missing! Apply database migration immediately!`
       );
       // Step A: Update orders table in Supabase
-      let { error: orderUpdateErr } = await supabaseServer
+      const { error: orderUpdateErr } = await supabaseServer
         .from('orders')
         .update({
           status: 'PLACED',
           payment_status: 'CAPTURED',
-          paid_at: paidAtIso,
-          provider_order_id: providerOrderId,
+          confirmed_at: paidAtIso,
           updated_at: nowIso,
         })
         .eq('id', order.id);
-
-      // If schema cache does not have paid_at or provider_order_id yet (pending migration), retry with confirmed_at
-      if (orderUpdateErr && (orderUpdateErr.message?.includes('paid_at') || orderUpdateErr.message?.includes('provider_order_id'))) {
-        console.warn(`[PaymentPersistence] Extended columns not yet in Supabase schema cache. Retrying update with confirmed_at.`);
-        const fallbackUpdate = await supabaseServer
-          .from('orders')
-          .update({
-            status: 'PLACED',
-            payment_status: 'CAPTURED',
-            confirmed_at: paidAtIso,
-            updated_at: nowIso,
-          })
-          .eq('id', order.id);
-        orderUpdateErr = fallbackUpdate.error;
-      }
 
       if (orderUpdateErr) {
         console.error(`[PaymentPersistence] FAILED to update order ${order.id} in Supabase:`, {

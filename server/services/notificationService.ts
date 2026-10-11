@@ -120,6 +120,26 @@ export function formatZeptoAuthHeader(apiKey: string): string {
 }
 
 /**
+ * Resolves the recipient email address for administrative notification emails (e.g. new orders, bulk enquiries).
+ * Priority:
+ * 1. process.env.ADMIN_ORDER_EMAIL if non-empty after trimming (and not the invalid order@saraswatisweets.in)
+ * 2. Verified fallback 'order@saraswatisweetsbarabanki.com'
+ *
+ * Guaranteed: Under no circumstances does this fall back to the old invalid 'order@saraswatisweets.in'.
+ */
+export function getAdminNotificationRecipient(customFallback?: string | null): string {
+  const envAdminEmail = process.env.ADMIN_ORDER_EMAIL?.trim();
+  if (envAdminEmail && envAdminEmail.toLowerCase() !== 'order@saraswatisweets.in') {
+    return envAdminEmail;
+  }
+  const fallback = customFallback?.trim();
+  if (fallback && fallback.toLowerCase() !== 'order@saraswatisweets.in') {
+    return fallback;
+  }
+  return 'order@saraswatisweetsbarabanki.com';
+}
+
+/**
  * Zoho ZeptoMail Provider with Exact cURL Payload Format & Non-Blocking Delivery
  */
 export class ZeptoMailProvider implements IEmailProvider {
@@ -231,7 +251,10 @@ export class ZeptoMailProvider implements IEmailProvider {
   }
 }
 
-export const emailProvider: IEmailProvider = new ZeptoMailProvider();
+export let emailProvider: IEmailProvider = new ZeptoMailProvider();
+export function setEmailProvider(provider: IEmailProvider): void {
+  emailProvider = provider;
+}
 export const fcmPushStub: IFcmPushService = new FcmPushNotificationStub();
 
 /**
@@ -418,7 +441,7 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
 
   // Transactional Email to Store Owner — always fires regardless of customer email availability
   await emailProvider.sendEmail({
-    to: STORE_SETTINGS.store_email || 'order@saraswatisweets.in',
+    to: getAdminNotificationRecipient(),
     recipientName: 'Saraswati Sweets Store Owner',
     notificationType: 'ADMIN_NEW_ORDER_ALERT',
     subject: `[NEW ORDER ALERT] #${order.order_number} - ₹${order.total_amount} (${order.payment_method})`,
@@ -583,7 +606,7 @@ export async function notifyNewBulkEnquiry(enquiry: ServerBulkEnquiry): Promise<
 
   // Email to Store Owner
   await emailProvider.sendEmail({
-    to: STORE_SETTINGS.store_email || 'order@saraswatisweets.in',
+    to: getAdminNotificationRecipient(),
     recipientName: 'Saraswati Sweets Admin',
     notificationType: 'BULK_ENQUIRY_ADMIN_ALERT',
     subject: `[NEW BULK ENQUIRY] ${enquiry.event_type} - ${enquiry.contact_name} (${enquiry.phone})`,

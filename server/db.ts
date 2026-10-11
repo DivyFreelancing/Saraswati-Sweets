@@ -1263,21 +1263,6 @@ export async function findOrderInSupabase(
   }
   if (byOrderNum) return { order: byOrderNum };
 
-  // 3. Query strictly by 'provider_order_id'
-  const { data: byProviderId, error: errProviderId } = await client
-    .from('orders')
-    .select('*')
-    .eq('provider_order_id', target)
-    .maybeSingle();
-  if (errProviderId) {
-    // If provider_order_id column does not exist yet (pre-migration), return undefined safely
-    if (errProviderId.message?.includes('provider_order_id') || errProviderId.code === '42703') {
-      return { order: undefined };
-    }
-    return { error: errProviderId };
-  }
-  if (byProviderId) return { order: byProviderId };
-
   return { order: undefined };
 }
 
@@ -1335,26 +1320,11 @@ export async function expireUnpaidOrders(client: SupabaseClient | null = supabas
 
     // Check database state first if connected to Supabase
     if (activeClient) {
-      let checkErr: any = null;
-      const res = await activeClient
+      const { data: dbOrder, error: checkErr } = await activeClient
         .from('orders')
-        .select('id, status, payment_status, total_amount, provider_order_id, order_number')
+        .select('id, status, payment_status, total_amount, order_number')
         .eq('id', order.id)
         .maybeSingle();
-
-      currentDbOrder = res.data;
-      checkErr = res.error;
-
-      // Fallback: If provider_order_id column does not exist in Supabase (e.g. pre-migration), retry query without it
-      if (checkErr && (checkErr.message?.includes('provider_order_id') || checkErr.code === '42703')) {
-        const fallbackRes = await activeClient
-          .from('orders')
-          .select('id, status, payment_status, total_amount, order_number')
-          .eq('id', order.id)
-          .maybeSingle();
-        currentDbOrder = fallbackRes.data;
-        checkErr = fallbackRes.error;
-      }
 
       if (checkErr) {
         console.warn(
@@ -1362,6 +1332,8 @@ export async function expireUnpaidOrders(client: SupabaseClient | null = supabas
         );
         continue; // Abort cancellation if the Supabase status query returns an error
       }
+
+      currentDbOrder = dbOrder;
 
       if (!currentDbOrder) {
         console.warn(`[OrderCleanup] Order ${order.id} not found in Supabase. Skipping.`);
@@ -1377,15 +1349,11 @@ export async function expireUnpaidOrders(client: SupabaseClient | null = supabas
         inMemoryStore.orders.set(order.id, order);
         continue;
       }
-
-      if (currentDbOrder.provider_order_id) {
-        order.provider_order_id = currentDbOrder.provider_order_id;
-      }
     }
 
     // Authoritative verification with Cashfree gateway
     // In Cashfree, order_id is receipt/order_number, so gateway order ID is order.order_number if provider_order_id is absent
-    const gatewayLookupId = order.provider_order_id || currentDbOrder?.provider_order_id || order.order_number;
+    const gatewayLookupId = order.provider_order_id || currentDbOrder?.order_number || order.order_number;
     if (order.payment_method === 'ONLINE') {
       if (!gatewayLookupId) {
         console.warn(
