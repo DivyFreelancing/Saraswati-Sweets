@@ -44,18 +44,35 @@ export async function authenticateToken(
           return next();
         } else {
           // Sync new profile row
-          const newProfile: ServerProfile = {
+          const userPhone = (user.user_metadata?.phone as string) || user.phone || undefined;
+          const userFullName = (user.user_metadata?.full_name as string) || '';
+          // Security: Default role for any new profile is strictly CUSTOMER.
+          // Client-supplied user_metadata.role is never trusted for ADMIN/STAFF escalation.
+          const userRole: 'CUSTOMER' | 'STAFF' | 'ADMIN' = 'CUSTOMER';
+          const nowIso = new Date().toISOString();
+
+          const newProfilePayload: Record<string, any> = {
             id: user.id,
-            email: user.email,
-            phone: user.phone,
-            full_name: (user.user_metadata?.full_name as string) || (''),
-            role: (user.user_metadata?.role as any) || 'CUSTOMER',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
+            email: user.email || null,
+            phone: userPhone || null,
+            full_name: userFullName,
+            role: userRole,
+            is_active: true,
+            created_at: nowIso,
+            updated_at: nowIso,
           };
 
-          await supabaseServer.from('profiles').insert([newProfile]);
-          req.user = newProfile;
+          const { data: inserted, error: insErr } = await supabaseServer
+            .from('profiles')
+            .insert([newProfilePayload])
+            .select('*')
+            .maybeSingle();
+
+          if (insErr) {
+            console.warn('[AuthMiddleware] New profile insert warning:', insErr.message);
+          }
+
+          req.user = (inserted || newProfilePayload) as ServerProfile;
           return next();
         }
       }

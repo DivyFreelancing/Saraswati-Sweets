@@ -20,8 +20,13 @@ export const AuthModal: React.FC = () => {
 
   useEffect(() => {
     if (isAuthModalOpen && isAuthenticated) {
-      if (!user?.phone || !user?.full_name) {
+      const cleanPhoneDigits = user?.phone ? user.phone.replace(/\D/g, '') : '';
+      const hasValidPhone = cleanPhoneDigits.length >= 10 && cleanPhoneDigits.slice(-10).length === 10;
+      const hasValidName = Boolean(user?.full_name && user.full_name.trim().length > 0);
+      if (!hasValidPhone || !hasValidName) {
         setStep('PROFILE');
+        if (user?.full_name) setFullName(user.full_name);
+        if (user?.phone) setPhoneNumber(user.phone.replace(/\D/g, '').slice(-10));
       }
     } else if (isAuthModalOpen) {
       setStep('EMAIL');

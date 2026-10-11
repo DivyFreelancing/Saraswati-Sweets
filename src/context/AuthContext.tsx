@@ -88,6 +88,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               id: data.session.user.id,
               email: effectiveEmail,
               full_name: (data.session.user.user_metadata?.full_name as string) || user?.full_name || '',
+              phone: (data.session.user.user_metadata?.phone as string) || data.session.user.phone || user?.phone,
               role: (data.session.user.user_metadata?.role as any) || user?.role || 'CUSTOMER',
             };
             setUser(updatedUser);
@@ -181,6 +182,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   id: session.user.id,
                   email: session.user.email,
                   full_name: (session.user.user_metadata?.full_name as string) || '',
+                  phone: (session.user.user_metadata?.phone as string) || session.user.phone,
                   role: 'CUSTOMER',
                 };
                 setUser(fallbackProfile);
@@ -242,10 +244,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setToken(session.access_token);
           if (session.user) {
             setUser((prev) => {
+              let fallbackName = prev?.full_name;
+              let fallbackPhone = prev?.phone;
+              if (!fallbackName || !fallbackPhone) {
+                try {
+                  const stored = localStorage.getItem(AUTH_STORAGE_KEY);
+                  if (stored) {
+                    const parsed = JSON.parse(stored);
+                    if (!fallbackName && parsed?.user?.full_name) fallbackName = parsed.user.full_name;
+                    if (!fallbackPhone && parsed?.user?.phone) fallbackPhone = parsed.user.phone;
+                  }
+                } catch {}
+              }
+
               const updated: UserProfile = {
                 id: session.user.id,
                 email: session.user.email || prev?.email,
-                full_name: (session.user.user_metadata?.full_name as string) || prev?.full_name || '',
+                full_name: (session.user.user_metadata?.full_name as string) || fallbackName || '',
+                phone: (session.user.user_metadata?.phone as string) || session.user.phone || fallbackPhone,
                 role: (session.user.user_metadata?.role as any) || prev?.role || 'CUSTOMER',
               };
               localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: session.access_token, user: updated }));
@@ -407,20 +423,33 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         body: JSON.stringify(updates),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.profile) {
-          const effectiveEmail = user?.email || data.profile.email;
-          const merged = { ...data.profile, email: effectiveEmail };
-          setUser(merged);
-          if (token) {
-            localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token, user: merged }));
-          }
-          showToast('Profile updated successfully', 'success');
-          return { success: true };
+      const data = await res.json();
+      if (res.ok && data.success && data.profile) {
+        const effectiveEmail = user?.email || data.profile.email;
+        const merged: UserProfile = { ...data.profile, email: effectiveEmail };
+        setUser(merged);
+        if (token) {
+          localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token, user: merged }));
         }
+
+        // Synchronize Supabase Auth user metadata
+        if (isSupabaseConfigured() && supabase) {
+          try {
+            await supabase.auth.updateUser({
+              data: {
+                full_name: merged.full_name,
+                phone: merged.phone,
+              },
+            });
+          } catch (metaErr) {
+            console.warn('[AuthContext] Supabase updateUser metadata warning:', metaErr);
+          }
+        }
+
+        showToast('Profile updated successfully', 'success');
+        return { success: true };
       }
-      return { success: false, message: 'Failed to update profile' };
+      return { success: false, message: data.message || 'Failed to update profile' };
     } catch (err: any) {
       return { success: false, message: err.message || 'Network error updating profile' };
     }

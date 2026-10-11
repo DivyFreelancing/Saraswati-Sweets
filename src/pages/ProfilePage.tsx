@@ -41,6 +41,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
   const [profileNameInput, setProfileNameInput] = useState(user?.full_name || '');
   const [profilePhoneInput, setProfilePhoneInput] = useState(user?.phone ? user.phone.replace(/\D/g, '').slice(-10) : '');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileSaveError, setProfileSaveError] = useState('');
 
   // Authenticated email state (retrieved from user session or supabase auth)
   const [authEmail, setAuthEmail] = useState<string | null>(user?.email || null);
@@ -242,6 +243,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
               onClick={() => {
                 setProfileNameInput(user?.full_name || '');
                 setProfilePhoneInput(user?.phone ? user.phone.replace(/\D/g, '').slice(-10) : '');
+                setProfileSaveError('');
                 setIsEditProfileOpen(true);
               }}
               className="min-h-[44px] px-4 py-2 rounded-xl border border-[#E8DFD2] hover:bg-[#FAF4DE] text-xs font-semibold text-[#8A1538] flex items-center gap-2 transition-colors cursor-pointer"
@@ -787,17 +789,39 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
               <form
                 onSubmit={async (e) => {
                   e.preventDefault();
-                  if (!profileNameInput.trim()) return;
+                  setProfileSaveError('');
+                  const cleanName = profileNameInput.trim();
+                  if (!cleanName) {
+                    setProfileSaveError('Please enter your full name.');
+                    return;
+                  }
+                  const cleanDigits = profilePhoneInput.replace(/\D/g, '').slice(-10);
+                  if (cleanDigits.length !== 10) {
+                    setProfileSaveError('Please enter a valid 10-digit mobile number.');
+                    return;
+                  }
+
                   setIsSavingProfile(true);
-                  await updateUserProfile({
-                    full_name: profileNameInput.trim(),
-                    phone: profilePhoneInput.trim(),
+                  const res = await updateUserProfile({
+                    full_name: cleanName,
+                    phone: cleanDigits,
                   });
                   setIsSavingProfile(false);
-                  setIsEditProfileOpen(false);
+
+                  if (res.success) {
+                    setIsEditProfileOpen(false);
+                  } else {
+                    setProfileSaveError(res.message || 'Failed to update profile. Please try again.');
+                  }
                 }}
                 className="space-y-4"
               >
+                {profileSaveError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+                    <span>{profileSaveError}</span>
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
                     Full Name *

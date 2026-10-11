@@ -136,7 +136,11 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
       return;
     }
 
-    if (isAuthenticated && (!user?.phone || !user?.full_name)) {
+    const cleanPhoneDigits = user?.phone ? user.phone.replace(/\D/g, '') : '';
+    const hasValidPhone = cleanPhoneDigits.length >= 10 && cleanPhoneDigits.slice(-10).length === 10;
+    const hasValidName = Boolean(user?.full_name && user.full_name.trim().length > 0);
+
+    if (isAuthenticated && (!hasValidPhone || !hasValidName)) {
       showToast('Please complete your profile (name and mobile) to continue.', 'info');
       openAuthModal();
       return;
