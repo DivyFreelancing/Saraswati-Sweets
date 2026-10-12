@@ -6,9 +6,9 @@ const replacements = [
   { search: '94500 12345', replace: '91611 10030' },
   { search: '9450012345', replace: '9161110030' },
   // Address strings
-  { search: 'Main Market Road, Near Ghantaghar, Barabanki, UP 225001', replace: 'Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001' },
-  { search: 'Main Market Road, Near Ghantaghar, Barabanki', replace: 'Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001' },
-  { search: 'Main Market Road, Near Ghantaghar', replace: 'Indira Market, Begum Gunj' },
+  { search: 'Main Market Road, Near Ghantaghar, Barabanki, UP 225001', replace: 'Saraswati Sweets, Indira Market, Near Chaya Chauraha, Barabanki, Uttar Pradesh' },
+  { search: 'Main Market Road, Near Ghantaghar, Barabanki', replace: 'Saraswati Sweets, Indira Market, Near Chaya Chauraha, Barabanki, Uttar Pradesh' },
+  { search: 'Main Market Road, Near Ghantaghar', replace: 'Indira Market, Near Chaya Chauraha' },
   // Timings
   { search: '8:00 am – 10:00 pm', replace: '6:30 am – 10:00 pm' },
   { search: '8:00 am ?" 10:00 pm', replace: '6:30 am – 10:00 pm' },

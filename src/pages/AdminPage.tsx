@@ -3526,7 +3526,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                 <input
                   type="tel"
                   required
-                  placeholder="+91 94500 XXXXX"
+                  placeholder="+91 98765 XXXXX"
                   value={partnerForm.phone}
                   onChange={(e) => setPartnerForm({ ...partnerForm, phone: e.target.value })}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs focus:outline-none focus:border-[#8A1538]"

@@ -1,13 +1,14 @@
 import { Category, Product, GiftHamper, Banner, Offer, StoreSettings } from '../types/database';
+import { BUSINESS_INFO } from '../config/businessInfo';
 
 export const SEED_STORE_SETTINGS: StoreSettings = {
   id: 1,
-  store_name: 'Saraswati Sweets',
-  tagline: 'Pure Desi Ghee Mithai & Artisanal Namkeen Since 1989',
-  store_phone: '+91 91611 10030',
-  whatsapp: '+91 91611 10030',
-  store_email: 'order@saraswatisweetsbarabanki.com',
-  address_text: 'Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001, Uttar Pradesh 225001',
+  store_name: BUSINESS_INFO.name,
+  tagline: BUSINESS_INFO.tagline,
+  store_phone: BUSINESS_INFO.phone,
+  whatsapp: BUSINESS_INFO.phone,
+  store_email: BUSINESS_INFO.configuredSenderEmail,
+  address_text: BUSINESS_INFO.address,
   allowed_pincodes: ['225001', '225002', '225003', '225122'],
   delivery_charge_flat: 50,
   free_delivery_above: 0,

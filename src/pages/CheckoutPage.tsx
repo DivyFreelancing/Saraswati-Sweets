@@ -6,6 +6,7 @@ import { useToast } from '../context/ToastContext';
 import { PriceDisplay } from '../components/common/PriceDisplay';
 import { formatINR } from '../utils/formatters';
 import { loadCashfreeScript } from '../utils/cashfreeLoader';
+import { BUSINESS_INFO } from '../config/businessInfo';
 import {
   MapPin,
   Banknote,
@@ -944,7 +945,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                   <span>Saraswati Sweets Store Counter</span>
                 </div>
                 <div className="text-[#6B6258]">
-                  Main Market, Opposite Ghantaghar, Barabanki, UP - 225001
+                  {BUSINESS_INFO.address}
                 </div>
                 <div className="text-[#8A1538] font-medium pt-0.5">
                   Counter Operating Hours: {storeAvailability?.pickup_opening_time || '09:00'} - {storeAvailability?.pickup_closing_time || '21:30'} IST

@@ -26,6 +26,7 @@ import {
 import { createCashfreeOrder, getCashfreeAppId, fetchCashfreeOrderDetails } from '../services/cashfreeService';
 import { notifyOrderPlaced, notifyOrderStatusChanged } from '../services/notificationService';
 import { confirmOrderPayment } from '../services/paymentPersistenceService';
+import { BUSINESS_INFO } from '../config/businessInfo';
 
 const router = Router();
 
@@ -278,7 +279,7 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
       label: 'Store Pickup',
       recipient_name: recName,
       recipient_phone: recPhone,
-      street_address: 'Store Pickup: Saraswati Sweets Counter, Indira Market, Begum Gunj',
+      street_address: `Store Pickup: Saraswati Sweets Counter, ${BUSINESS_INFO.shortAddress}`,
       city: 'Barabanki',
       state: 'Uttar Pradesh',
       pincode: '225001',
@@ -291,7 +292,7 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
       start_time: startTimeStr,
       end_time: endTimeStr,
       formatted_slot: `${formatTime12h(startTimeStr)} - ${formatTime12h(endTimeStr)}`,
-      pickup_instructions: 'Please collect your fresh sweets at Saraswati Sweets counter, Indira Market, Begum Gunj, Barabanki. Show your order confirmation.',
+      pickup_instructions: `Please collect your fresh sweets at Saraswati Sweets counter, ${BUSINESS_INFO.shortAddress}. Show your order confirmation.`,
     };
   } else {
     // HOME DELIVERY

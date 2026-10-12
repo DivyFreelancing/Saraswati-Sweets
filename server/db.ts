@@ -5,6 +5,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 dotenv.config();
 import { getAdminRecipientEmail } from './config/emailConfig';
+import { BUSINESS_INFO } from './config/businessInfo';
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
@@ -446,12 +447,12 @@ export const MASTER_VARIANTS: MasterVariant[] = [
 
 export const SERVICEABLE_PINCODES = ['225001', '225002', '225003', '225122'];
 export const STORE_SETTINGS = {
-  store_name: 'Saraswati Sweets',
-  tagline: 'Pure Desi Ghee Mithai & Artisanal Namkeen Since 1978',
-  store_phone: '+91 91611 10030',
-  whatsapp: '+91 91611 10030',
+  store_name: BUSINESS_INFO.name,
+  tagline: BUSINESS_INFO.tagline,
+  store_phone: BUSINESS_INFO.phone,
+  whatsapp: BUSINESS_INFO.phone,
   store_email: getAdminRecipientEmail(),
-  address_text: 'Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001, Uttar Pradesh 225001',
+  address_text: BUSINESS_INFO.address,
   delivery_charge: 50,
   free_delivery_above: 0, // Flat ₹50 fee across all orders; free delivery tier disabled
   cod_limit_amount: 2000,
@@ -1122,12 +1123,12 @@ export const inMemoryStore = {
   deliveryPartners: new Map<any, any>(),
   auditLogs: [] as ServerAuditLog[],
   storeSettings: {
-    store_name: 'Saraswati Sweets',
-    tagline: 'Pure Desi Ghee Mithai & Artisanal Namkeen Since 1978',
-    store_phone: '+91 91611 10030',
-    whatsapp: '+91 91611 10030',
+    store_name: BUSINESS_INFO.name,
+    tagline: BUSINESS_INFO.tagline,
+    store_phone: BUSINESS_INFO.phone,
+    whatsapp: BUSINESS_INFO.phone,
     store_email: getAdminRecipientEmail(),
-    address_text: 'Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001, Uttar Pradesh 225001',
+    address_text: BUSINESS_INFO.address,
     serviceable_pincodes: ['225001', '225002', '225003', '225122'],
     delivery_charge_flat: 50,
     free_delivery_above: 0,

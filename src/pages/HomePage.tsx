@@ -253,7 +253,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               </h2>
 
               <p className="text-sm sm:text-base text-white/95 leading-relaxed max-w-2xl mx-auto font-normal drop-shadow-2xs">
-                Since 1989 near historic Ghantaghar, every batch of our mithai is crafted with sacred halwai devotion — slow-cooked in pure cow bilona ghee, prepared without chemical preservatives, and served fresh daily across Barabanki.
+                Since 1989 at Indira Market near Chaya Chauraha, every batch of our mithai is crafted with sacred halwai devotion — slow-cooked in pure cow bilona ghee, prepared without chemical preservatives, and served fresh daily across Barabanki.
               </p>
             </div>
 
@@ -307,7 +307,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                   Barabanki Delivery
                 </h3>
                 <p className="text-xs sm:text-sm text-white/90 leading-relaxed font-normal">
-                  Dispatched fresh from Ghantaghar directly to your doorstep with prompt local delivery.
+                  Dispatched fresh from our Indira Market store directly to your doorstep with prompt local delivery.
                 </p>
               </div>
             </div>
@@ -499,7 +499,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                   <div className="w-full h-full rounded-xl overflow-hidden relative">
                     <img
                       src="https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=600&q=80"
-                      alt="Historic Ghantaghar Flagship Store"
+                      alt="Indira Market Flagship Store"
                       width="260"
                       height="325"
                       loading="lazy"
@@ -513,7 +513,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                   <span className="absolute bottom-6 left-1 text-white text-xs select-none">✦</span>
                 </div>
                 <h3 className="font-display font-bold text-base sm:text-lg text-white">
-                  Near Historic Ghantaghar
+                  Indira Market, Near Chaya Chauraha
                 </h3>
               </div>
 

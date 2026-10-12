@@ -21,6 +21,7 @@ import { useAuth } from '../../context/AuthContext';
 import { PWAInstallButton } from '../common/PWAInstallButton';
 import { NotificationDrawer } from '../common/NotificationDrawer';
 import { formatINR } from '../../utils/formatters';
+import { BUSINESS_INFO } from '../../config/businessInfo';
 
 interface HeaderProps {
   currentPath: string;
@@ -123,16 +124,16 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
 
           <div className="hidden md:flex items-center gap-4 shrink-0 text-[#FAF4DE]/90 text-[11px]">
             <a
-              href="tel:+919161110030"
+              href={BUSINESS_INFO.phoneTel}
               className="flex items-center gap-1 hover:text-white transition-colors"
             >
               <Phone className="w-3 h-3 text-[#C79A3D]" />
-              <span>+91 91611 10030</span>
+              <span>{BUSINESS_INFO.phone}</span>
             </a>
             <span className="text-[#FAF4DE]/40">|</span>
             <span className="flex items-center gap-1">
               <MapPin className="w-3 h-3 text-[#C79A3D]" />
-              <span>Near Ghantaghar</span>
+              <span>{BUSINESS_INFO.landmark}</span>
             </span>
           </div>
         </div>
@@ -548,11 +549,11 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
           <div className="pt-4 border-t border-[#E8DCC8] space-y-2 text-xs text-[#6E6259]">
             <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-[#7A1129]" />
-              <span>Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001</span>
+              <span>{BUSINESS_INFO.address}</span>
             </div>
             <div className="flex items-center gap-2">
               <Phone className="w-4 h-4 text-[#7A1129]" />
-              <span>+91 91611 10030 (6:30 AM – 10:00 PM)</span>
+              <span>{BUSINESS_INFO.phone} ({BUSINESS_INFO.openingHours})</span>
             </div>
           </div>
         </div>

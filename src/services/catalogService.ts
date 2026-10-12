@@ -10,6 +10,7 @@ import {
   BulkOrderEnquiry,
 } from '../types/database';
 import { SEED_CATEGORIES } from '../data/seedCategories';
+import { BUSINESS_INFO } from '../config/businessInfo';
 
 export interface CatalogFilterOptions {
   categorySlug?: string;
@@ -372,12 +373,12 @@ export const catalogService = {
         if (data) {
           return {
             id: 1,
-            store_name: data.store_name || 'Saraswati Sweets',
-            tagline: data.tagline || 'Pure Desi Ghee Mithai Since 1989',
-            store_phone: data.store_phone || data.phone || '+91 91611 10030',
-            whatsapp: data.whatsapp || '+91 91611 10030',
-            store_email: data.store_email || data.email || 'order@saraswatisweetsbarabanki.com',
-            address_text: data.address_text || data.address || 'Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001',
+            store_name: data.store_name || BUSINESS_INFO.name,
+            tagline: data.tagline || BUSINESS_INFO.tagline,
+            store_phone: data.store_phone || data.phone || BUSINESS_INFO.phone,
+            whatsapp: data.whatsapp || BUSINESS_INFO.phone,
+            store_email: data.store_email || data.email || BUSINESS_INFO.configuredSenderEmail,
+            address_text: data.address_text || data.address || BUSINESS_INFO.address,
             allowed_pincodes: data.allowed_pincodes || data.serviceable_pincodes || ['225001'],
             delivery_charge_flat: data.delivery_charge_flat || data.delivery_charge || 50,
             free_delivery_above: data.free_delivery_above ?? data.free_delivery_threshold ?? 0,

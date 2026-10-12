@@ -1,5 +1,6 @@
 import React from 'react';
 import { MapPin, Phone, MessageSquare, Mail, Clock, ShieldCheck, Truck } from 'lucide-react';
+import { BUSINESS_INFO } from '../config/businessInfo';
 
 export const ContactPage: React.FC = () => {
   return (
@@ -9,7 +10,7 @@ export const ContactPage: React.FC = () => {
           Visit Our Barabanki Shop
         </h1>
         <p className="mt-1 text-sm sm:text-base text-[#6B6258] max-w-2xl">
-          We invite you to taste our sweets fresh off the kadhai at our historic store near Ghantaghar.
+          We invite you to taste our sweets fresh off the kadhai at our flagship store at Indira Market, near Chaya Chauraha.
         </p>
       </div>
 
@@ -23,12 +24,11 @@ export const ContactPage: React.FC = () => {
             Store Location
           </h3>
           <p className="text-sm text-[#6B6258] leading-relaxed">
-            Main Market Road, Near Historic Ghantaghar, <br />
-            Barabanki, Uttar Pradesh 225001
+            {BUSINESS_INFO.address}
           </p>
           <div className="pt-2">
             <a
-              href="https://maps.google.com/?q=Barabanki+Ghantaghar"
+              href={BUSINESS_INFO.googleMapsUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs font-semibold text-[#8A1538] hover:underline"
@@ -49,23 +49,23 @@ export const ContactPage: React.FC = () => {
           <div className="space-y-1 text-sm text-[#6B6258]">
             <p>
               Direct Order Line:{' '}
-              <a href="tel:+919161110030" className="text-[#1F1B16] font-semibold hover:text-[#8A1538]">
-                +91 91611 10030
+              <a href={BUSINESS_INFO.phoneTel} className="text-[#1F1B16] font-semibold hover:text-[#8A1538]">
+                {BUSINESS_INFO.phone}
               </a>
             </p>
             <p>
               WhatsApp:{' '}
-              <a href="https://wa.me/919161110030" className="text-[#2E7D4F] font-semibold hover:underline">
+              <a href={BUSINESS_INFO.whatsappLink} target="_blank" rel="noopener noreferrer" className="text-[#2E7D4F] font-semibold hover:underline">
                 Chat on WhatsApp
               </a>
             </p>
             <p>
               Email:{' '}
-              <a href="mailto:order@saraswatisweetsbarabanki.com" className="text-[#1F1B16] hover:text-[#8A1538]">
-                order@saraswatisweetsbarabanki.com
+              <a href={`mailto:${BUSINESS_INFO.configuredSenderEmail}`} className="text-[#1F1B16] hover:text-[#8A1538]">
+                {BUSINESS_INFO.configuredSenderEmail}
               </a>
               <span className="block text-xs text-[#6B6258] mt-0.5">
-                or <a href="mailto:saraswatisweetsbarabanki@gmail.com" className="hover:text-[#8A1538] underline">saraswatisweetsbarabanki@gmail.com</a>
+                or <a href={`mailto:${BUSINESS_INFO.configuredSupportEmail}`} className="hover:text-[#8A1538] underline">{BUSINESS_INFO.configuredSupportEmail}</a>
               </span>
             </p>
           </div>
@@ -81,7 +81,7 @@ export const ContactPage: React.FC = () => {
           </h3>
           <div className="text-sm text-[#6B6258] space-y-1">
             <p className="font-medium text-[#1F1B16]">Monday to Sunday</p>
-            <p>6:30 AM – 10:00 PM</p>
+            <p>{BUSINESS_INFO.openingHours}</p>
             <p className="text-xs text-[#2E7D4F] font-semibold pt-1">
               • Open 365 Days a Year
             </p>

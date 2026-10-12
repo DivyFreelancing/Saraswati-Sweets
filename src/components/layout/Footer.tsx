@@ -12,6 +12,7 @@ import {
   Instagram,
 } from 'lucide-react';
 import { PWAInstallButton } from '../common/PWAInstallButton';
+import { BUSINESS_INFO } from '../../config/businessInfo';
 
 interface FooterProps {
   onNavigate: (path: string) => void;
@@ -184,34 +185,34 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               </h4>
               <div className="space-y-2 text-xs sm:text-sm text-[#6E6259]">
                 <a
-                  href="tel:+919161110030"
+                  href={BUSINESS_INFO.phoneTel}
                   className="font-semibold text-[#221A14] hover:text-[#7A1129] block"
                 >
-                  +91 91611 10030
+                  {BUSINESS_INFO.phone}
                 </a>
                 <div className="text-xs text-[#6E6259]">
-                  Mon – Sun: 6:30 am – 10:00 pm IST
+                  {BUSINESS_INFO.operatingSchedule}
                 </div>
                 <div className="text-xs text-[#6E6259] leading-relaxed">
-                  Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001
+                  {BUSINESS_INFO.address}
                 </div>
                 <div className="pt-1 space-y-1 text-xs">
                   <div>
                     <span className="font-medium text-[#221A14]">Orders: </span>
                     <a
-                      href="mailto:order@saraswatisweetsbarabanki.com"
+                      href={`mailto:${BUSINESS_INFO.configuredSenderEmail}`}
                       className="hover:text-[#7A1129] text-[#7A1129] underline"
                     >
-                      order@saraswatisweetsbarabanki.com
+                      {BUSINESS_INFO.configuredSenderEmail}
                     </a>
                   </div>
                   <div>
                     <span className="font-medium text-[#221A14]">Support: </span>
                     <a
-                      href="mailto:saraswatisweetsbarabanki@gmail.com"
+                      href={`mailto:${BUSINESS_INFO.configuredSupportEmail}`}
                       className="hover:text-[#7A1129] text-[#7A1129] underline"
                     >
-                      saraswatisweetsbarabanki@gmail.com
+                      {BUSINESS_INFO.configuredSupportEmail}
                     </a>
                   </div>
                 </div>
@@ -219,7 +220,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 <div className="pt-2 flex flex-col gap-2">
                   <PWAInstallButton variant="footer" />
                   <a
-                    href="https://maps.google.com/?q=Saraswati+Sweets+Indira+Market+Begum+Gunj+Barabanki"
+                    href={BUSINESS_INFO.googleMapsUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#7A1129] hover:underline pt-1"
@@ -307,7 +308,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 <Facebook className="w-4 h-4" />
               </a>
               <a
-                href="https://wa.me/919161110030"
+                href={BUSINESS_INFO.whatsappLink}
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="WhatsApp"

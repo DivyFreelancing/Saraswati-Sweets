@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Building2, Calendar, Users, Scale, Send, CheckCircle2, Phone } from 'lucide-react';
 import { catalogService } from '../services/catalogService';
 import { useToast } from '../context/ToastContext';
+import { BUSINESS_INFO } from '../config/businessInfo';
 
 export const BulkEnquiryPage: React.FC = () => {
   const { showToast } = useToast();
@@ -226,7 +227,7 @@ export const BulkEnquiryPage: React.FC = () => {
         </button>
 
         <p className="text-center text-xs text-[#6B6258]">
-          Prefer speaking directly? Call our store manager at <a href="tel:+919161110030" className="text-[#8A1538] font-bold underline">+91 91611 10030</a>
+          Prefer speaking directly? Call our store manager at <a href={BUSINESS_INFO.phoneTel} className="text-[#8A1538] font-bold underline">{BUSINESS_INFO.phone}</a>
         </p>
       </form>
     </div>

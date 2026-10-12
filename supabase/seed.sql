@@ -22,11 +22,11 @@ INSERT INTO public.store_settings (
 ) VALUES (
     1,
     'Saraswati Sweets',
-    'Pure Desi Ghee Mithai & Artisanal Namkeen Since 1978',
+    'Pure Desi Ghee Mithai & Artisanal Namkeen Since 1989',
     '+91 91611 10030',
     '+91 91611 10030',
     'order@saraswatisweetsbarabanki.com',
-    'Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001, Uttar Pradesh 225001',
+    'Saraswati Sweets, Indira Market, Near Chaya Chauraha, Barabanki, Uttar Pradesh',
     ARRAY['225001', '225002', '225003', '225122'],
     40.00,
     499.00,
@@ -58,7 +58,7 @@ INSERT INTO public.products (id, category_id, name, slug, description, ingredien
     '11111111-1111-1111-1111-111111111102',
     'Signature Silver Leaf Kaju Katli',
     'kaju-katli',
-    'Our crowned jewel since 1978. Melt-in-mouth diamond cut diamond-shaped fudges made from premium cashew nuts and pure organic sugar, embellished with certified edible silver foil (chandi ka varq). Thin, silken, and naturally delicate.',
+    'Our crowned jewel since 1989. Melt-in-mouth diamond cut diamond-shaped fudges made from premium cashew nuts and pure organic sugar, embellished with certified edible silver foil (chandi ka varq). Thin, silken, and naturally delicate.',
     'Cashew nuts (Kaju 75%), Cane Sugar, Certified Vegetarian Silver Foil, Cardamom essence',
     15, TRUE, FALSE, TRUE, TRUE, TRUE, 'Shop Pride'
 ),
@@ -223,7 +223,7 @@ INSERT INTO public.banners (title, subtitle, image_url, cta_text, cta_link, badg
     'https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?auto=format&fit=crop&w=1200&q=80',
     'Explore Sweet Collection',
     '/catalog',
-    'Heritage Since 1978',
+    'Heritage Since 1989',
     1,
     TRUE
 )

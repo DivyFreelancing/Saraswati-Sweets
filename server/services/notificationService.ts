@@ -9,6 +9,7 @@ import {
   STORE_SETTINGS,
   inMemoryStore,
 } from '../db';
+import { BUSINESS_INFO } from '../config/businessInfo';
 
 dotenv.config();
 
@@ -674,9 +675,9 @@ export function buildZeptoMailOrderConfirmationMergeInfo(
     grand_total: formatINR(totalNum),
     order_tracking_url: trackingUrl,
     tracking_url: trackingUrl,
-    store_phone: STORE_SETTINGS.store_phone || '+91 94150 23456',
-    store_whatsapp: STORE_SETTINGS.whatsapp || '+91 94150 23456',
-    store_address: STORE_SETTINGS.address_text || 'Civil Lines, Main Road, Barabanki, Uttar Pradesh 225001',
+    store_phone: STORE_SETTINGS.store_phone || BUSINESS_INFO.phone,
+    store_whatsapp: STORE_SETTINGS.whatsapp || BUSINESS_INFO.phone,
+    store_address: STORE_SETTINGS.address_text || BUSINESS_INFO.address,
     items: itemsMergeList,
     products: itemsMergeList,
     order_items: itemsMergeList,
@@ -715,7 +716,7 @@ export function buildDirectOrderConfirmationHtml(
       <tr>
         <td style="background-color: #8A1538; padding: 28px 24px; text-align: center;">
           <h1 style="margin: 0; color: #FFFFFF; font-size: 26px; font-weight: 700; letter-spacing: 0.5px;">Saraswati Sweets</h1>
-          <p style="margin: 6px 0 0; color: #F6E08B; font-size: 13px; letter-spacing: 0.3px;">Pure Desi Ghee Mithai Since 1978 &bull; Barabanki</p>
+          <p style="margin: 6px 0 0; color: #F6E08B; font-size: 13px; letter-spacing: 0.3px;">Pure Desi Ghee Mithai Since 1989 &bull; Barabanki</p>
         </td>
       </tr>
       <tr>
@@ -829,7 +830,7 @@ export function buildDirectOrderConfirmationHtml(
         <td style="background-color: #F3EBE0; padding: 20px 24px; text-align: center; font-size: 12px; color: #6B6258;">
           <p style="margin: 0 0 4px; font-weight: 600; color: #1F1B16;">Saraswati Sweets</p>
           <p style="margin: 0 0 6px;">${m.store_address}</p>
-          <p style="margin: 0; color: #8C827A;">&copy; 1978–2026 Saraswati Sweets. Crafted with Pure Desi Ghee in Barabanki, Uttar Pradesh.</p>
+          <p style="margin: 0; color: #8C827A;">&copy; 1989–2026 Saraswati Sweets. Crafted with Pure Desi Ghee in Barabanki, Uttar Pradesh.</p>
         </td>
       </tr>
     </table>
@@ -1088,7 +1089,7 @@ export async function notifyOrderStatusChanged(
                  </div>`
               : ''
           }
-          ${!isCancelled ? `<p>Fresh preparation dispatched directly from Ghantaghar, Barabanki.</p>` : ''}
+          ${!isCancelled ? `<p>Fresh preparation dispatched directly from our Indira Market store, Barabanki.</p>` : ''}
           <p style="margin-top: 20px; font-size: 13px; color: #6B6258;">Need assistance? Call our Barabanki shop at ${STORE_SETTINGS.store_phone} or WhatsApp ${STORE_SETTINGS.whatsapp}.</p>
         </div>
       `,
@@ -1182,7 +1183,7 @@ export async function notifyNewBulkEnquiry(enquiry: ServerBulkEnquiry): Promise<
           <p>Thank you for reaching out to Saraswati Sweets (Barabanki) for your upcoming <strong>${escapeHtml(enquiry.event_type)}</strong> celebration on <strong>${escapeHtml(enquiry.event_date)}</strong>.</p>
           <p>Our senior order coordinator has received your enquiry (Ref: <strong>${escapeHtml(enquiry.enquiry_number)}</strong>) and will call you on <strong>${escapeHtml(enquiry.phone)}</strong> with wholesale bulk rates, custom box packaging choices, and complimentary sample tasting options.</p>
           <p>We look forward to sweetening your auspicious occasion with 100% pure cow desi ghee craftsmanship.</p>
-          <p style="margin-top: 20px; font-size: 13px; color: #6B6258;">Saraswati Sweets • Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001 • Tel: ${STORE_SETTINGS.store_phone}</p>
+          <p style="margin-top: 20px; font-size: 13px; color: #6B6258;">Saraswati Sweets • ${BUSINESS_INFO.address} • Tel: ${STORE_SETTINGS.store_phone}</p>
         </div>
       `,
     });

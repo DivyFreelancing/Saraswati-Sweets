@@ -82,7 +82,7 @@ export const AdminMarketingTab: React.FC<AdminMarketingTabProps> = ({
     image_url: '',
     cta_text: 'Shop Sweets',
     cta_link: '/catalog',
-    badge: 'Heritage Since 1978',
+    badge: 'Heritage Since 1989',
     is_active: true,
     display_order: 1,
   });

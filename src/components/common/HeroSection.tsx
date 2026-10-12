@@ -27,7 +27,7 @@ const HERO_SLIDES: HeroSlide[] = [
     eyebrow: 'Since 1989 · Barabanki',
     titlePrefix: 'Authentic Mithai,',
     titleHighlight: 'Crafted Fresh Daily.',
-    description: 'Pure cow desi ghee sweets slow-cooked every morning near Ghantaghar.',
+    description: 'Pure cow desi ghee sweets slow-cooked every morning near Chaya Chauraha.',
     primaryCtaText: 'Shop Bestsellers',
     secondaryCtaText: 'Explore Hampers',
     onPrimaryClick: 'catalog',
