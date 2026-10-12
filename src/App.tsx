@@ -29,6 +29,7 @@ const OrderHistoryPage = React.lazy(() => import('./pages/OrderHistoryPage').the
 const OrderDetailPage = React.lazy(() => import('./pages/OrderDetailPage').then(m => ({ default: m.OrderDetailPage })));
 const AdminPage = React.lazy(() => import('./pages/AdminPage').then(m => ({ default: m.AdminPage })));
 const AdminLoginPage = React.lazy(() => import('./pages/AdminLoginPage').then(m => ({ default: m.AdminLoginPage })));
+const CertificationsPage = React.lazy(() => import('./pages/CertificationsPage').then(m => ({ default: m.CertificationsPage })));
 
 import { Product } from './types/database';
 
@@ -177,6 +178,10 @@ function AppContent() {
         );
       case '/bulk-enquiry':
         return <BulkEnquiryPage />;
+      case '/certifications':
+      case '/legacy-and-certifications':
+      case '/legacy':
+        return <CertificationsPage onNavigate={navigateTo} />;
       case '/contact':
         return <ContactPage />;
       case '/cart':

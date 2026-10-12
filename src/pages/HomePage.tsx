@@ -23,6 +23,7 @@ import { PromoBanner } from '../components/common/PromoBanner';
 import { HamperCard } from '../components/common/HamperCard';
 import { ReviewCard } from '../components/common/ReviewCard';
 import { ScallopTrim } from '../components/common/DecorativeBorders';
+import { HomepageCertificationsPreview } from '../components/certifications/HomepageCertificationsPreview';
 import {
   CategoryCardSkeleton,
   HamperCardSkeleton,
@@ -118,7 +119,7 @@ export const HomePage: React.FC<HomePageProps> = ({
       {/* Cursive / Script Accent Line (Gold #C79A3D) with thin decorative flourish lines on either side */}
       <div className="max-w-3xl mx-auto px-4 pt-2.5 sm:pt-4 pb-1 sm:pb-2 flex items-center justify-center gap-2 sm:gap-4 text-center select-none overflow-hidden min-h-[44px] sm:min-h-[52px]">
         <div className="h-px flex-1 min-w-[12px] bg-gradient-to-r from-transparent via-[#C79A3D]/40 to-[#C79A3D]" />
-        <span className="font-script text-base sm:text-2xl md:text-3xl text-[#C79A3D] font-normal tracking-wide px-1.5 text-center max-w-full leading-normal">
+        <span className="font-script text-lg sm:text-2xl md:text-3xl text-[#C79A3D] font-normal tracking-wide px-1.5 text-center max-w-full leading-normal">
           Handcrafted with pure devotion since 1989
         </span>
         <div className="h-px flex-1 min-w-[12px] bg-gradient-to-l from-transparent via-[#C79A3D]/40 to-[#C79A3D]" />
@@ -585,60 +586,8 @@ export const HomePage: React.FC<HomePageProps> = ({
           </div>
         </section>
 
-        {/* 12. Trust / Certification Badge Strip (Verifiable claims only) */}
-        <section className="rounded-3xl border border-[#E8DCC8] py-8 sm:py-10 bg-[#F5EAD9]/60 px-6 sm:px-8 shadow-xs overflow-hidden content-visibility-auto">
-          <div className="max-w-7xl mx-auto flex flex-wrap justify-around items-center gap-6 text-center">
-            <div className="flex items-center gap-3 text-left">
-              <div className="w-10 h-10 rounded-full bg-white border border-[#E8DCC8] flex items-center justify-center text-[#7A1129] shrink-0 shadow-xs">
-                <ShieldCheck className="w-5 h-5 text-[#2E7D4F]" />
-              </div>
-              <div>
-                <div className="font-display font-bold text-sm text-[#221A14]">
-                  FSSAI Licensed
-                </div>
-                <div className="text-xs text-[#6E6259]">Reg. Lic #12721008000492</div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 text-left">
-              <div className="w-10 h-10 rounded-full bg-white border border-[#E8DCC8] flex items-center justify-center text-[#7A1129] shrink-0 shadow-xs">
-                <div className="w-4 h-4 border-2 border-[#2E7D4F] flex items-center justify-center p-[2px]">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#2E7D4F]" />
-                </div>
-              </div>
-              <div>
-                <div className="font-display font-bold text-sm text-[#221A14]">
-                  100% Vegetarian
-                </div>
-                <div className="text-xs text-[#6E6259]">Clean Kitchen Standards</div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 text-left">
-              <div className="w-10 h-10 rounded-full bg-white border border-[#E8DCC8] flex items-center justify-center text-[#7A1129] shrink-0 shadow-xs">
-                <Sparkles className="w-5 h-5 text-[#C79A3D]" />
-              </div>
-              <div>
-                <div className="font-display font-bold text-sm text-[#221A14]">
-                  Pure Cow Desi Ghee
-                </div>
-                <div className="text-xs text-[#6E6259]">Zero Vanaspati / Palm Oil</div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 text-left">
-              <div className="w-10 h-10 rounded-full bg-white border border-[#E8DCC8] flex items-center justify-center text-[#7A1129] shrink-0 shadow-xs">
-                <Layers className="w-5 h-5 text-[#7A1129]" />
-              </div>
-              <div>
-                <div className="font-display font-bold text-sm text-[#221A14]">
-                  Food-Safe Sealed Packaging
-                </div>
-                <div className="text-xs text-[#6E6259]">Tamper-Proof Freshness</div>
-              </div>
-            </div>
-          </div>
-        </section>
+        {/* 11b. Our Legacy & Certifications Editorial Section Preview */}
+        <HomepageCertificationsPreview onNavigate={onNavigate} />
 
 
 

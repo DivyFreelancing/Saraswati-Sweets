@@ -85,6 +85,7 @@ export function generateSitemapXml(): string {
   addUrl('/hampers', null);
   addUrl('/bulk-enquiry', null);
   addUrl('/contact', null);
+  addUrl('/certifications', null);
 
   // 2. Active Public Categories
   const categories = Array.from(inMemoryStore.categories.values())

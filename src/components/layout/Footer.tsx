@@ -65,6 +65,15 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 <li>
                   <button
                     type="button"
+                    onClick={() => onNavigate('/certifications')}
+                    className="hover:text-[#7A1129] text-[#7A1129] font-medium transition-colors"
+                  >
+                    Our Legacy & Certifications
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
                     onClick={() => onNavigate('/bulk-enquiry')}
                     className="hover:text-[#7A1129] transition-colors"
                   >
@@ -260,10 +269,15 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
 
             {/* Trust Badges Strip (FSSAI, Cashfree, Fast Delivery, 100% Veg) */}
             <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-5 pt-1 text-xs text-[#6E6259]">
-              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-[#E8DCC8] shadow-2xs">
+              <button
+                type="button"
+                onClick={() => onNavigate('/certifications')}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-[#E8DCC8] hover:border-[#2E7D4F] shadow-2xs transition-colors cursor-pointer text-left"
+                title="View official FSSAI State License Form C"
+              >
                 <ShieldCheck className="w-3.5 h-3.5 text-[#2E7D4F]" />
-                <span className="font-semibold text-[#221A14]">FSSAI: 12721008000492</span>
-              </div>
+                <span className="font-semibold text-[#221A14]">FSSAI: 12714022000190</span>
+              </button>
 
               <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-[#E8DCC8] shadow-2xs">
                 <span className="font-semibold text-[#221A14]">GST: 09ABEFS9729B1ZY</span>

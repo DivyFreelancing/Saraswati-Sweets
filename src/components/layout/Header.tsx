@@ -15,6 +15,8 @@ import {
   Search,
   Package,
   ShieldCheck,
+  Home,
+  Utensils,
 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
@@ -77,9 +79,8 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
   }
 
   const leftNavLinks: NavLinkItem[] = [
-    { label: 'Home', path: '/' },
-    { label: 'Shop by Category', path: '/categories' },
-    { label: 'All Sweets', path: '/catalog' },
+    { label: 'Home', path: '/', icon: Home },
+    { label: 'All Sweets', path: '/catalog', icon: Utensils },
   ];
 
   const rightNavLinks: NavLinkItem[] = [
@@ -148,12 +149,12 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-20 sm:h-24 md:h-26 gap-3">
+          <div className="flex items-center justify-between h-20 sm:h-24 md:h-26 gap-3 lg:gap-6 xl:gap-8">
           {/* LEFT ZONE:
-              - Desktop: Left Navigation Links (Home, Categories, Sweets)
+              - Desktop: Left Navigation Links (Home, Sweets) positioned near center logo
               - Mobile: Hamburger Toggle + Search Icon
           */}
-          <div className="flex-1 flex items-center justify-start gap-2 sm:gap-3">
+          <div className="flex-1 flex items-center justify-start lg:justify-end gap-2 sm:gap-3">
             {/* Mobile Hamburger Toggle */}
             <button
               type="button"
@@ -175,20 +176,24 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
             </button>
 
             {/* Desktop Left Nav Links */}
-            <nav className="hidden lg:flex items-center gap-5 xl:gap-7">
+            <nav className="hidden lg:flex items-center gap-5 xl:gap-6">
               {leftNavLinks.map((link) => {
-                const isActive = currentPath === link.path;
+                const isActive =
+                  link.path === '/'
+                    ? currentPath === '/'
+                    : currentPath === link.path || currentPath.startsWith(link.path);
                 return (
                   <button
                     key={link.path}
                     type="button"
                     onClick={() => handleLinkClick(link.path)}
-                    className={`text-sm font-semibold transition-colors py-1 relative ${
+                    className={`text-sm font-semibold transition-colors py-1 relative flex items-center gap-1.5 whitespace-nowrap ${
                       isActive
                         ? 'text-[#7A1129]'
                         : 'text-[#221A14] hover:text-[#7A1129]'
                     }`}
                   >
+                    {link.icon && <link.icon className="w-3.5 h-3.5 text-[#C79A3D]" />}
                     <span>{link.label}</span>
                     {isActive && (
                       <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#7A1129] rounded-full" />
@@ -528,22 +533,28 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
           )}
 
           <div className="divide-y divide-[#E8DCC8]/60">
-            {allNavLinks.map((link) => (
-              <button
-                key={link.path}
-                type="button"
-                onClick={() => handleLinkClick(link.path)}
-                className={`w-full min-h-[44px] flex items-center justify-between py-3 text-left font-semibold text-sm ${
-                  currentPath === link.path ? 'text-[#7A1129]' : 'text-[#221A14]'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  {link.icon && <link.icon className="w-4 h-4 text-[#7A1129]" />}
-                  <span>{link.label}</span>
-                </div>
-                <ChevronRight className="w-4 h-4 text-[#6E6259]" />
-              </button>
-            ))}
+            {allNavLinks.map((link) => {
+              const isActive =
+                link.path === '/'
+                  ? currentPath === '/'
+                  : currentPath === link.path || currentPath.startsWith(link.path);
+              return (
+                <button
+                  key={link.path}
+                  type="button"
+                  onClick={() => handleLinkClick(link.path)}
+                  className={`w-full min-h-[44px] flex items-center justify-between py-3 text-left font-semibold text-sm ${
+                    isActive ? 'text-[#7A1129]' : 'text-[#221A14]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    {link.icon && <link.icon className="w-4 h-4 text-[#7A1129]" />}
+                    <span>{link.label}</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[#6E6259]" />
+                </button>
+              );
+            })}
           </div>
 
           <div className="pt-4 border-t border-[#E8DCC8] space-y-2 text-xs text-[#6E6259]">

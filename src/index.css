@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Alex+Brush&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -23,7 +24,7 @@
 
   --font-serif: "Fraunces", "Playfair Display", "Cormorant", Georgia, serif;
   --font-sans: "Plus Jakarta Sans", "Manrope", "Inter", system-ui, -apple-system, sans-serif;
-  --font-script: "Alex Brush", cursive;
+  --font-script: "Alex Brush", "Great Vibes", "Brush Script MT", "Segoe Script", "Lucida Handwriting", cursive;
   
   --radius-input: 8px;
   --radius-card: 12px;

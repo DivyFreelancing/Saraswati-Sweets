@@ -1296,6 +1296,20 @@ export async function findOrderInSupabase(
   return { order: undefined };
 }
 
+export interface OrderCleanupBackoffState {
+  lastCheckedAt: number;
+  nextCheckAt: number;
+  checkCount: number;
+  lastStatus: string;
+}
+
+// In-memory tracker for non-terminal deferred orders to prevent repeated API flooding
+export const deferredOrderCheckTracker = new Map<string, OrderCleanupBackoffState>();
+
+export function clearDeferredOrderCheckTracker(): void {
+  deferredOrderCheckTracker.clear();
+}
+
 // Auto-expire unpaid PENDING_PAYMENT orders after 25 min: verifies with Cashfree, confirms paid orders, cancels definitively failed ones
 export async function expireUnpaidOrders(client: SupabaseClient | null = supabaseServer): Promise<number> {
   const now = Date.now();
@@ -1344,7 +1358,10 @@ export async function expireUnpaidOrders(client: SupabaseClient | null = supabas
 
   for (const order of pendingOrders) {
     // Re-check in-memory status in case concurrent webhook confirmed it
-    if (order.status !== 'PENDING_PAYMENT') continue;
+    if (order.status !== 'PENDING_PAYMENT') {
+      deferredOrderCheckTracker.delete(order.id);
+      continue;
+    }
 
     let currentDbOrder: any = null;
 
@@ -1377,8 +1394,16 @@ export async function expireUnpaidOrders(client: SupabaseClient | null = supabas
         order.status = currentDbOrder.status;
         order.payment_status = currentDbOrder.payment_status;
         inMemoryStore.orders.set(order.id, order);
+        deferredOrderCheckTracker.delete(order.id);
         continue;
       }
+    }
+
+    // Check if order is currently in backoff cool-down to prevent redundant gateway calls
+    const backoffState = deferredOrderCheckTracker.get(order.id);
+    if (backoffState && now < backoffState.nextCheckAt) {
+      // Within backoff window: skip redundant Cashfree API call and log spam
+      continue;
     }
 
     // Authoritative verification with Cashfree gateway
@@ -1386,8 +1411,16 @@ export async function expireUnpaidOrders(client: SupabaseClient | null = supabas
     const gatewayLookupId = order.provider_order_id || currentDbOrder?.order_number || order.order_number;
     if (order.payment_method === 'ONLINE') {
       if (!gatewayLookupId) {
+        const checkCount = (backoffState?.checkCount || 0) + 1;
+        const backoffDelayMs = Math.min(15 * 60 * 1000, 2 * 60 * 1000 * checkCount);
+        deferredOrderCheckTracker.set(order.id, {
+          lastCheckedAt: now,
+          nextCheckAt: now + backoffDelayMs,
+          checkCount,
+          lastStatus: 'NO_LOOKUP_ID',
+        });
         console.warn(
-          `[OrderCleanup] Order #${order.order_number || order.id} has no gateway lookup ID. Deferring cancellation.`
+          `[OrderCleanup] Order #${order.order_number || order.id} has no gateway lookup ID. Deferring cancellation (retry in ${Math.round(backoffDelayMs / 60000)}m).`
         );
         continue;
       }
@@ -1398,6 +1431,7 @@ export async function expireUnpaidOrders(client: SupabaseClient | null = supabas
         // If Cashfree confirms payment was PAID, reconcile and do NOT cancel!
         if (cashfreeDetails.status === 'PAID') {
           console.log(`[OrderCleanup] Order #${order.order_number} confirmed PAID by Cashfree API. Reconciling...`);
+          deferredOrderCheckTracker.delete(order.id);
           await confirmOrderPayment({
             orderIdOrProviderId: order.id,
             providerOrderId: gatewayLookupId,
@@ -1410,28 +1444,76 @@ export async function expireUnpaidOrders(client: SupabaseClient | null = supabas
 
         // If Cashfree status is ACTIVE or TERMINATION_REQUESTED, customer may still be completing payment or gateway is processing
         if (cashfreeDetails.status === 'ACTIVE' || cashfreeDetails.status === 'TERMINATION_REQUESTED') {
+          const checkCount = (backoffState?.checkCount || 0) + 1;
+          // Tiered exponential backoff:
+          // Check 1: 2m, Check 2: 5m, Check 3: 10m, Check 4+: 15m (capped at 30m)
+          const backoffDelayMs = Math.min(
+            30 * 60 * 1000,
+            checkCount === 1
+              ? 2 * 60 * 1000
+              : checkCount === 2
+              ? 5 * 60 * 1000
+              : checkCount === 3
+              ? 10 * 60 * 1000
+              : 15 * 60 * 1000
+          );
+          deferredOrderCheckTracker.set(order.id, {
+            lastCheckedAt: now,
+            nextCheckAt: now + backoffDelayMs,
+            checkCount,
+            lastStatus: cashfreeDetails.status,
+          });
+
           console.log(
-            `[OrderCleanup] Order #${order.order_number} is in non-terminal state '${cashfreeDetails.status}' on Cashfree. Deferring cancellation.`
+            `[OrderCleanup] Order #${order.order_number} is in non-terminal state '${cashfreeDetails.status}' on Cashfree. Deferring cancellation (check #${checkCount}, next check in ${Math.round(backoffDelayMs / 60000)}m).`
           );
           continue;
         }
 
         // If Cashfree call timed out or returned network error, do NOT cancel
         if (cashfreeDetails.status === 'UNKNOWN' || cashfreeDetails.isNetworkError) {
-          console.warn(`[OrderCleanup] Ambiguous/Network status for order #${order.order_number}. Retrying next cycle.`);
+          const checkCount = (backoffState?.checkCount || 0) + 1;
+          const backoffDelayMs = Math.min(10 * 60 * 1000, 2 * 60 * 1000 * checkCount);
+          deferredOrderCheckTracker.set(order.id, {
+            lastCheckedAt: now,
+            nextCheckAt: now + backoffDelayMs,
+            checkCount,
+            lastStatus: 'NETWORK_ERROR',
+          });
+          console.warn(
+            `[OrderCleanup] Ambiguous/Network status for order #${order.order_number}. Retrying in ${Math.round(backoffDelayMs / 60000)}m.`
+          );
           continue;
         }
 
         // Cancel only after authoritative verification establishes a definitive terminal payment state:
         // Cashfree definitive terminal states are EXPIRED, TERMINATED, or FAILED.
         if (cashfreeDetails.status !== 'EXPIRED' && cashfreeDetails.status !== 'TERMINATED' && cashfreeDetails.status !== 'FAILED') {
+          const checkCount = (backoffState?.checkCount || 0) + 1;
+          const backoffDelayMs = 5 * 60 * 1000;
+          deferredOrderCheckTracker.set(order.id, {
+            lastCheckedAt: now,
+            nextCheckAt: now + backoffDelayMs,
+            checkCount,
+            lastStatus: cashfreeDetails.status,
+          });
           console.warn(
-            `[OrderCleanup] Order #${order.order_number} is in non-terminal gateway state '${cashfreeDetails.status}'. Deferring cancellation.`
+            `[OrderCleanup] Order #${order.order_number} is in non-terminal gateway state '${cashfreeDetails.status}'. Deferring cancellation (retry in 5m).`
           );
           continue;
         }
       } catch (err: any) {
-        console.warn(`[OrderCleanup] Error verifying order #${order.order_number} with Cashfree: ${err.message}. Deferring.`);
+        const checkCount = (backoffState?.checkCount || 0) + 1;
+        const backoffDelayMs = Math.min(10 * 60 * 1000, 2 * 60 * 1000 * checkCount);
+        deferredOrderCheckTracker.set(order.id, {
+          lastCheckedAt: now,
+          nextCheckAt: now + backoffDelayMs,
+          checkCount,
+          lastStatus: 'ERROR',
+        });
+        console.warn(
+          `[OrderCleanup] Error verifying order #${order.order_number} with Cashfree: ${err.message}. Retrying in ${Math.round(backoffDelayMs / 60000)}m.`
+        );
         continue;
       }
     }
@@ -1474,7 +1556,17 @@ export async function expireUnpaidOrders(client: SupabaseClient | null = supabas
     order.updated_at = nowIso;
     inMemoryStore.orders.set(order.id, order);
 
+    deferredOrderCheckTracker.delete(order.id);
     expiredCount++;
+  }
+
+  // Evict stale tracker entries older than 24 hours to prevent unbounded map growth
+  if (deferredOrderCheckTracker.size > 200) {
+    for (const [trackedId, state] of deferredOrderCheckTracker.entries()) {
+      if (now - state.lastCheckedAt > 24 * 60 * 60 * 1000) {
+        deferredOrderCheckTracker.delete(trackedId);
+      }
+    }
   }
 
   return expiredCount;

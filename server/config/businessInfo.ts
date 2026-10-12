@@ -77,6 +77,9 @@ export const BUSINESS_INFO = {
    * Flagged for user confirmation before changing email-related settings.
    */
   configuredSupportEmail: 'saraswatisweetsbarabanki@gmail.com',
+
+  /** Verified FSSAI State License Number (Form C) */
+  fssaiLicenseNumber: '12714022000190',
 } as const;
 
 export type BusinessInfo = typeof BUSINESS_INFO;
