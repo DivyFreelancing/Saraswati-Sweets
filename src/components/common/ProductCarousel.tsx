@@ -143,7 +143,7 @@ export const ProductCarousel: React.FC<ProductCarouselProps> = ({
           <button
             onClick={slidePrev}
             aria-label="Previous products"
-            className="absolute -left-3 sm:-left-6 top-1/2 -translate-y-1/2 z-10 p-2 sm:p-3 rounded-full bg-white/90 border border-[#E8DCC8] text-[#7A1129] shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-[#F5EAD9] focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-[#C79A3D] disabled:opacity-0"
+            className="absolute -left-3 sm:-left-7 lg:-left-9 top-[34%] -translate-y-1/2 z-10 p-2 sm:p-2.5 rounded-full bg-white/95 border border-[#E8DCC8] text-[#7A1129] shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-[#F5EAD9] focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-[#C79A3D] disabled:opacity-0 active:scale-95 cursor-pointer"
             disabled={products.length <= 1}
           >
             <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -152,7 +152,7 @@ export const ProductCarousel: React.FC<ProductCarouselProps> = ({
           <button
             onClick={slideNext}
             aria-label="Next products"
-            className="absolute -right-3 sm:-right-6 top-1/2 -translate-y-1/2 z-10 p-2 sm:p-3 rounded-full bg-white/90 border border-[#E8DCC8] text-[#7A1129] shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-[#F5EAD9] focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-[#C79A3D] disabled:opacity-0"
+            className="absolute -right-3 sm:-right-7 lg:-right-9 top-[34%] -translate-y-1/2 z-10 p-2 sm:p-2.5 rounded-full bg-white/95 border border-[#E8DCC8] text-[#7A1129] shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-[#F5EAD9] focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-[#C79A3D] disabled:opacity-0 active:scale-95 cursor-pointer"
             disabled={products.length <= 1}
           >
             <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6" />

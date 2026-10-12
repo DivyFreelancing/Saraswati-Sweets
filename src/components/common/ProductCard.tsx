@@ -128,7 +128,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenDetail 
       <div className="flex items-center justify-between w-full mb-3 min-h-[24px]">
         {/* Authentic FSSAI Veg Indicator */}
         <div
-          className="bg-[#FBF6EF] p-1 rounded-[3px] border border-[#E8DCC8] flex items-center justify-center shadow-2xs"
+          className="bg-[#FBF6EF] p-1 rounded-sm border border-[#E8DCC8] flex items-center justify-center shadow-2xs"
           title="100% Pure Vegetarian"
         >
           <div className="w-3.5 h-3.5 border-2 border-[#2E7D4F] flex items-center justify-center p-[2px]">
@@ -152,9 +152,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenDetail 
         )}
       </div>
 
-      {/* CIRCULAR Photo Crop with Generous Whitespace */}
+      {/* Product Image Frame: Soft rounded corners with breathing room to prevent cutting off product trays */}
       <div className="py-2 flex justify-center">
-        <div className="w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40 rounded-full overflow-hidden bg-[#F5EAD9] border-2 border-white shadow-xs ring-1 ring-[#E8DCC8] relative shrink-0 flex items-center justify-center">
+        <div className="w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40 rounded-2xl p-1 overflow-hidden bg-[#F5EAD9] border-2 border-white shadow-xs ring-1 ring-[#E8DCC8] relative shrink-0 flex items-center justify-center">
           {primaryImage && !imageFailed ? (
             <img
               src={primaryImage}
@@ -164,7 +164,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenDetail 
               loading="lazy"
               decoding="async"
               onError={() => setImageFailed(true)}
-              className={`w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105 ${
+              className={`w-full h-full object-cover rounded-xl transition-transform duration-500 ease-out group-hover:scale-105 ${
                 isAllOutOfStock ? 'opacity-70 contrast-90 grayscale-[25%]' : ''
               }`}
             />
@@ -182,7 +182,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenDetail 
       <div className="mt-3 flex flex-col flex-1 text-center">
         <div className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 text-[11px] sm:text-xs text-[#6E6259] mb-1 font-medium">
           {product.is_pure_ghee && (
-            <span className="text-[#7A1129] font-semibold">100% Desi Ghee</span>
+            <span className="text-[#966B1E] font-semibold">100% Desi Ghee</span>
           )}
           {product.is_pure_ghee && <span aria-hidden="true" className="text-[#6E6259]/60">·</span>}
           <span>Shelf Life {product.shelf_life_days}d</span>

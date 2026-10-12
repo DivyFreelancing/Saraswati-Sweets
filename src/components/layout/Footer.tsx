@@ -139,7 +139,25 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                     onClick={() => onNavigate('/contact')}
                     className="hover:text-[#7A1129] transition-colors"
                   >
-                    Contact Us
+                    Contact Store
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('/orders')}
+                    className="hover:text-[#7A1129] transition-colors"
+                  >
+                    Track Your Order
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('/bulk-enquiry')}
+                    className="hover:text-[#7A1129] transition-colors"
+                  >
+                    Weddings & Catering
                   </button>
                 </li>
                 <li>
@@ -153,49 +171,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                     }
                     className="hover:text-[#7A1129] transition-colors"
                   >
-                    Shipping & Delivery
-                  </button>
-                </li>
-                <li>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      openLegal(
-                        'Return Policy',
-                        'Given the perishable nature of fresh traditional Indian sweets, orders may be cancelled up to 1 hour before dispatch. In the rare event of transit damage or quality concern, we provide immediate replacements or full refunds.'
-                      )
-                    }
-                    className="hover:text-[#7A1129] transition-colors"
-                  >
-                    Return Policy
-                  </button>
-                </li>
-                <li>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      openLegal(
-                        'Privacy Policy',
-                        'At Saraswati Sweets, we value your privacy. We collect customer names, delivery addresses, and phone numbers strictly to fulfill sweet delivery orders in Barabanki and send status updates. We never sell or share your personal data with third-party advertisers.'
-                      )
-                    }
-                    className="hover:text-[#7A1129] transition-colors"
-                  >
-                    Privacy Policy
-                  </button>
-                </li>
-                <li>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      openLegal(
-                        'Terms & Conditions',
-                        'All sweets are prepared fresh in our Barabanki kitchen. Product weights include standard food-grade packaging. Orders are fulfilled promptly via direct local delivery. Prices are inclusive of all local taxes.'
-                      )
-                    }
-                    className="hover:text-[#7A1129] transition-colors"
-                  >
-                    Terms & Conditions
+                    Delivery Info & PIN Codes
                   </button>
                 </li>
               </ul>
@@ -219,32 +195,38 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 <div className="text-xs text-[#6E6259] leading-relaxed">
                   Saraswati Sweets, Indira Market, Begum Gunj, Barabanki, Uttar Pradesh 225001
                 </div>
-                <div className="pt-1">
-                  <a
-                    href="mailto:order@saraswatisweetsbarabanki.com"
-                    className="text-xs hover:text-[#7A1129] text-[#7A1129] underline"
-                  >
-                    order@saraswatisweetsbarabanki.com
-                  </a>
-                  <span className="block text-[11px] text-[#6E6259] mt-0.5">
-                    or <a href="mailto:saraswatisweetsbarabanki@gmail.com" className="hover:text-[#7A1129] underline">saraswatisweetsbarabanki@gmail.com</a>
-                  </span>
+                <div className="pt-1 space-y-1 text-xs">
+                  <div>
+                    <span className="font-medium text-[#221A14]">Orders: </span>
+                    <a
+                      href="mailto:order@saraswatisweetsbarabanki.com"
+                      className="hover:text-[#7A1129] text-[#7A1129] underline"
+                    >
+                      order@saraswatisweetsbarabanki.com
+                    </a>
+                  </div>
+                  <div>
+                    <span className="font-medium text-[#221A14]">Support: </span>
+                    <a
+                      href="mailto:saraswatisweetsbarabanki@gmail.com"
+                      className="hover:text-[#7A1129] text-[#7A1129] underline"
+                    >
+                      saraswatisweetsbarabanki@gmail.com
+                    </a>
+                  </div>
                 </div>
-                <div className="pt-2">
+
+                <div className="pt-2 flex flex-col gap-2">
                   <PWAInstallButton variant="footer" />
-                </div>
-                
-                {/* Embedded Shop Location Map */}
-                <div className="mt-4 w-full h-32 sm:h-40 rounded-lg overflow-hidden border border-[#E8DCC8] shadow-xs group relative">
-                  <div className="absolute inset-0 bg-[#7A1129]/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                  <iframe
-                    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d4247.277361027027!2d81.1914046!3d26.9303736!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x399960448077c48b%3A0x237c28b2c008a9e8!2sSaraswati%20Sweets!5e1!3m2!1sen!2sin!4v1790846537331!5m2!1sen!2sin"
-                    className="w-full h-full border-0"
-                    allowFullScreen={false}
-                    loading="lazy"
-                    title="Saraswati Sweets Location"
-                    referrerPolicy="no-referrer-when-downgrade"
-                  />
+                  <a
+                    href="https://maps.google.com/?q=Saraswati+Sweets+Indira+Market+Begum+Gunj+Barabanki"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#7A1129] hover:underline pt-1"
+                  >
+                    <MapPin className="w-3.5 h-3.5" />
+                    <span>Get Directions on Google Maps ↗</span>
+                  </a>
                 </div>
               </div>
             </div>

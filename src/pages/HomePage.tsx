@@ -97,11 +97,14 @@ export const HomePage: React.FC<HomePageProps> = ({
     loadHomeData();
   }, []);
 
-  // Quick navigation categories mapped to actual catalogue slugs
+  // Quick navigation categories mapped to actual catalogue slugs (curated to 5 distinct paths)
   const quickNavItems = [
     { label: 'All Sweets', slug: '', isAll: true },
-    ...categories.map((c) => ({ label: c.name, slug: c.slug })),
-    { label: 'Festive Hampers', slug: 'hampers', isHamperPage: true },
+    ...categories
+      .filter((c) => !c.slug.includes('hamper'))
+      .slice(0, 3)
+      .map((c) => ({ label: c.name, slug: c.slug })),
+    { label: 'Gift Hampers', slug: 'hampers', isHamperPage: true },
   ];
 
   return (
@@ -122,31 +125,38 @@ export const HomePage: React.FC<HomePageProps> = ({
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 sm:space-y-14">
-        {/* 4. Category Quick-Nav (Horizontal scrollable pill row for fast jumps) */}
+        {/* 4. Category Quick-Nav (Horizontal scrollable pill row, centered and balanced) */}
         <section id="quick-browse" aria-label="Category Quick Navigation" className="pt-0 pb-0.5">
-          <div className="flex items-center gap-2 sm:gap-2.5 overflow-x-auto py-1 no-scrollbar scroll-smooth">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#6E6259] shrink-0 mr-1 hidden sm:inline">
+          <div className="flex items-center sm:justify-center gap-2 sm:gap-2.5 overflow-x-auto py-1 no-scrollbar scroll-smooth">
+            <span className="text-xs font-semibold text-[#6E6259] shrink-0 mr-1 hidden sm:inline">
               Quick Browse:
             </span>
-            {quickNavItems.map((item) => (
-              <button
-                key={item.label}
-                type="button"
-                onClick={() => {
-                  if ((item as any).isHamperPage) {
-                    onNavigate('/hampers');
-                  } else if ((item as any).isAll) {
-                    onNavigate('/catalog');
-                  } else {
-                    onNavigate(`/catalog?category=${item.slug}`);
-                  }
-                }}
-                className="shrink-0 px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full border border-[#E8DCC8] bg-white hover:bg-[#F5EAD9] hover:border-[#7A1129]/40 text-[#221A14] text-xs sm:text-sm font-semibold transition-all duration-150 shadow-xs flex items-center gap-1.5 active:scale-95"
-              >
-                {(item as any).isHamperPage && <Gift className="w-3.5 h-3.5 text-[#C79A3D]" />}
-                <span>{item.label}</span>
-              </button>
-            ))}
+            {quickNavItems.map((item) => {
+              const isAll = (item as any).isAll;
+              return (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => {
+                    if ((item as any).isHamperPage) {
+                      onNavigate('/hampers');
+                    } else if (isAll) {
+                      onNavigate('/catalog');
+                    } else {
+                      onNavigate(`/catalog?category=${item.slug}`);
+                    }
+                  }}
+                  className={`shrink-0 px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full border text-xs sm:text-sm font-semibold transition-all duration-150 shadow-xs flex items-center gap-1.5 active:scale-95 cursor-pointer ${
+                    isAll
+                      ? 'bg-[#7A1129] text-white border-[#7A1129]'
+                      : 'border-[#E8DCC8] bg-white hover:bg-[#F5EAD9] hover:border-[#7A1129]/40 text-[#221A14]'
+                  }`}
+                >
+                  {(item as any).isHamperPage && <Gift className="w-3.5 h-3.5 text-[#C79A3D]" />}
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
           </div>
         </section>
 
@@ -176,13 +186,13 @@ export const HomePage: React.FC<HomePageProps> = ({
           />
 
           {loading && categories.length === 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 sm:gap-5">
-              {Array.from({ length: 6 }).map((_, i) => (
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-4 sm:gap-6">
+              {Array.from({ length: 4 }).map((_, i) => (
                 <CategoryCardSkeleton key={i} />
               ))}
             </div>
           ) : categories.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 sm:gap-5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-4 sm:gap-6">
               {categories.map((category) => (
                 <CategoryCard
                   key={category.id}
@@ -233,7 +243,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           {/* Content Layer (Kept strictly in the clean upper zone with generous buffer above the bottom border) */}
           <div className="relative z-10 px-6 sm:px-10 lg:px-14 pt-14 sm:pt-20 pb-40 sm:pb-52 md:pb-64 text-center max-w-5xl mx-auto space-y-8 sm:space-y-10">
             <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#C79A3D]/25 border border-[#C79A3D]/60 text-[#F6E08B] text-[11px] sm:text-xs font-bold uppercase tracking-widest backdrop-blur-xs shadow-xs">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#C79A3D]/25 border border-[#C79A3D]/60 text-[#F6E08B] text-xs font-semibold backdrop-blur-xs shadow-xs">
                 <Sparkles className="w-3.5 h-3.5 text-[#F6E08B]" />
                 <span>The Saraswati Promise</span>
               </div>
@@ -254,9 +264,9 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <div className="w-10 h-10 rounded-full bg-[#C79A3D]/20 border border-[#C79A3D]/50 flex items-center justify-center text-[#F6E08B] shadow-xs">
                   <Sparkles className="w-5 h-5 text-[#F6E08B]" />
                 </div>
-                <h4 className="font-display font-bold text-base sm:text-lg text-white">
+                <h3 className="font-display font-bold text-base sm:text-lg text-white">
                   100% Pure Cow Ghee
-                </h4>
+                </h3>
                 <p className="text-xs sm:text-sm text-white/90 leading-relaxed font-normal">
                   Traditional slow-cooked bilona ghee preparations with zero vanaspati, palm oil, or additives.
                 </p>
@@ -267,9 +277,9 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <div className="w-10 h-10 rounded-full bg-[#C79A3D]/20 border border-[#C79A3D]/50 flex items-center justify-center text-[#F6E08B] shadow-xs">
                   <Clock className="w-5 h-5 text-[#F6E08B]" />
                 </div>
-                <h4 className="font-display font-bold text-base sm:text-lg text-white">
+                <h3 className="font-display font-bold text-base sm:text-lg text-white">
                   Fresh Daily Batches
-                </h4>
+                </h3>
                 <p className="text-xs sm:text-sm text-white/90 leading-relaxed font-normal">
                   Cooked every morning at dawn using fresh local milk chhena and genuine ground spices.
                 </p>
@@ -280,9 +290,9 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <div className="w-10 h-10 rounded-full bg-[#C79A3D]/20 border border-[#C79A3D]/50 flex items-center justify-center text-[#F6E08B] shadow-xs">
                   <Leaf className="w-5 h-5 text-[#F6E08B]" />
                 </div>
-                <h4 className="font-display font-bold text-base sm:text-lg text-white">
+                <h3 className="font-display font-bold text-base sm:text-lg text-white">
                   100% Vegetarian
-                </h4>
+                </h3>
                 <p className="text-xs sm:text-sm text-white/90 leading-relaxed font-normal">
                   Strict satvik kitchen discipline with certified 100% cruelty-free vegetarian silver vark.
                 </p>
@@ -293,9 +303,9 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <div className="w-10 h-10 rounded-full bg-[#C79A3D]/20 border border-[#C79A3D]/50 flex items-center justify-center text-[#F6E08B] shadow-xs">
                   <Truck className="w-5 h-5 text-[#F6E08B]" />
                 </div>
-                <h4 className="font-display font-bold text-base sm:text-lg text-white">
+                <h3 className="font-display font-bold text-base sm:text-lg text-white">
                   Barabanki Delivery
-                </h4>
+                </h3>
                 <p className="text-xs sm:text-sm text-white/90 leading-relaxed font-normal">
                   Dispatched fresh from Ghantaghar directly to your doorstep with prompt local delivery.
                 </p>
@@ -485,13 +495,13 @@ export const HomePage: React.FC<HomePageProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 pt-2">
               {/* Store 1 */}
               <div className="space-y-3 group">
-                <div className="relative aspect-[3/4] max-w-[190px] sm:max-w-[210px] mx-auto rounded-full overflow-hidden border-2 border-white/80 shadow-[0_4px_20px_rgba(0,0,0,0.3)] bg-[#5E0D20] p-1">
-                  <div className="w-full h-full rounded-full overflow-hidden relative">
+                <div className="relative aspect-[4/5] max-w-[240px] sm:max-w-[260px] mx-auto rounded-2xl overflow-hidden border-2 border-white/80 shadow-[0_6px_24px_rgba(0,0,0,0.3)] bg-[#5E0D20] p-1.5">
+                  <div className="w-full h-full rounded-xl overflow-hidden relative">
                     <img
                       src="https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=600&q=80"
                       alt="Historic Ghantaghar Flagship Store"
-                      width="210"
-                      height="280"
+                      width="260"
+                      height="325"
                       loading="lazy"
                       decoding="async"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
@@ -502,20 +512,20 @@ export const HomePage: React.FC<HomePageProps> = ({
                   <span className="absolute -top-1 right-3 text-white text-xs select-none">✦</span>
                   <span className="absolute bottom-6 left-1 text-white text-xs select-none">✦</span>
                 </div>
-                <h4 className="font-display font-bold text-sm sm:text-base text-white">
+                <h3 className="font-display font-bold text-base sm:text-lg text-white">
                   Near Historic Ghantaghar
-                </h4>
+                </h3>
               </div>
 
               {/* Store 2 */}
               <div className="space-y-3 group">
-                <div className="relative aspect-[3/4] max-w-[190px] sm:max-w-[210px] mx-auto rounded-full overflow-hidden border-2 border-white/80 shadow-[0_4px_20px_rgba(0,0,0,0.3)] bg-[#5E0D20] p-1">
-                  <div className="w-full h-full rounded-full overflow-hidden relative">
+                <div className="relative aspect-[4/5] max-w-[240px] sm:max-w-[260px] mx-auto rounded-2xl overflow-hidden border-2 border-white/80 shadow-[0_6px_24px_rgba(0,0,0,0.3)] bg-[#5E0D20] p-1.5">
+                  <div className="w-full h-full rounded-xl overflow-hidden relative">
                     <img
-                      src="https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?auto=format&fit=crop&w=600&q=80"
+                      src="https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=600&q=80"
                       alt="Bilona Cow Ghee Kitchens"
-                      width="210"
-                      height="280"
+                      width="260"
+                      height="325"
                       loading="lazy"
                       decoding="async"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
@@ -526,20 +536,20 @@ export const HomePage: React.FC<HomePageProps> = ({
                   <span className="absolute top-6 -left-1 text-white text-xs select-none">✦</span>
                   <span className="absolute bottom-8 right-2 text-white text-xs select-none">✦</span>
                 </div>
-                <h4 className="font-display font-bold text-sm sm:text-base text-white">
+                <h3 className="font-display font-bold text-base sm:text-lg text-white">
                   Bilona Desi Ghee Kitchens
-                </h4>
+                </h3>
               </div>
 
               {/* Store 3 */}
               <div className="space-y-3 group">
-                <div className="relative aspect-[3/4] max-w-[190px] sm:max-w-[210px] mx-auto rounded-full overflow-hidden border-2 border-white/80 shadow-[0_4px_20px_rgba(0,0,0,0.3)] bg-[#5E0D20] p-1">
-                  <div className="w-full h-full rounded-full overflow-hidden relative">
+                <div className="relative aspect-[4/5] max-w-[240px] sm:max-w-[260px] mx-auto rounded-2xl overflow-hidden border-2 border-white/80 shadow-[0_6px_24px_rgba(0,0,0,0.3)] bg-[#5E0D20] p-1.5">
+                  <div className="w-full h-full rounded-xl overflow-hidden relative">
                     <img
                       src="https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=600&q=80"
                       alt="Artisanal Chhena & Namkeen Counter"
-                      width="210"
-                      height="280"
+                      width="260"
+                      height="325"
                       loading="lazy"
                       decoding="async"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
@@ -550,9 +560,9 @@ export const HomePage: React.FC<HomePageProps> = ({
                   <span className="absolute top-2 left-3 text-white text-xs select-none">✦</span>
                   <span className="absolute -bottom-1 right-4 text-white text-xs select-none">✦</span>
                 </div>
-                <h4 className="font-display font-bold text-sm sm:text-base text-white">
+                <h3 className="font-display font-bold text-base sm:text-lg text-white">
                   Fresh Chhena & Namkeen
-                </h4>
+                </h3>
               </div>
             </div>
 
