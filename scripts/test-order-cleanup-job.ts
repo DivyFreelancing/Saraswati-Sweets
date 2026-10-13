@@ -589,9 +589,92 @@ async function runOrderCleanupJobTests() {
     console.log('✓ PASS: Single-flight guard verified: concurrent call returns immediately without executing duplicate job');
 
     // -------------------------------------------------------------------------
-    // TEST 8: Postgres Error 42703 (undefined_column on orders.needs_review)
+    // TEST 8A: needs_review missing in DB + Cashfree EXPIRED => order IS cancelled
     // -------------------------------------------------------------------------
-    console.log('\n--- 8. Postgres Error 42703: Log once, keep in memory, never count as failed cancel ---');
+    console.log('\n--- 8A. Cancellation Independent of needs_review: missing column + EXPIRED => order cancelled ---');
+    clearOrderCleanupTracker();
+    inMemoryStore.orders.clear();
+
+    const expOrderId = randomUUID();
+    const expOrderNum = `SS-EXP-NO-NR-${Date.now()}`;
+    const expOrder: ServerOrder = {
+      id: expOrderId,
+      order_number: expOrderNum,
+      customer_id: 'cust-exp-1',
+      status: 'PENDING_PAYMENT',
+      payment_status: 'PENDING',
+      payment_method: 'ONLINE',
+      total_amount: 750,
+      provider_order_id: 'cf_exp_no_nr_1',
+      created_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+      updated_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+      items: [],
+    };
+    inMemoryStore.orders.set(expOrderId, expOrder);
+
+    simulatedResponse = {
+      status: 200,
+      ok: true,
+      data: { order_status: 'EXPIRED' },
+    };
+
+    let cancelUpdateCalled = false;
+    let cancelUpdatedColumns: any = null;
+
+    // Database client that succeeds on cancel update (which updates status, payment_status, etc.)
+    // but fails with 42703 if needs_review were updated
+    const mockDbClientNoNeedsReview: any = {
+      from: (table: string) => ({
+        select: () => ({
+          eq: () => ({
+            lt: () => ({
+              order: () => ({
+                limit: async () => ({ data: [], error: null }),
+              }),
+            }),
+          }),
+        }),
+        update: (fields: any) => {
+          if (fields.needs_review !== undefined || fields.review_reason !== undefined) {
+            return {
+              eq: async () => ({
+                data: null,
+                error: { code: '42703', message: 'column orders.needs_review does not exist' },
+              }),
+            };
+          }
+          cancelUpdateCalled = true;
+          cancelUpdatedColumns = fields;
+          return {
+            eq: () => ({
+              eq: () => ({
+                select: async () => ({
+                  data: [{ id: expOrderId, delivery_slot_id: null }],
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        },
+      }),
+    };
+
+    const expiredCancelCount = await expireUnpaidOrders(mockDbClientNoNeedsReview);
+    assert.strictEqual(expiredCancelCount, 1, 'Job reports 1 order expired/cancelled');
+    assert.strictEqual(cancelUpdateCalled, true, 'Cancellation update was issued to DB');
+    assert.strictEqual(cancelUpdatedColumns?.status, 'CANCELLED', 'Order status cancelled in DB');
+    assert.strictEqual(cancelUpdatedColumns?.payment_status, 'FAILED', 'Payment status failed in DB');
+    assert.strictEqual(cancelUpdatedColumns?.needs_review, undefined, 'Cancellation update does NOT touch needs_review');
+
+    const inMemoryExpOrder = inMemoryStore.orders.get(expOrderId);
+    assert.strictEqual(inMemoryExpOrder?.status, 'CANCELLED', 'In-memory order is CANCELLED');
+    assert.strictEqual(inMemoryExpOrder?.payment_status, 'FAILED', 'In-memory payment_status is FAILED');
+    console.log('✓ PASS: needs_review missing + Cashfree EXPIRED => order is successfully cancelled');
+
+    // -------------------------------------------------------------------------
+    // TEST 8B: Postgres 42703 when flagging for manual review: log once, keep in memory, never count as failed cancel
+    // -------------------------------------------------------------------------
+    console.log('\n--- 8B. Postgres Error 42703: Log once, keep in memory, never count as failed cancel ---');
     resetNeedsReviewColumnMissingGuard();
     clearOrderCleanupTracker();
     inMemoryStore.orders.clear();
@@ -606,7 +689,7 @@ async function runOrderCleanupJobTests() {
     };
 
     try {
-      // Order 1: Terminal EXPIRED order whose cancellation CAS fails with 42703
+      // Order 1: Online order missing provider_order_id (needs review)
       const order1Id = randomUUID();
       const order1Num = `SS-42703-1-${Date.now()}`;
       const order1: ServerOrder = {
@@ -617,14 +700,14 @@ async function runOrderCleanupJobTests() {
         payment_status: 'PENDING',
         payment_method: 'ONLINE',
         total_amount: 500,
-        provider_order_id: 'cf_42703_1',
+        provider_order_id: '', // missing provider_order_id triggers manual review
         created_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
         updated_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
         items: [],
       };
       inMemoryStore.orders.set(order1Id, order1);
 
-      // Order 2: Another order whose cancellation CAS also fails with 42703
+      // Order 2: Another online order missing provider_order_id (needs review)
       const order2Id = randomUUID();
       const order2Num = `SS-42703-2-${Date.now()}`;
       const order2: ServerOrder = {
@@ -635,21 +718,14 @@ async function runOrderCleanupJobTests() {
         payment_status: 'PENDING',
         payment_method: 'ONLINE',
         total_amount: 600,
-        provider_order_id: 'cf_42703_2',
+        provider_order_id: '', // missing provider_order_id triggers manual review
         created_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
         updated_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
         items: [],
       };
       inMemoryStore.orders.set(order2Id, order2);
 
-      // Gateway returns EXPIRED for both orders
-      simulatedResponse = {
-        status: 200,
-        ok: true,
-        data: { order_status: 'EXPIRED' },
-      };
-
-      const mockDbClient42703: any = {
+      const mockDbClientMissingCol: any = {
         from: (table: string) => ({
           select: () => ({
             eq: () => ({
@@ -661,19 +737,15 @@ async function runOrderCleanupJobTests() {
             }),
           }),
           update: () => ({
-            eq: () => ({
-              eq: () => ({
-                select: async () => ({
-                  data: null,
-                  error: { code: '42703', message: 'column orders.needs_review does not exist' },
-                }),
-              }),
+            eq: async () => ({
+              data: null,
+              error: { code: '42703', message: 'column orders.needs_review does not exist' },
             }),
           }),
         }),
       };
 
-      await expireUnpaidOrders(mockDbClient42703);
+      await expireUnpaidOrders(mockDbClientMissingCol);
 
       // Verify Warning Logged ONCE only
       const warningLogs = warnMessages.filter((m) => m.includes('Postgres 42703') && m.includes('orders.needs_review'));
@@ -697,6 +769,75 @@ async function runOrderCleanupJobTests() {
       console.log('✓ PASS: Postgres 42703 verified: logs warning once, keeps flag in memory, never increments failedCancelAttempts');
     } finally {
       console.warn = origConsoleWarn;
+    }
+
+    // -------------------------------------------------------------------------
+    // TEST 8C: List query fails with Postgres 42703 (any missing column)
+    // -------------------------------------------------------------------------
+    console.log('\n--- 8C. List Query Postgres 42703: Log clear error naming missing column and skip cycle ---');
+    clearOrderCleanupTracker();
+    inMemoryStore.orders.clear();
+
+    const candidateId = randomUUID();
+    const candidateOrder: ServerOrder = {
+      id: candidateId,
+      order_number: `SS-CANDIDATE-${Date.now()}`,
+      status: 'PENDING_PAYMENT',
+      payment_status: 'PENDING',
+      payment_method: 'ONLINE',
+      total_amount: 500,
+      provider_order_id: 'cf_cand_1',
+      created_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+      updated_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+      items: [],
+    };
+    inMemoryStore.orders.set(candidateId, candidateOrder);
+
+    const errorLogs: string[] = [];
+    const origConsoleError = console.error;
+    console.error = (...args: any[]) => {
+      errorLogs.push(args.join(' '));
+      origConsoleError(...args);
+    };
+
+    try {
+      const mockListQuery42703Client: any = {
+        from: (table: string) => ({
+          select: () => ({
+            eq: () => ({
+              lt: () => ({
+                order: () => ({
+                  limit: async () => ({
+                    data: null,
+                    error: {
+                      code: '42703',
+                      message: 'column orders.missing_special_col does not exist',
+                    },
+                  }),
+                }),
+              }),
+            }),
+          }),
+        }),
+      };
+
+      const skippedCycleCount = await expireUnpaidOrders(mockListQuery42703Client);
+
+      // Cycle was skipped (returned 0)
+      assert.strictEqual(skippedCycleCount, 0, 'Cleanup cycle was skipped on Postgres 42703 list query error');
+
+      // Candidate was NOT processed or cancelled
+      const candAfter = inMemoryStore.orders.get(candidateId);
+      assert.strictEqual(candAfter?.status, 'PENDING_PAYMENT', 'Candidate order was not cancelled (not treated as "no orders found")');
+
+      // Error was logged naming the missing column 'missing_special_col'
+      const matchedLog = errorLogs.find(
+        (log) => log.includes('Postgres error 42703') && log.includes('missing_special_col')
+      );
+      assert(matchedLog, 'Error was logged naming the missing column "missing_special_col"');
+      console.log('✓ PASS: List query 42703 logs clear error naming missing column and skips cycle without treating as "no orders found"');
+    } finally {
+      console.error = origConsoleError;
     }
 
     // -------------------------------------------------------------------------

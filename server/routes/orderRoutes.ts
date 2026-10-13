@@ -12,7 +12,6 @@ import {
   OrderStatus,
   VALID_ORDER_TRANSITIONS,
   SERVICEABLE_PINCODES,
-  expireUnpaidOrders,
   logAuditEvent,
   validateCouponServer,
   isLiveSupabase,
@@ -162,9 +161,6 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
     guest_email,
     payment_method = 'COD',
   } = req.body;
-
-  // Run auto-expire check on pending orders to free up slots
-  expireUnpaidOrders();
 
   // 2. Validate Items
   if (!Array.isArray(items) || items.length === 0) {

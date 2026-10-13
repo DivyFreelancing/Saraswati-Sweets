@@ -1526,9 +1526,8 @@ export async function expireUnpaidOrders(client?: SupabaseClient | null): Promis
   // 2. Discover persistent pending orders from Supabase (vital after server restart)
   if (activeClient) {
     const expiryIso = new Date(now - EXPIRY_MS).toISOString();
-    // Select ONLY needed columns with limit(200) ordered by created_at (replaces select=*)
-    let queryCols = 'id, order_number, status, payment_status, payment_method, total_amount, provider_order_id, delivery_slot_id, created_at, updated_at';
-    let { data: dbOrders, error: dbQueryErr } = await activeClient
+    const queryCols = 'id, order_number, status, payment_status, payment_method, total_amount, provider_order_id, delivery_slot_id, created_at, updated_at';
+    const { data: dbOrders, error: dbQueryErr } = await activeClient
       .from('orders')
       .select(queryCols)
       .eq('status', 'PENDING_PAYMENT')
@@ -1536,20 +1535,25 @@ export async function expireUnpaidOrders(client?: SupabaseClient | null): Promis
       .order('created_at', { ascending: true })
       .limit(200);
 
-    if (dbQueryErr && dbQueryErr.message?.includes('provider_order_id')) {
-      queryCols = 'id, order_number, status, payment_status, payment_method, total_amount, delivery_slot_id, created_at, updated_at';
-      const fallbackRes = await activeClient
-        .from('orders')
-        .select(queryCols)
-        .eq('status', 'PENDING_PAYMENT')
-        .lt('created_at', expiryIso)
-        .order('created_at', { ascending: true })
-        .limit(200);
-      dbOrders = fallbackRes.data;
-      dbQueryErr = fallbackRes.error;
-    }
-
     if (dbQueryErr) {
+      const isMissingColumn =
+        dbQueryErr.code === '42703' ||
+        dbQueryErr.message?.includes('42703') ||
+        dbQueryErr.message?.includes('does not exist');
+
+      if (isMissingColumn) {
+        // Extract column name from error message (e.g. "column orders.xyz does not exist" or "column "xyz" does not exist")
+        const colMatch =
+          dbQueryErr.message?.match(/column\s+(?:orders\.)?["']?([a-zA-Z0-9_]+)["']?\s+does not exist/i) ||
+          dbQueryErr.message?.match(/column\s+["']?([a-zA-Z0-9_]+)["']?/i);
+        const missingColName = colMatch?.[1] || 'unknown_column';
+
+        console.error(
+          `[OrderCleanup] Database schema error: Column '${missingColName}' does not exist on table public.orders (Postgres error 42703). Skipping cleanup cycle. Error: ${dbQueryErr.message}`
+        );
+        return 0; // Skip cycle: do NOT treat as "no orders found"
+      }
+
       console.error(
         `[OrderCleanup] Error discovering pending orders from Supabase: ${dbQueryErr.message}. Aborting cleanup run to prevent inconsistent state.`
       );
@@ -1790,57 +1794,6 @@ export async function expireUnpaidOrders(client?: SupabaseClient | null): Promis
       const failedCancel = cancelDbErr || !updatedRows || updatedRows.length === 0;
 
       if (failedCancel) {
-        // If cancellation CAS returned Postgres error 42703 (undefined_column on orders.needs_review):
-        const isNeedsReviewMissing =
-          cancelDbErr &&
-          (cancelDbErr.code === '42703' ||
-            cancelDbErr.message?.includes('needs_review') ||
-            cancelDbErr.message?.includes('42703'));
-
-        if (isNeedsReviewMissing) {
-          if (!hasLoggedNeedsReviewColumnMissing) {
-            hasLoggedNeedsReviewColumnMissing = true;
-            console.warn(
-              '[OrderCleanup] Notice: Column orders.needs_review not present in database schema (Postgres 42703). Keeping manual review flag in-memory only.'
-            );
-          }
-          // The job must log once, keep the flag in memory, and never count it as a failed cancel!
-          order.needs_review = true;
-          order.review_reason = 'Database schema missing needs_review (Postgres 42703)';
-          inMemoryStore.orders.set(order.id, order);
-
-          const curTracking = orderCleanupTracker.get(order.id) || {
-            orderId: order.id,
-            orderNumber: order.order_number,
-            firstCheckedAt,
-            lastCheckedAt: now,
-            nextCheckAt: Number.MAX_SAFE_INTEGER,
-            checkCount,
-            failedCancelAttempts: 0,
-            lastStatus: cashfreeDetails.status,
-            lastDecision: 'defer',
-            lastReason: 'Database schema missing needs_review (Postgres 42703)',
-            needsReview: true,
-            reviewReason: 'Database schema missing needs_review (Postgres 42703)',
-          };
-          curTracking.needsReview = true;
-          curTracking.reviewReason = 'Database schema missing needs_review (Postgres 42703)';
-          curTracking.nextCheckAt = Number.MAX_SAFE_INTEGER;
-          // Never increment failedCancelAttempts
-          orderCleanupTracker.set(order.id, curTracking);
-
-          logOrderCleanupDecision({
-            orderId: order.id,
-            orderNumber: order.order_number,
-            paymentMethod: order.payment_method,
-            hasProviderOrderId: true,
-            cashfreeStatus: cashfreeDetails.status,
-            decision: 'defer',
-            reason: 'Database schema missing needs_review (Postgres 42703); keeping flag in-memory only',
-          });
-          return;
-        }
-
         const failAttempts = (tracking?.failedCancelAttempts || 0) + 1;
         const failMessage = cancelDbErr
           ? `DB update error: ${cancelDbErr.message}`
