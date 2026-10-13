@@ -6,8 +6,7 @@ coverage/
 .DS_Store
 *.log
 .env
-.env.local
-.env.*.local
+.env.*
 !.env.example
 
 # Scratch / debugging scripts (never commit these — they often contain secrets)

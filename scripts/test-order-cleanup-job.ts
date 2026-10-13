@@ -14,6 +14,12 @@ async function runOrderCleanupJobTests() {
     orderCleanupTracker,
     clearOrderCleanupTracker,
     getNextBackoffDelay,
+    isOrderCleanupRunning,
+    resetCleanupInProgressGuard,
+    resetNeedsReviewColumnMissingGuard,
+    hasNeedsReviewColumnWarningLogged,
+    isOrderCleanupEnabled,
+    persistOrderNeedsReview,
   } = await import('../server/db');
   const { fetchCashfreeOrderDetails } = await import('../server/services/cashfreeService');
 
@@ -534,6 +540,263 @@ async function runOrderCleanupJobTests() {
     assert.strictEqual(capturedOrderColumn, 'created_at', 'List query explicitly orders by created_at');
     assert.strictEqual(capturedOrderAscending, true, 'List query orders ascending');
     console.log('✓ PASS: List query verified: selects specific columns, limit(200), order by created_at ASC');
+
+    // -------------------------------------------------------------------------
+    // TEST 7: Single-flight guard (concurrent invocation returns immediately)
+    // -------------------------------------------------------------------------
+    console.log('\n--- 7. Single-Flight Guard: Concurrent runs return immediately ---');
+    resetCleanupInProgressGuard();
+    clearOrderCleanupTracker();
+    inMemoryStore.orders.clear();
+
+    let resumeDbSelect: () => void;
+    const dbSelectPromise = new Promise<void>((resolve) => {
+      resumeDbSelect = resolve;
+    });
+
+    const mockSlowDbClient: any = {
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            lt: () => ({
+              order: () => ({
+                limit: async () => {
+                  await dbSelectPromise;
+                  return { data: [], error: null };
+                },
+              }),
+            }),
+          }),
+        }),
+      }),
+    };
+
+    // Launch first cleanup run asynchronously
+    const run1Promise = expireUnpaidOrders(mockSlowDbClient);
+
+    // Verify cleanup guard state while run 1 is active
+    assert.strictEqual(isOrderCleanupRunning(), true, 'Cleanup job is marked as running during active execution');
+
+    // Launch second concurrent cleanup run
+    const run2Result = await expireUnpaidOrders(mockSlowDbClient);
+    assert.strictEqual(run2Result, 0, 'Second concurrent run returned immediately (returned 0)');
+
+    // Resume run 1 and await completion
+    resumeDbSelect!();
+    const run1Result = await run1Promise;
+    assert.strictEqual(typeof run1Result, 'number', 'First run completed cleanly');
+    assert.strictEqual(isOrderCleanupRunning(), false, 'Single-flight guard released after first run completes');
+    console.log('✓ PASS: Single-flight guard verified: concurrent call returns immediately without executing duplicate job');
+
+    // -------------------------------------------------------------------------
+    // TEST 8: Postgres Error 42703 (undefined_column on orders.needs_review)
+    // -------------------------------------------------------------------------
+    console.log('\n--- 8. Postgres Error 42703: Log once, keep in memory, never count as failed cancel ---');
+    resetNeedsReviewColumnMissingGuard();
+    clearOrderCleanupTracker();
+    inMemoryStore.orders.clear();
+
+    assert.strictEqual(hasNeedsReviewColumnWarningLogged(), false, 'Warning guard starts as unlogged');
+
+    const warnMessages: string[] = [];
+    const origConsoleWarn = console.warn;
+    console.warn = (...args: any[]) => {
+      warnMessages.push(args.join(' '));
+      origConsoleWarn(...args);
+    };
+
+    try {
+      // Order 1: Terminal EXPIRED order whose cancellation CAS fails with 42703
+      const order1Id = randomUUID();
+      const order1Num = `SS-42703-1-${Date.now()}`;
+      const order1: ServerOrder = {
+        id: order1Id,
+        order_number: order1Num,
+        customer_id: 'cust-42703',
+        status: 'PENDING_PAYMENT',
+        payment_status: 'PENDING',
+        payment_method: 'ONLINE',
+        total_amount: 500,
+        provider_order_id: 'cf_42703_1',
+        created_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+        updated_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+        items: [],
+      };
+      inMemoryStore.orders.set(order1Id, order1);
+
+      // Order 2: Another order whose cancellation CAS also fails with 42703
+      const order2Id = randomUUID();
+      const order2Num = `SS-42703-2-${Date.now()}`;
+      const order2: ServerOrder = {
+        id: order2Id,
+        order_number: order2Num,
+        customer_id: 'cust-42703',
+        status: 'PENDING_PAYMENT',
+        payment_status: 'PENDING',
+        payment_method: 'ONLINE',
+        total_amount: 600,
+        provider_order_id: 'cf_42703_2',
+        created_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+        updated_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+        items: [],
+      };
+      inMemoryStore.orders.set(order2Id, order2);
+
+      // Gateway returns EXPIRED for both orders
+      simulatedResponse = {
+        status: 200,
+        ok: true,
+        data: { order_status: 'EXPIRED' },
+      };
+
+      const mockDbClient42703: any = {
+        from: (table: string) => ({
+          select: () => ({
+            eq: () => ({
+              lt: () => ({
+                order: () => ({
+                  limit: async () => ({ data: [], error: null }),
+                }),
+              }),
+            }),
+          }),
+          update: () => ({
+            eq: () => ({
+              eq: () => ({
+                select: async () => ({
+                  data: null,
+                  error: { code: '42703', message: 'column orders.needs_review does not exist' },
+                }),
+              }),
+            }),
+          }),
+        }),
+      };
+
+      await expireUnpaidOrders(mockDbClient42703);
+
+      // Verify Warning Logged ONCE only
+      const warningLogs = warnMessages.filter((m) => m.includes('Postgres 42703') && m.includes('orders.needs_review'));
+      assert.strictEqual(warningLogs.length, 1, 'Notice about Postgres 42703 was logged exactly ONCE across multiple orders');
+      assert.strictEqual(hasNeedsReviewColumnWarningLogged(), true, 'Warning guard marked as logged');
+
+      // Verify Order 1 in-memory state:
+      const updatedOrder1 = inMemoryStore.orders.get(order1Id);
+      const tracking1 = orderCleanupTracker.get(order1Id);
+      assert.strictEqual(updatedOrder1?.needs_review, true, 'Order 1 kept needs_review=true in memory');
+      assert.strictEqual(tracking1?.needsReview, true, 'Order 1 tracking kept needsReview=true in memory');
+      assert.strictEqual(tracking1?.failedCancelAttempts, 0, 'Order 1 failedCancelAttempts is strictly 0 (never counted as failed cancel)');
+
+      // Verify Order 2 in-memory state:
+      const updatedOrder2 = inMemoryStore.orders.get(order2Id);
+      const tracking2 = orderCleanupTracker.get(order2Id);
+      assert.strictEqual(updatedOrder2?.needs_review, true, 'Order 2 kept needs_review=true in memory');
+      assert.strictEqual(tracking2?.needsReview, true, 'Order 2 tracking kept needsReview=true in memory');
+      assert.strictEqual(tracking2?.failedCancelAttempts, 0, 'Order 2 failedCancelAttempts is strictly 0 (never counted as failed cancel)');
+
+      console.log('✓ PASS: Postgres 42703 verified: logs warning once, keeps flag in memory, never increments failedCancelAttempts');
+    } finally {
+      console.warn = origConsoleWarn;
+    }
+
+    // -------------------------------------------------------------------------
+    // TEST 9: POST /api/payments/expire-check is Admin-Only
+    // -------------------------------------------------------------------------
+    console.log('\n--- 9. Route Security: POST /api/payments/expire-check is Admin-Only ---');
+    const { requireRole } = await import('../server/authMiddleware');
+    const adminCheckMiddleware = requireRole(['ADMIN']);
+
+    let unauthStatusCode: number | null = null;
+    let unauthPayload: any = null;
+    const mockUnauthReq: any = { headers: {} };
+    const mockUnauthRes: any = {
+      status: (code: number) => {
+        unauthStatusCode = code;
+        return {
+          json: (data: any) => {
+            unauthPayload = data;
+          },
+        };
+      },
+    };
+    let unauthNextCalled = false;
+    adminCheckMiddleware(mockUnauthReq, mockUnauthRes, () => {
+      unauthNextCalled = true;
+    });
+
+    assert.strictEqual(unauthStatusCode, 401, 'Unauthenticated request rejected with HTTP 401');
+    assert.strictEqual(unauthPayload?.error, 'UNAUTHORIZED', 'Error code is UNAUTHORIZED');
+    assert.strictEqual(unauthNextCalled, false, 'Next was not called for unauthenticated request');
+
+    // Customer user -> HTTP 403 FORBIDDEN
+    let customerStatusCode: number | null = null;
+    let customerPayload: any = null;
+    const mockCustReq: any = { user: { id: 'cust-1', role: 'CUSTOMER' } };
+    const mockCustRes: any = {
+      status: (code: number) => {
+        customerStatusCode = code;
+        return {
+          json: (data: any) => {
+            customerPayload = data;
+          },
+        };
+      },
+    };
+    let customerNextCalled = false;
+    adminCheckMiddleware(mockCustReq, mockCustRes, () => {
+      customerNextCalled = true;
+    });
+
+    assert.strictEqual(customerStatusCode, 403, 'Customer role rejected with HTTP 403');
+    assert.strictEqual(customerPayload?.error, 'FORBIDDEN', 'Error code is FORBIDDEN');
+    assert.strictEqual(customerNextCalled, false, 'Next was not called for customer role');
+
+    // Admin user -> next() called
+    const mockAdminReq: any = { user: { id: 'admin-1', role: 'ADMIN' } };
+    let adminNextCalled = false;
+    adminCheckMiddleware(mockAdminReq, {} as any, () => {
+      adminNextCalled = true;
+    });
+    assert.strictEqual(adminNextCalled, true, 'Admin role authorized to execute expire-check');
+    console.log('✓ PASS: POST /api/payments/expire-check verified as admin-only (401 unauthenticated, 403 customer, 200 admin)');
+
+    // -------------------------------------------------------------------------
+    // TEST 10: Environment Guard: NODE_ENV=production required by default
+    // -------------------------------------------------------------------------
+    console.log('\n--- 10. Environment Guard: NODE_ENV=production required by default ---');
+    const savedNodeEnv = process.env.NODE_ENV;
+    const savedEnable = process.env.ENABLE_ORDER_CLEANUP;
+
+    try {
+      delete process.env.ENABLE_ORDER_CLEANUP;
+
+      process.env.NODE_ENV = 'development';
+      assert.strictEqual(isOrderCleanupEnabled(), false, 'Disabled by default when NODE_ENV="development"');
+
+      process.env.NODE_ENV = 'test';
+      assert.strictEqual(isOrderCleanupEnabled(), false, 'Disabled by default when NODE_ENV="test"');
+
+      process.env.NODE_ENV = 'production';
+      assert.strictEqual(isOrderCleanupEnabled(), true, 'Enabled by default when NODE_ENV="production"');
+
+      // Explicit override tests
+      process.env.ENABLE_ORDER_CLEANUP = 'true';
+      process.env.NODE_ENV = 'development';
+      assert.strictEqual(isOrderCleanupEnabled(), true, 'Explicit ENABLE_ORDER_CLEANUP="true" overrides dev');
+
+      process.env.ENABLE_ORDER_CLEANUP = 'false';
+      process.env.NODE_ENV = 'production';
+      assert.strictEqual(isOrderCleanupEnabled(), false, 'Explicit ENABLE_ORDER_CLEANUP="false" overrides production');
+
+      console.log('✓ PASS: isOrderCleanupEnabled strictly requires NODE_ENV=production by default');
+    } finally {
+      process.env.NODE_ENV = savedNodeEnv;
+      if (savedEnable !== undefined) {
+        process.env.ENABLE_ORDER_CLEANUP = savedEnable;
+      } else {
+        delete process.env.ENABLE_ORDER_CLEANUP;
+      }
+    }
 
     console.log('\n======================================================================');
     console.log('ALL ORDER CLEANUP JOB TESTS PASSED CLEANLY (100% MOCKED)!');

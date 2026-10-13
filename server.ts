@@ -17,7 +17,7 @@ import adminRoutes from './server/routes/adminRoutes';
 import orderRoutes from './server/routes/orderRoutes';
 import paymentRoutes from './server/routes/paymentRoutes';
 import publicRoutes from './server/routes/publicRoutes';
-import { STORE_SETTINGS , loadStoreState } from './server/db';
+import { STORE_SETTINGS , loadStoreState, isOrderCleanupEnabled } from './server/db';
 import { generateRobotsTxt, generateSitemapXml } from './server/services/seoService';
 import { isPlaceholderOrMissingCredentials } from './server/services/cashfreeService';
 
@@ -70,6 +70,12 @@ async function startServer() {
 
   if (isRailway) {
     console.log(`[Railway Deployment] Detected Railway environment. NODE_ENV=${process.env.NODE_ENV}, PORT=${port}`);
+  }
+
+  if (!isOrderCleanupEnabled()) {
+    console.warn(
+      `[OrderCleanup] Startup Warning: Order cleanup background job is DISABLED (NODE_ENV="${process.env.NODE_ENV || 'development'}"). Set NODE_ENV=production or ENABLE_ORDER_CLEANUP=true to enable.`
+    );
   }
 
   // Resolve public site URL

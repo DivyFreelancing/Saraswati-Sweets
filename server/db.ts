@@ -1405,32 +1405,111 @@ export function logOrderCleanupDecision(params: {
 
 /**
  * Environment flag for running cleanup job.
- * Default: true in production, false otherwise.
+ * Default: true strictly in production (NODE_ENV === 'production'), false otherwise.
+ * Overridable explicitly via ENABLE_ORDER_CLEANUP='true' | 'false'.
  */
 export function isOrderCleanupEnabled(): boolean {
   if (process.env.ENABLE_ORDER_CLEANUP !== undefined) {
     return process.env.ENABLE_ORDER_CLEANUP === 'true' || process.env.ENABLE_ORDER_CLEANUP === '1';
   }
-  const isProduction =
-    process.env.NODE_ENV === 'production' ||
-    process.env.CASHFREE_ENVIRONMENT === 'PRODUCTION' ||
-    Boolean(process.env.RAILWAY_ENVIRONMENT);
-  return isProduction;
+  return process.env.NODE_ENV === 'production';
+}
+
+// Single-flight guard: ensure only one run executes at a time
+let isCleanupInProgress = false;
+
+export function isOrderCleanupRunning(): boolean {
+  return isCleanupInProgress;
+}
+
+export function resetCleanupInProgressGuard(): void {
+  isCleanupInProgress = false;
+}
+
+// Postgres error 42703 (undefined_column on orders.needs_review) log-once guard
+let hasLoggedNeedsReviewColumnMissing = false;
+
+export function resetNeedsReviewColumnMissingGuard(): void {
+  hasLoggedNeedsReviewColumnMissing = false;
+}
+
+export function hasNeedsReviewColumnWarningLogged(): boolean {
+  return hasLoggedNeedsReviewColumnMissing;
+}
+
+export async function persistOrderNeedsReview(
+  client: SupabaseClient | null,
+  orderId: string,
+  reviewReason: string
+): Promise<boolean> {
+  if (!client) return false;
+  try {
+    const { error } = await client
+      .from('orders')
+      .update({
+        needs_review: true,
+        review_reason: reviewReason,
+      })
+      .eq('id', orderId);
+
+    if (error) {
+      const isMissingColumn =
+        error.code === '42703' ||
+        error.message?.includes('needs_review') ||
+        error.message?.includes('42703');
+
+      if (isMissingColumn) {
+        if (!hasLoggedNeedsReviewColumnMissing) {
+          hasLoggedNeedsReviewColumnMissing = true;
+          console.warn(
+            '[OrderCleanup] Notice: Column orders.needs_review not present in database schema (Postgres 42703). Keeping manual review flag in-memory only.'
+          );
+        }
+        return false;
+      }
+      console.warn(`[OrderCleanup] Could not persist needs_review for order ${orderId}: ${error.message}`);
+      return false;
+    }
+    return true;
+  } catch (err: any) {
+    const isMissingColumn =
+      err?.code === '42703' ||
+      err?.message?.includes('needs_review') ||
+      err?.message?.includes('42703');
+
+    if (isMissingColumn) {
+      if (!hasLoggedNeedsReviewColumnMissing) {
+        hasLoggedNeedsReviewColumnMissing = true;
+        console.warn(
+          '[OrderCleanup] Notice: Column orders.needs_review not present in database schema (Postgres 42703). Keeping manual review flag in-memory only.'
+        );
+      }
+    }
+    return false;
+  }
 }
 
 // Auto-expire unpaid PENDING_PAYMENT orders after 25 min: verifies with Cashfree, confirms paid orders, cancels definitively failed ones
 export async function expireUnpaidOrders(client?: SupabaseClient | null): Promise<number> {
-  const isTestMode = process.env.UNIT_TEST === 'true' || process.env.NODE_ENV === 'test';
-  const activeClient = client !== undefined ? client : (isTestMode ? null : (isLiveSupabase ? supabaseServer : null));
-
-  // If disabled and not explicitly running with a custom client or in test mode, skip
-  if (!isOrderCleanupEnabled() && !client && !isTestMode) {
+  // Single-flight guard: ensure only one cleanup run executes concurrently
+  if (isCleanupInProgress) {
+    console.log('[OrderCleanup] Cleanup run skipped: another run is already in progress.');
     return 0;
   }
+  isCleanupInProgress = true;
 
-  const now = Date.now();
-  const EXPIRY_MS = 25 * 60 * 1000; // 25 minutes
-  let expiredCount = 0;
+  try {
+    const isTestMode = process.env.UNIT_TEST === 'true' || process.env.NODE_ENV === 'test';
+    const activeClient = client !== undefined ? client : (isTestMode ? null : (isLiveSupabase ? supabaseServer : null));
+
+    // If disabled and not explicitly running with a custom client or in test mode, skip
+    if (!isOrderCleanupEnabled() && !client && !isTestMode) {
+      return 0;
+    }
+
+    const now = Date.now();
+    const EXPIRY_MS = 25 * 60 * 1000; // 25 minutes
+    let expiredCount = 0;
 
   const { fetchCashfreeOrderDetails } = await import('./services/cashfreeService');
   const { confirmOrderPayment } = await import('./services/paymentPersistenceService');
@@ -1569,6 +1648,7 @@ export async function expireUnpaidOrders(client?: SupabaseClient | null): Promis
       order.needs_review = true;
       order.review_reason = reviewReason;
       inMemoryStore.orders.set(order.id, order);
+      await persistOrderNeedsReview(activeClient, order.id, reviewReason);
 
       console.warn(
         `[OrderCleanup] [MANUAL REVIEW REQUIRED] Order #${order.order_number} (${order.id}) missing provider_order_id. Flagging for manual review.`
@@ -1602,6 +1682,7 @@ export async function expireUnpaidOrders(client?: SupabaseClient | null): Promis
       order.needs_review = true;
       order.review_reason = reviewReason;
       inMemoryStore.orders.set(order.id, order);
+      await persistOrderNeedsReview(activeClient, order.id, reviewReason);
 
       console.warn(
         `[OrderCleanup] [STUCK ORDER ALERT] Order #${order.order_number} (${order.id}) requires manual review! Reason: ${reviewReason}`
@@ -1709,6 +1790,57 @@ export async function expireUnpaidOrders(client?: SupabaseClient | null): Promis
       const failedCancel = cancelDbErr || !updatedRows || updatedRows.length === 0;
 
       if (failedCancel) {
+        // If cancellation CAS returned Postgres error 42703 (undefined_column on orders.needs_review):
+        const isNeedsReviewMissing =
+          cancelDbErr &&
+          (cancelDbErr.code === '42703' ||
+            cancelDbErr.message?.includes('needs_review') ||
+            cancelDbErr.message?.includes('42703'));
+
+        if (isNeedsReviewMissing) {
+          if (!hasLoggedNeedsReviewColumnMissing) {
+            hasLoggedNeedsReviewColumnMissing = true;
+            console.warn(
+              '[OrderCleanup] Notice: Column orders.needs_review not present in database schema (Postgres 42703). Keeping manual review flag in-memory only.'
+            );
+          }
+          // The job must log once, keep the flag in memory, and never count it as a failed cancel!
+          order.needs_review = true;
+          order.review_reason = 'Database schema missing needs_review (Postgres 42703)';
+          inMemoryStore.orders.set(order.id, order);
+
+          const curTracking = orderCleanupTracker.get(order.id) || {
+            orderId: order.id,
+            orderNumber: order.order_number,
+            firstCheckedAt,
+            lastCheckedAt: now,
+            nextCheckAt: Number.MAX_SAFE_INTEGER,
+            checkCount,
+            failedCancelAttempts: 0,
+            lastStatus: cashfreeDetails.status,
+            lastDecision: 'defer',
+            lastReason: 'Database schema missing needs_review (Postgres 42703)',
+            needsReview: true,
+            reviewReason: 'Database schema missing needs_review (Postgres 42703)',
+          };
+          curTracking.needsReview = true;
+          curTracking.reviewReason = 'Database schema missing needs_review (Postgres 42703)';
+          curTracking.nextCheckAt = Number.MAX_SAFE_INTEGER;
+          // Never increment failedCancelAttempts
+          orderCleanupTracker.set(order.id, curTracking);
+
+          logOrderCleanupDecision({
+            orderId: order.id,
+            orderNumber: order.order_number,
+            paymentMethod: order.payment_method,
+            hasProviderOrderId: true,
+            cashfreeStatus: cashfreeDetails.status,
+            decision: 'defer',
+            reason: 'Database schema missing needs_review (Postgres 42703); keeping flag in-memory only',
+          });
+          return;
+        }
+
         const failAttempts = (tracking?.failedCancelAttempts || 0) + 1;
         const failMessage = cancelDbErr
           ? `DB update error: ${cancelDbErr.message}`
@@ -1736,6 +1868,7 @@ export async function expireUnpaidOrders(client?: SupabaseClient | null): Promis
           order.needs_review = true;
           order.review_reason = reviewReason;
           inMemoryStore.orders.set(order.id, order);
+          await persistOrderNeedsReview(activeClient, order.id, reviewReason);
         } else {
           const delay = getNextBackoffDelay(checkCount);
           orderCleanupTracker.set(order.id, {
@@ -1822,6 +1955,9 @@ export async function expireUnpaidOrders(client?: SupabaseClient | null): Promis
   });
 
   return expiredCount;
+} finally {
+  isCleanupInProgress = false;
+}
 }
 
 // Function to fetch stale pending orders and their cleanup tracking data for admin review
@@ -1904,6 +2040,12 @@ const cashfreeEnv = process.env.CASHFREE_ENVIRONMENT || 'SANDBOX';
 console.log(
   `[OrderCleanup] Scheduler initialized. Interval: 2m. Supabase host: ${supabaseHost}. Cashfree env: ${cashfreeEnv}. Enabled: ${isOrderCleanupEnabled()}`
 );
+
+if (!isOrderCleanupEnabled()) {
+  console.warn(
+    `[OrderCleanup] WARNING: Order cleanup background job is DISABLED by default (requires NODE_ENV=production or ENABLE_ORDER_CLEANUP=true). Local and test environments will not auto-expire unpaid orders.`
+  );
+}
 
 // Run periodic cleanup every 2 minutes
 setInterval(async () => {
