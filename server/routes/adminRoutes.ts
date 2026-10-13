@@ -441,17 +441,18 @@ router.post('/products', requireRole(['ADMIN']), async (req: AuthenticatedReques
 
   // Write primary image to product_images table
   const imageId = randomUUID();
-  const storagePathMatch = finalImageUrl.split('/product-images/');
-  const storagePath = storagePathMatch.length > 1 ? storagePathMatch[1] : '';
   const { error: imgErr } = await supabaseServer!.from('product_images').insert([{
     id: imageId,
     product_id: id,
-    url: finalImageUrl,
-    storage_path: storagePath,
+    image_url: finalImageUrl,
     is_primary: true,
     display_order: 0,
   }]);
-  if (imgErr) console.error('[Admin] Product image insert failed:', imgErr);
+  if (imgErr) {
+    console.error('[Admin] Product image insert failed:', imgErr);
+    res.status(500).json({ error: 'DB_WRITE_FAILED', message: 'Failed to save product image: ' + imgErr.message });
+    return;
+  }
 
   // Write variants to product_variants table
   const createdVariants: MasterVariant[] = [];
@@ -548,17 +549,42 @@ router.put('/products/:id', requireRole(['ADMIN']), async (req: AuthenticatedReq
 
   // Handle image update separately in product_images table
   if (image_url !== undefined) {
-    await supabaseServer!.from('product_images').delete().eq('product_id', id).eq('is_primary', true);
-    const storagePathMatch = image_url.split('/product-images/');
-    const storagePath = storagePathMatch.length > 1 ? storagePathMatch[1] : '';
-    const { error: imgErr } = await supabaseServer!.from('product_images').insert([{ 
-      product_id: id, 
-      url: image_url, 
-      storage_path: storagePath,
-      is_primary: true, 
-      display_order: 0 
-    }]);
-    
+    const { data: existingImgs } = await supabaseServer!
+      .from('product_images')
+      .select('id')
+      .eq('product_id', id)
+      .eq('is_primary', true);
+
+    let imgErr: any = null;
+    if (existingImgs && existingImgs.length > 0) {
+      const primaryId = existingImgs[0].id;
+      const { error: updateErr } = await supabaseServer!
+        .from('product_images')
+        .update({
+          image_url: image_url,
+          display_order: 0,
+        })
+        .eq('id', primaryId);
+      imgErr = updateErr;
+
+      // Safely prune duplicate primary images only after update succeeds
+      if (!updateErr && existingImgs.length > 1) {
+        const extraIds = existingImgs.slice(1).map((x: any) => x.id);
+        await supabaseServer!.from('product_images').delete().in('id', extraIds);
+      }
+    } else {
+      const { error: insertErr } = await supabaseServer!
+        .from('product_images')
+        .insert([{
+          id: randomUUID(),
+          product_id: id,
+          image_url: image_url,
+          is_primary: true,
+          display_order: 0,
+        }]);
+      imgErr = insertErr;
+    }
+
     if (imgErr) {
       console.error('[Admin] Product image update failed:', imgErr);
       res.status(500).json({ error: 'DB_WRITE_FAILED', message: 'Failed to save product image: ' + imgErr.message });
