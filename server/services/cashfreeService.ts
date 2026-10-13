@@ -145,6 +145,7 @@ export interface CashfreeOrderDetails {
   orderAmount?: number;
   orderCurrency?: string;
   isNetworkError?: boolean;
+  reason?: 'configError' | 'transient' | 'notFound' | 'terminal' | 'paid' | 'nonTerminal' | string;
   rawData?: any;
 }
 
@@ -166,12 +167,14 @@ export function isPlaceholderOrMissingCredentials(
 }
 
 export async function fetchCashfreeOrderDetails(orderId: string): Promise<CashfreeOrderDetails> {
-  if (!orderId) return { status: 'FAILED' };
+  if (!orderId) {
+    return { status: 'UNKNOWN', reason: 'configError', isNetworkError: false };
+  }
 
-  // Fail closed if credentials are missing or placeholder: never auto-verify as PAID
+  // Fail closed if credentials are missing or placeholder: never auto-verify as PAID, never return FAILED or EXPIRED
   if (isPlaceholderOrMissingCredentials()) {
     console.warn('[Cashfree API] Missing, placeholder, or unconfigured credentials: fail closed.');
-    return { status: 'FAILED', isNetworkError: false };
+    return { status: 'UNKNOWN', reason: 'configError', isNetworkError: false };
   }
 
   try {
@@ -188,9 +191,18 @@ export async function fetchCashfreeOrderDetails(orderId: string): Promise<Cashfr
     if (!response.ok) {
       console.error(`[Cashfree API] Failed to fetch order status. HTTP ${response.status}`);
       if (response.status === 404) {
-        return { status: 'FAILED' };
+        // Explicit 404 for an order never created on Cashfree counts as terminal
+        return { status: 'FAILED', reason: 'notFound', isNetworkError: false };
       }
-      return { status: 'UNKNOWN', isNetworkError: true };
+      if (response.status === 401 || response.status === 403) {
+        // Bad credentials or forbidden
+        return { status: 'UNKNOWN', reason: 'configError', isNetworkError: false };
+      }
+      if (response.status === 429 || response.status >= 500) {
+        // Rate limit or transient server outage
+        return { status: 'UNKNOWN', reason: 'transient', isNetworkError: true };
+      }
+      return { status: 'UNKNOWN', reason: 'transient', isNetworkError: true };
     }
 
     const data = await response.json();
@@ -205,11 +217,14 @@ export async function fetchCashfreeOrderDetails(orderId: string): Promise<Cashfr
             : 'UNKNOWN',
       orderAmount: data.order_amount,
       orderCurrency: data.order_currency,
+      reason: orderStatus === 'PAID' ? 'paid'
+            : (orderStatus === 'EXPIRED' || orderStatus === 'TERMINATED' || orderStatus === 'FAILED') ? 'terminal'
+            : 'nonTerminal',
       rawData: data,
     };
   } catch (err: any) {
     console.error('[Cashfree API] Network error verifying order:', err.message);
-    return { status: 'UNKNOWN', isNetworkError: true };
+    return { status: 'UNKNOWN', reason: 'transient', isNetworkError: true };
   }
 }
 

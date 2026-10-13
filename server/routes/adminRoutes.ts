@@ -22,6 +22,7 @@ import {
   loadStoreState,
   isLiveSupabase,
   supabaseServer,
+  getStalePendingOrdersForReview,
 } from '../db';
 import { createCashfreeRefund, fetchCashfreeRefund } from '../services/cashfreeService';
 import { adminOrderEvents, AdminOrderNotificationPayload, emailProvider } from '../services/notificationService';
@@ -961,6 +962,20 @@ router.get('/orders/:id/refund/sync', requireRole(['ADMIN']), async (req: Authen
     res.json({ success: true, refund: refundData, order });
   } catch (err: any) {
     res.status(500).json({ error: 'SYNC_FAILED', message: err.message || 'Failed to sync refund' });
+  }
+});
+
+// GET /api/admin/orders/stale-pending - Review stale pending orders and their Cashfree cleanup status
+router.get('/orders/stale-pending', async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    const orders = await getStalePendingOrdersForReview();
+    res.json({
+      success: true,
+      count: orders.length,
+      orders,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: 'FAILED_FETCH_STALE_ORDERS', message: err.message });
   }
 });
 

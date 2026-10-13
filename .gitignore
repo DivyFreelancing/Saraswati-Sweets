@@ -17,3 +17,6 @@ scratch/
 check-*.cjs
 test-*.cjs
 fix*.cjs
+
+# Playwright artifacts
+.playwright-mcp/

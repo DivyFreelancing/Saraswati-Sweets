@@ -19,6 +19,7 @@ import paymentRoutes from './server/routes/paymentRoutes';
 import publicRoutes from './server/routes/publicRoutes';
 import { STORE_SETTINGS , loadStoreState } from './server/db';
 import { generateRobotsTxt, generateSitemapXml } from './server/services/seoService';
+import { isPlaceholderOrMissingCredentials } from './server/services/cashfreeService';
 
 dotenv.config();
 
@@ -88,6 +89,13 @@ async function startServer() {
     ) {
       console.error(
         '[FATAL CONFIG ERROR] PUBLIC_SITE_URL (or APP_URL) must be configured in production with a valid public HTTPS URL (must start with "https://"). Startup aborted.'
+      );
+      process.exit(1);
+    }
+
+    if (isPlaceholderOrMissingCredentials()) {
+      console.error(
+        '[FATAL CONFIG ERROR] Cashfree credentials (CASHFREE_APP_ID, CASHFREE_SECRET_KEY) are missing or placeholder in production. Startup aborted.'
       );
       process.exit(1);
     }

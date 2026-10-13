@@ -723,6 +723,8 @@ export interface ServerOrder {
   delivery_partner_name?: string;
   delivery_partner_phone?: string;
   assigned_at?: string;
+  needs_review?: boolean;
+  review_reason?: string;
 }
 
 export const VALID_ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
@@ -1329,8 +1331,103 @@ export async function findOrderInSupabase(
   return { order: undefined };
 }
 
+// ==========================================================
+// ORDER CLEANUP SCHEDULER & RECONCILIATION
+// ==========================================================
+
+export interface OrderCleanupScheduleState {
+  orderId: string;
+  orderNumber: string;
+  firstCheckedAt: number;
+  lastCheckedAt: number;
+  nextCheckAt: number;
+  checkCount: number;
+  failedCancelAttempts: number;
+  lastStatus: string;
+  lastDecision: 'cancel' | 'confirm' | 'defer' | 'skip';
+  lastReason: string;
+  needsReview: boolean;
+  reviewReason?: string;
+}
+
+export const orderCleanupTracker = new Map<string, OrderCleanupScheduleState>();
+
+export function clearOrderCleanupTracker(): void {
+  orderCleanupTracker.clear();
+}
+
+/**
+ * Backoff schedule progression:
+ * Checks at 25 min, then +2 min, +10 min, +30 min, +2 h, then once a day.
+ */
+export function getNextBackoffDelay(checkCount: number): number {
+  if (checkCount === 1) return 2 * 60 * 1000;         // +2 min
+  if (checkCount === 2) return 10 * 60 * 1000;        // +10 min
+  if (checkCount === 3) return 30 * 60 * 1000;        // +30 min
+  if (checkCount === 4) return 2 * 60 * 60 * 1000;    // +2 hours
+  return 24 * 60 * 60 * 1000;                         // once a day (24h)
+}
+
+/**
+ * Concurrency worker pool: processes items with bounded concurrency limit.
+ */
+export async function processWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<void>
+): Promise<void> {
+  let index = 0;
+  const workers = Array.from({ length: Math.min(items.length, concurrency) }, async () => {
+    while (index < items.length) {
+      const current = items[index++];
+      await fn(current);
+    }
+  });
+  await Promise.all(workers);
+}
+
+/**
+ * Permanent structured log line (one line per order per cycle).
+ */
+export function logOrderCleanupDecision(params: {
+  orderId: string;
+  orderNumber: string;
+  paymentMethod: string;
+  hasProviderOrderId: boolean;
+  cashfreeStatus: string;
+  decision: 'cancel' | 'confirm' | 'defer' | 'skip';
+  reason: string;
+}): void {
+  console.log(
+    `[OrderCleanup] order_id=${params.orderId} order_number=${params.orderNumber} payment_method=${params.paymentMethod} has_provider_order_id=${params.hasProviderOrderId} cashfree_status=${params.cashfreeStatus} decision=${params.decision} reason="${params.reason}"`
+  );
+}
+
+/**
+ * Environment flag for running cleanup job.
+ * Default: true in production, false otherwise.
+ */
+export function isOrderCleanupEnabled(): boolean {
+  if (process.env.ENABLE_ORDER_CLEANUP !== undefined) {
+    return process.env.ENABLE_ORDER_CLEANUP === 'true' || process.env.ENABLE_ORDER_CLEANUP === '1';
+  }
+  const isProduction =
+    process.env.NODE_ENV === 'production' ||
+    process.env.CASHFREE_ENVIRONMENT === 'PRODUCTION' ||
+    Boolean(process.env.RAILWAY_ENVIRONMENT);
+  return isProduction;
+}
+
 // Auto-expire unpaid PENDING_PAYMENT orders after 25 min: verifies with Cashfree, confirms paid orders, cancels definitively failed ones
-export async function expireUnpaidOrders(): Promise<number> {
+export async function expireUnpaidOrders(client?: SupabaseClient | null): Promise<number> {
+  const isTestMode = process.env.UNIT_TEST === 'true' || process.env.NODE_ENV === 'test';
+  const activeClient = client !== undefined ? client : (isTestMode ? null : (isLiveSupabase ? supabaseServer : null));
+
+  // If disabled and not explicitly running with a custom client or in test mode, skip
+  if (!isOrderCleanupEnabled() && !client && !isTestMode) {
+    return 0;
+  }
+
   const now = Date.now();
   const EXPIRY_MS = 25 * 60 * 1000; // 25 minutes
   let expiredCount = 0;
@@ -1348,13 +1445,30 @@ export async function expireUnpaidOrders(): Promise<number> {
   }
 
   // 2. Discover persistent pending orders from Supabase (vital after server restart)
-  if (isLiveSupabase && supabaseServer) {
+  if (activeClient) {
     const expiryIso = new Date(now - EXPIRY_MS).toISOString();
-    const { data: dbOrders, error: dbQueryErr } = await supabaseServer
+    // Select ONLY needed columns with limit(200) ordered by created_at (replaces select=*)
+    let queryCols = 'id, order_number, status, payment_status, payment_method, total_amount, provider_order_id, delivery_slot_id, created_at, updated_at';
+    let { data: dbOrders, error: dbQueryErr } = await activeClient
       .from('orders')
-      .select('*')
+      .select(queryCols)
       .eq('status', 'PENDING_PAYMENT')
-      .lt('created_at', expiryIso);
+      .lt('created_at', expiryIso)
+      .order('created_at', { ascending: true })
+      .limit(200);
+
+    if (dbQueryErr && dbQueryErr.message?.includes('provider_order_id')) {
+      queryCols = 'id, order_number, status, payment_status, payment_method, total_amount, delivery_slot_id, created_at, updated_at';
+      const fallbackRes = await activeClient
+        .from('orders')
+        .select(queryCols)
+        .eq('status', 'PENDING_PAYMENT')
+        .lt('created_at', expiryIso)
+        .order('created_at', { ascending: true })
+        .limit(200);
+      dbOrders = fallbackRes.data;
+      dbQueryErr = fallbackRes.error;
+    }
 
     if (dbQueryErr) {
       console.error(
@@ -1374,135 +1488,295 @@ export async function expireUnpaidOrders(): Promise<number> {
 
   const pendingOrders = Array.from(pendingOrdersMap.values());
 
-  for (const order of pendingOrders) {
+  // Process candidate orders with a bounded concurrency limit of 5
+  await processWithConcurrency(pendingOrders, 5, async (order) => {
     // Re-check in-memory status in case concurrent webhook confirmed it
-    if (order.status !== 'PENDING_PAYMENT') continue;
-
-    // Check database state first if connected to Supabase
-    if (isLiveSupabase && supabaseServer) {
-      const { data: currentDbOrder, error: checkErr } = await supabaseServer
-        .from('orders')
-        .select('id, status, payment_status, total_amount, provider_order_id, delivery_slot_id, order_number')
-        .eq('id', order.id)
-        .maybeSingle();
-
-      if (checkErr) {
-        console.warn(
-          `[OrderCleanup] Error checking order ${order.id} status in Supabase: ${checkErr.message}. Skipping order.`
-        );
-        continue; // Abort cancellation if the Supabase status query returns an error
-      }
-
-      if (!currentDbOrder) {
-        console.warn(`[OrderCleanup] Order ${order.id} not found in Supabase. Skipping.`);
-        continue;
-      }
-
-      if (currentDbOrder.status !== 'PENDING_PAYMENT') {
-        console.log(
-          `[OrderCleanup] Order #${order.order_number} is already marked ${currentDbOrder.status}/${currentDbOrder.payment_status} in DB. Syncing memory and skipping cancel.`
-        );
-        order.status = currentDbOrder.status;
-        order.payment_status = currentDbOrder.payment_status;
-        inMemoryStore.orders.set(order.id, order);
-        continue;
-      }
-
-      if (currentDbOrder.provider_order_id) {
-        order.provider_order_id = currentDbOrder.provider_order_id;
-      }
-      if (currentDbOrder.delivery_slot_id) {
-        order.delivery_slot_id = currentDbOrder.delivery_slot_id;
-      }
+    if (order.status !== 'PENDING_PAYMENT') {
+      orderCleanupTracker.delete(order.id);
+      logOrderCleanupDecision({
+        orderId: order.id,
+        orderNumber: order.order_number,
+        paymentMethod: order.payment_method,
+        hasProviderOrderId: Boolean(order.provider_order_id),
+        cashfreeStatus: 'N/A',
+        decision: 'skip',
+        reason: `Order is no longer PENDING_PAYMENT (${order.status})`,
+      });
+      return;
     }
 
-    // Authoritative verification with Cashfree gateway
-    if (order.payment_method === 'ONLINE' && order.provider_order_id) {
-      try {
-        const cashfreeDetails = await fetchCashfreeOrderDetails(order.provider_order_id);
-
-        // If Cashfree confirms payment was PAID, reconcile and do NOT cancel!
-        if (cashfreeDetails.status === 'PAID') {
-          console.log(`[OrderCleanup] Order #${order.order_number} confirmed PAID by Cashfree API. Reconciling...`);
-          await confirmOrderPayment({
-            orderIdOrProviderId: order.id,
-            providerOrderId: order.provider_order_id,
-            paymentAmount: cashfreeDetails.orderAmount,
-            currency: cashfreeDetails.orderCurrency || 'INR',
-            source: 'CLEANUP_RECONCILE',
-          });
-          continue;
-        }
-
-        // If Cashfree status is ACTIVE or TERMINATION_REQUESTED, customer may still be completing payment or gateway is processing
-        if (cashfreeDetails.status === 'ACTIVE' || cashfreeDetails.status === 'TERMINATION_REQUESTED') {
-          console.log(
-            `[OrderCleanup] Order #${order.order_number} is in non-terminal state '${cashfreeDetails.status}' on Cashfree. Deferring cancellation.`
-          );
-          continue;
-        }
-
-        // If Cashfree call timed out or returned network error, do NOT cancel
-        if (cashfreeDetails.status === 'UNKNOWN' || cashfreeDetails.isNetworkError) {
-          console.warn(`[OrderCleanup] Ambiguous/Network status for order #${order.order_number}. Retrying next cycle.`);
-          continue;
-        }
-
-        // Cancel only after authoritative verification establishes a definitive terminal payment state:
-        // Cashfree definitive terminal states are EXPIRED, TERMINATED, or FAILED.
-        if (cashfreeDetails.status !== 'EXPIRED' && cashfreeDetails.status !== 'TERMINATED' && cashfreeDetails.status !== 'FAILED') {
-          console.warn(
-            `[OrderCleanup] Order #${order.order_number} is in non-terminal gateway state '${cashfreeDetails.status}'. Deferring cancellation.`
-          );
-          continue;
-        }
-      } catch (err: any) {
-        console.warn(`[OrderCleanup] Error verifying order #${order.order_number} with Cashfree: ${err.message}. Deferring.`);
-        continue;
-      }
+    // COD pending orders are NEVER touched by this job
+    if (order.payment_method === 'COD') {
+      logOrderCleanupDecision({
+        orderId: order.id,
+        orderNumber: order.order_number,
+        paymentMethod: 'COD',
+        hasProviderOrderId: Boolean(order.provider_order_id),
+        cashfreeStatus: 'N/A',
+        decision: 'skip',
+        reason: 'COD pending orders are never touched by this job',
+      });
+      return;
     }
 
+    let tracking = orderCleanupTracker.get(order.id);
+
+    // If order was already flagged for manual review, stop re-checking every cycle
+    if (tracking?.needsReview) {
+      logOrderCleanupDecision({
+        orderId: order.id,
+        orderNumber: order.order_number,
+        paymentMethod: order.payment_method,
+        hasProviderOrderId: Boolean(order.provider_order_id),
+        cashfreeStatus: tracking.lastStatus || 'N/A',
+        decision: 'skip',
+        reason: `Flagged for manual review: ${tracking.reviewReason}`,
+      });
+      return;
+    }
+
+    // Respect backoff schedule cooldown: do not check early!
+    if (tracking && now < tracking.nextCheckAt) {
+      logOrderCleanupDecision({
+        orderId: order.id,
+        orderNumber: order.order_number,
+        paymentMethod: order.payment_method,
+        hasProviderOrderId: Boolean(order.provider_order_id),
+        cashfreeStatus: tracking.lastStatus || 'N/A',
+        decision: 'skip',
+        reason: `In backoff cooldown (next check in ${Math.round((tracking.nextCheckAt - now) / 1000)}s)`,
+      });
+      return;
+    }
+
+    // Online order without provider_order_id: flag for manual review, do NOT cancel
+    if (order.payment_method === 'ONLINE' && !order.provider_order_id) {
+      const reviewReason = 'Online order missing provider_order_id';
+      orderCleanupTracker.set(order.id, {
+        orderId: order.id,
+        orderNumber: order.order_number,
+        firstCheckedAt: tracking?.firstCheckedAt || now,
+        lastCheckedAt: now,
+        nextCheckAt: Number.MAX_SAFE_INTEGER,
+        checkCount: (tracking?.checkCount || 0) + 1,
+        failedCancelAttempts: tracking?.failedCancelAttempts || 0,
+        lastStatus: 'N/A',
+        lastDecision: 'defer',
+        lastReason: reviewReason,
+        needsReview: true,
+        reviewReason,
+      });
+      order.needs_review = true;
+      order.review_reason = reviewReason;
+      inMemoryStore.orders.set(order.id, order);
+
+      console.warn(
+        `[OrderCleanup] [MANUAL REVIEW REQUIRED] Order #${order.order_number} (${order.id}) missing provider_order_id. Flagging for manual review.`
+      );
+      logOrderCleanupDecision({
+        orderId: order.id,
+        orderNumber: order.order_number,
+        paymentMethod: 'ONLINE',
+        hasProviderOrderId: false,
+        cashfreeStatus: 'N/A',
+        decision: 'defer',
+        reason: reviewReason,
+      });
+      return;
+    }
+
+    const checkCount = (tracking?.checkCount || 0) + 1;
+    const firstCheckedAt = tracking?.firstCheckedAt || now;
+
+    // Check if order has been stuck in repeated non-terminal status for > 24 hours
+    if (tracking && now - firstCheckedAt >= 24 * 60 * 60 * 1000) {
+      const reviewReason = 'Repeated non-terminal Cashfree status for over 24 hours';
+      tracking.needsReview = true;
+      tracking.reviewReason = reviewReason;
+      tracking.nextCheckAt = Number.MAX_SAFE_INTEGER;
+      tracking.lastCheckedAt = now;
+      tracking.lastDecision = 'defer';
+      tracking.lastReason = reviewReason;
+      orderCleanupTracker.set(order.id, tracking);
+
+      order.needs_review = true;
+      order.review_reason = reviewReason;
+      inMemoryStore.orders.set(order.id, order);
+
+      console.warn(
+        `[OrderCleanup] [STUCK ORDER ALERT] Order #${order.order_number} (${order.id}) requires manual review! Reason: ${reviewReason}`
+      );
+      logOrderCleanupDecision({
+        orderId: order.id,
+        orderNumber: order.order_number,
+        paymentMethod: order.payment_method,
+        hasProviderOrderId: true,
+        cashfreeStatus: tracking.lastStatus || 'N/A',
+        decision: 'defer',
+        reason: reviewReason,
+      });
+      return;
+    }
+
+    // Authoritative gateway verification with Cashfree
+    let cashfreeDetails: any;
+    try {
+      cashfreeDetails = await fetchCashfreeOrderDetails(order.provider_order_id!);
+    } catch (err: any) {
+      cashfreeDetails = { status: 'UNKNOWN', reason: 'transient', isNetworkError: true };
+    }
+
+    // 1. If Cashfree confirms payment was PAID, reconcile via confirmOrderPayment and do NOT cancel!
+    if (cashfreeDetails.status === 'PAID') {
+      orderCleanupTracker.delete(order.id);
+      await confirmOrderPayment({
+        orderIdOrProviderId: order.id,
+        providerOrderId: order.provider_order_id,
+        paymentAmount: cashfreeDetails.orderAmount,
+        currency: cashfreeDetails.orderCurrency || 'INR',
+        source: 'CLEANUP_RECONCILE',
+      });
+      logOrderCleanupDecision({
+        orderId: order.id,
+        orderNumber: order.order_number,
+        paymentMethod: order.payment_method,
+        hasProviderOrderId: true,
+        cashfreeStatus: 'PAID',
+        decision: 'confirm',
+        reason: 'Order confirmed PAID by Cashfree API; reconciled',
+      });
+      return;
+    }
+
+    // 2. Non-terminal states: UNKNOWN, ACTIVE, TERMINATION_REQUESTED, configError, transient ALWAYS defer
+    const isTerminalStatus =
+      cashfreeDetails.status === 'EXPIRED' ||
+      cashfreeDetails.status === 'TERMINATED' ||
+      cashfreeDetails.status === 'FAILED';
+
+    if (!isTerminalStatus) {
+      const delay = getNextBackoffDelay(checkCount);
+      const deferReason =
+        cashfreeDetails.reason === 'configError'
+          ? 'Cashfree config or credentials error; deferring cancellation'
+          : cashfreeDetails.reason === 'transient'
+          ? 'Transient network or gateway outage; deferring cancellation'
+          : `Order in non-terminal gateway state '${cashfreeDetails.status}'; deferring cancellation`;
+
+      orderCleanupTracker.set(order.id, {
+        orderId: order.id,
+        orderNumber: order.order_number,
+        firstCheckedAt,
+        lastCheckedAt: now,
+        nextCheckAt: now + delay,
+        checkCount,
+        failedCancelAttempts: tracking?.failedCancelAttempts || 0,
+        lastStatus: cashfreeDetails.status,
+        lastDecision: 'defer',
+        lastReason: deferReason,
+        needsReview: false,
+      });
+
+      logOrderCleanupDecision({
+        orderId: order.id,
+        orderNumber: order.order_number,
+        paymentMethod: order.payment_method,
+        hasProviderOrderId: true,
+        cashfreeStatus: cashfreeDetails.status,
+        decision: 'defer',
+        reason: `${deferReason} (next check in ${Math.round(delay / 60000)}m)`,
+      });
+      return;
+    }
+
+    // 3. Definitive terminal state (EXPIRED, TERMINATED, FAILED / 404): attempt cancellation
     const nowIso = new Date().toISOString();
 
-    // Persist cancellation to Supabase FIRST before mutating in-memory store or releasing delivery slot
-    if (isLiveSupabase && supabaseServer) {
-      const { error: cancelDbErr, data: updatedRows } = await supabaseServer
+    if (activeClient) {
+      const { error: cancelDbErr, data: updatedRows } = await activeClient
         .from('orders')
         .update({
           status: 'CANCELLED',
           payment_status: 'FAILED',
           cancelled_at: nowIso,
-          cancel_reason: 'Auto-expired unpaid order after 25 minutes',
+          cancel_reason: 'Auto-expired unpaid order after gateway terminal status',
           updated_at: nowIso,
         })
         .eq('id', order.id)
         .eq('status', 'PENDING_PAYMENT') // Concurrency guard: Only update if STILL PENDING_PAYMENT
         .select('id, delivery_slot_id');
 
-      if (cancelDbErr) {
-        console.error(`[OrderCleanup] Failed to persist cancellation for order ${order.id} in Supabase:`, cancelDbErr);
-        // DO NOT update memory or release slot if database write failed!
-        continue;
+      const failedCancel = cancelDbErr || !updatedRows || updatedRows.length === 0;
+
+      if (failedCancel) {
+        const failAttempts = (tracking?.failedCancelAttempts || 0) + 1;
+        const failMessage = cancelDbErr
+          ? `DB update error: ${cancelDbErr.message}`
+          : 'Zero rows updated during conditional cancellation (status concurrently changed)';
+
+        if (failAttempts >= 5) {
+          const reviewReason = `Exceeded 5 failed cancel attempts: ${failMessage}`;
+          console.warn(
+            `[OrderCleanup] [STUCK ORDER ALERT] Order #${order.order_number} (${order.id}) requires manual review! Reason: ${reviewReason}`
+          );
+          orderCleanupTracker.set(order.id, {
+            orderId: order.id,
+            orderNumber: order.order_number,
+            firstCheckedAt,
+            lastCheckedAt: now,
+            nextCheckAt: Number.MAX_SAFE_INTEGER,
+            checkCount,
+            failedCancelAttempts: failAttempts,
+            lastStatus: cashfreeDetails.status,
+            lastDecision: 'defer',
+            lastReason: reviewReason,
+            needsReview: true,
+            reviewReason,
+          });
+          order.needs_review = true;
+          order.review_reason = reviewReason;
+          inMemoryStore.orders.set(order.id, order);
+        } else {
+          const delay = getNextBackoffDelay(checkCount);
+          orderCleanupTracker.set(order.id, {
+            orderId: order.id,
+            orderNumber: order.order_number,
+            firstCheckedAt,
+            lastCheckedAt: now,
+            nextCheckAt: now + delay,
+            checkCount,
+            failedCancelAttempts: failAttempts,
+            lastStatus: cashfreeDetails.status,
+            lastDecision: 'defer',
+            lastReason: `Cancel attempt failed (${failAttempts}/5): ${failMessage}`,
+            needsReview: false,
+          });
+        }
+
+        logOrderCleanupDecision({
+          orderId: order.id,
+          orderNumber: order.order_number,
+          paymentMethod: order.payment_method,
+          hasProviderOrderId: true,
+          cashfreeStatus: cashfreeDetails.status,
+          decision: 'defer',
+          reason: `Cancel update failed (${failAttempts}/5): ${failMessage}`,
+        });
+        return;
       }
 
-      // If no rows were updated, a concurrent webhook or cleanup run already changed the order state
-      if (!updatedRows || updatedRows.length === 0) {
-        console.warn(`[OrderCleanup] Order ${order.id} was already updated concurrently in Supabase. Skipping.`);
-        continue;
-      }
-
-      // Safely release delivery slot capacity in Supabase
+      // Safely release delivery slot capacity in Supabase if attached
       const targetSlotId = updatedRows[0]?.delivery_slot_id || order.delivery_slot_id;
       if (targetSlotId) {
         try {
-          const { data: slotData } = await supabaseServer
+          const { data: slotData } = await activeClient
             .from('delivery_slots')
             .select('booked_count')
             .eq('id', targetSlotId)
             .maybeSingle();
 
           if (slotData && slotData.booked_count > 0) {
-            await supabaseServer
+            await activeClient
               .from('delivery_slots')
               .update({
                 booked_count: Math.max(0, slotData.booked_count - 1),
@@ -1516,11 +1790,11 @@ export async function expireUnpaidOrders(): Promise<number> {
       }
     }
 
-    // Now that DB write succeeded (or in in-memory mode), update in-memory order
+    // Update in-memory order
     order.status = 'CANCELLED';
     order.payment_status = 'FAILED';
     order.cancelled_at = nowIso;
-    order.cancel_reason = 'Auto-expired unpaid order after 15 minutes';
+    order.cancel_reason = 'Auto-expired unpaid order after gateway terminal status';
     order.updated_at = nowIso;
     inMemoryStore.orders.set(order.id, order);
 
@@ -1533,20 +1807,112 @@ export async function expireUnpaidOrders(): Promise<number> {
       }
     }
 
+    orderCleanupTracker.delete(order.id);
     expiredCount++;
-  }
+
+    logOrderCleanupDecision({
+      orderId: order.id,
+      orderNumber: order.order_number,
+      paymentMethod: order.payment_method,
+      hasProviderOrderId: true,
+      cashfreeStatus: cashfreeDetails.status,
+      decision: 'cancel',
+      reason: `Order cancelled after Cashfree confirmed terminal status ${cashfreeDetails.status}`,
+    });
+  });
 
   return expiredCount;
 }
 
-// Run periodic cleanup every 30 seconds
+// Function to fetch stale pending orders and their cleanup tracking data for admin review
+export async function getStalePendingOrdersForReview(
+  client?: SupabaseClient | null
+) {
+  const isTestMode = process.env.UNIT_TEST === 'true' || process.env.NODE_ENV === 'test';
+  const activeClient = client !== undefined ? client : (isTestMode ? null : (isLiveSupabase ? supabaseServer : null));
+  const staleOrders: any[] = [];
+  const now = Date.now();
+  const EXPIRY_MS = 25 * 60 * 1000;
+
+  for (const order of inMemoryStore.orders.values()) {
+    const isStale = order.status === 'PENDING_PAYMENT' && (now - new Date(order.created_at).getTime() > EXPIRY_MS);
+    const tracking = orderCleanupTracker.get(order.id);
+    if (isStale || tracking?.needsReview) {
+      staleOrders.push({
+        id: order.id,
+        order_number: order.order_number,
+        status: order.status,
+        payment_status: order.payment_status,
+        payment_method: order.payment_method,
+        total_amount: order.total_amount,
+        provider_order_id: order.provider_order_id,
+        created_at: order.created_at,
+        needs_review: order.needs_review || tracking?.needsReview || false,
+        review_reason: order.review_reason || tracking?.reviewReason || null,
+        tracking: tracking || null,
+      });
+    }
+  }
+
+  if (activeClient) {
+    const expiryIso = new Date(now - EXPIRY_MS).toISOString();
+    const { data: dbOrders } = await activeClient
+      .from('orders')
+      .select('id, order_number, status, payment_status, payment_method, total_amount, provider_order_id, delivery_slot_id, created_at, updated_at')
+      .eq('status', 'PENDING_PAYMENT')
+      .lt('created_at', expiryIso)
+      .order('created_at', { ascending: true })
+      .limit(200);
+
+    if (dbOrders && Array.isArray(dbOrders)) {
+      for (const dbo of dbOrders) {
+        if (!staleOrders.some((o) => o.id === dbo.id)) {
+          const tracking = orderCleanupTracker.get(dbo.id);
+          staleOrders.push({
+            id: dbo.id,
+            order_number: dbo.order_number,
+            status: dbo.status,
+            payment_status: dbo.payment_status,
+            payment_method: dbo.payment_method,
+            total_amount: dbo.total_amount,
+            provider_order_id: dbo.provider_order_id,
+            created_at: dbo.created_at,
+            needs_review: tracking?.needsReview || false,
+            review_reason: tracking?.reviewReason || null,
+            tracking: tracking || null,
+          });
+        }
+      }
+    }
+  }
+
+  return staleOrders;
+}
+
+// Startup log & scheduler initialization
+const supabaseHost = supabaseUrl
+  ? (() => {
+      try {
+        return new URL(supabaseUrl).host;
+      } catch {
+        return 'invalid-url';
+      }
+    })()
+  : 'none (in-memory)';
+const cashfreeEnv = process.env.CASHFREE_ENVIRONMENT || 'SANDBOX';
+
+console.log(
+  `[OrderCleanup] Scheduler initialized. Interval: 2m. Supabase host: ${supabaseHost}. Cashfree env: ${cashfreeEnv}. Enabled: ${isOrderCleanupEnabled()}`
+);
+
+// Run periodic cleanup every 2 minutes
 setInterval(async () => {
   try {
     await expireUnpaidOrders();
   } catch (err) {
-    console.error('Error during auto-expire cleanup:', err);
+    console.error('[OrderCleanup] Error during auto-expire cleanup:', err);
   }
-}, 30000);
+}, 120000); // 2 minutes
 
 // Seed admin profile
 inMemoryStore.profiles.set('admin-default', {
