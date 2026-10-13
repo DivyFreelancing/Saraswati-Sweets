@@ -44,6 +44,7 @@ export const AuthModal: React.FC = () => {
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMessage('');
 
     const cleanEmail = email.trim().toLowerCase();
@@ -53,47 +54,53 @@ export const AuthModal: React.FC = () => {
     }
 
     setIsSubmitting(true);
-    const res = await sendEmailOtp(cleanEmail);
-    setIsSubmitting(false);
-
-    if (res.success) {
-      setStep('OTP');
-      setResendCooldown(60);
-      showToast(res.message || 'OTP sent successfully', 'info');
-    } else {
-      setErrorMessage(res.message || 'Failed to send OTP');
+    try {
+      const res = await sendEmailOtp(cleanEmail);
+      if (res.success) {
+        setStep('OTP');
+        setResendCooldown(60);
+        showToast(res.message || 'OTP sent successfully', 'info');
+      } else {
+        setErrorMessage(res.message || 'Failed to send OTP');
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMessage('');
-    if (otp.length < 6) {
+    if (otp.length < 6 || otp.length > 8) {
       setErrorMessage('Please enter the verification code');
       return;
     }
 
     setIsSubmitting(true);
-    const res = await verifyEmailOtp(email, otp);
-    setIsSubmitting(false);
-
-    if (res.success) {
-      if (res.needsProfileInfo) {
-        setStep('PROFILE');
-        showToast('Authentication successful. Please complete your profile.', 'success');
+    try {
+      const res = await verifyEmailOtp(email, otp);
+      if (res.success) {
+        if (res.needsProfileInfo) {
+          setStep('PROFILE');
+          showToast('Authentication successful. Please complete your profile.', 'success');
+        } else {
+          // Modal closed internally in AuthContext if not missing info
+          setStep('EMAIL');
+          setEmail('');
+          setOtp('');
+        }
       } else {
-        // Modal closed internally in AuthContext if not missing info
-        setStep('EMAIL');
-        setEmail('');
-        setOtp('');
+        setErrorMessage(res.message || 'Invalid or expired OTP code');
       }
-    } else {
-      setErrorMessage(res.message || 'Invalid OTP code');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMessage('');
 
     const cleanName = fullName.trim();
@@ -109,22 +116,25 @@ export const AuthModal: React.FC = () => {
     }
 
     setIsSubmitting(true);
-    const res = await updateUserProfile({
-      full_name: cleanName,
-      phone: `+91 ${clean.slice(0, 5)} ${clean.slice(5)}`
-    });
-    setIsSubmitting(false);
+    try {
+      const res = await updateUserProfile({
+        full_name: cleanName,
+        phone: `+91 ${clean.slice(0, 5)} ${clean.slice(5)}`
+      });
 
-    if (res.success) {
-      setStep('EMAIL');
-      setEmail('');
-      setOtp('');
-      setFullName('');
-      setPhoneNumber('');
-      closeAuthModal();
-      showToast('Profile saved successfully! Welcome to Saraswati Sweets.', 'success');
-    } else {
-      setErrorMessage(res.message || 'Failed to save profile');
+      if (res.success) {
+        setStep('EMAIL');
+        setEmail('');
+        setOtp('');
+        setFullName('');
+        setPhoneNumber('');
+        closeAuthModal();
+        showToast('Profile saved successfully! Welcome to Saraswati Sweets.', 'success');
+      } else {
+        setErrorMessage(res.message || 'Failed to save profile');
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -273,7 +283,7 @@ export const AuthModal: React.FC = () => {
                     autoFocus
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                    placeholder="• • • • • •"
+                    placeholder="• • • • • • • •"
                     className="w-full text-center tracking-[0.45em] font-mono font-bold text-2xl py-3.5 rounded-xl border border-[#E8DCC8] bg-[#FDFBF7] focus:bg-white focus:border-[#7A1129] focus:ring-2 focus:ring-[#C79A3D]/25 focus:outline-none transition-all shadow-2xs text-[#7A1129]"
                   />
                 </div>
@@ -292,20 +302,34 @@ export const AuthModal: React.FC = () => {
                 <div className="pt-2 flex items-center justify-end text-xs">
                   <button
                     type="button"
-                    disabled={resendCooldown > 0}
-                    onClick={() => {
-                      setOtp('');
-                      sendEmailOtp(email).then((res) => {
+                    disabled={resendCooldown > 0 || isSubmitting}
+                    onClick={async () => {
+                      if (resendCooldown > 0 || isSubmitting) return;
+                      setErrorMessage('');
+                      setIsSubmitting(true);
+                      try {
+                        const res = await sendEmailOtp(email);
                         if (res.success) {
+                          setOtp('');
                           setResendCooldown(60);
                           showToast(`New OTP sent to ${email}`, 'info');
+                        } else {
+                          setErrorMessage(res.message || 'Failed to resend OTP');
                         }
-                      });
+                      } finally {
+                        setIsSubmitting(false);
+                      }
                     }}
                     className="text-[#6E6259] hover:text-[#221A14] disabled:opacity-50 flex items-center gap-1 font-medium transition-colors"
                   >
-                    <RotateCcw className="w-3 h-3" />
-                    <span>{resendCooldown > 0 ? `Resend OTP in ${resendCooldown}s` : 'Resend OTP'}</span>
+                    <RotateCcw className={`w-3 h-3 ${isSubmitting ? 'animate-spin' : ''}`} />
+                    <span>
+                      {isSubmitting
+                        ? 'Sending...'
+                        : resendCooldown > 0
+                        ? `Resend OTP in ${resendCooldown}s`
+                        : 'Resend OTP'}
+                    </span>
                   </button>
                 </div>
               </form>

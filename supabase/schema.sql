@@ -442,6 +442,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Public READ on Catalog
 CREATE POLICY "Public categories are viewable by everyone" ON public.categories FOR SELECT USING (is_active = TRUE);
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 CREATE POLICY "Public products are viewable by everyone" ON public.products FOR SELECT USING (is_active = TRUE AND deleted_at IS NULL);
 CREATE POLICY "Public variants are viewable by everyone" ON public.product_variants FOR SELECT USING (TRUE);
 CREATE POLICY "Public product images are viewable by everyone" ON public.product_images FOR SELECT USING (TRUE);

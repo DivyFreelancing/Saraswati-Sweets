@@ -165,10 +165,10 @@ router.post('/sync', requireAuth, async (req: AuthenticatedRequest, res: Respons
 
   const cleanDigits = phone ? phone.replace(/\D/g, '').slice(-10) : '';
   let formattedPhone = cleanDigits.length === 10 ? `+91 ${cleanDigits.slice(0, 5)} ${cleanDigits.slice(5)}` : (phone || undefined);
-  let displayName = full_name?.trim() || '';
+  let displayName = full_name?.trim() || (email ? email.split('@')[0] : '');
 
   // Role security: default to CUSTOMER for new profiles; preserve existing role from database
-  let finalRole: 'CUSTOMER' | 'STAFF' | 'ADMIN' = 'CUSTOMER';
+  let finalRole: 'CUSTOMER' | 'STAFF' | 'ADMIN' = req.user?.role || 'CUSTOMER';
   let finalCreatedAt = new Date().toISOString();
   let existingProfile: any = null;
 

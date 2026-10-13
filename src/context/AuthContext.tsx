@@ -316,47 +316,72 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Verify Email OTP
   const verifyEmailOtp = async (email: string, otp: string): Promise<{ success: boolean; message?: string; needsProfileInfo?: boolean }> => {
     const cleanEmail = email.trim().toLowerCase();
+    const cleanOtp = (otp || '').trim().replace(/\D/g, '');
+
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      return { success: false, message: 'Please enter a valid email address' };
+    }
+
+    if (!cleanOtp || cleanOtp.length < 6 || cleanOtp.length > 8) {
+      return { success: false, message: 'Please enter a valid verification code' };
+    }
 
     if (isSupabaseConfigured() && supabase) {
       try {
-        const { data, error } = await supabase.auth.verifyOtp({
+        // Primary verification: passwordless OTP type 'email'
+        let { data, error } = await supabase.auth.verifyOtp({
           email: cleanEmail,
-          token: otp,
+          token: cleanOtp,
           type: 'email',
         });
 
-        if (error) {
+        // Fallback verification: if unconfirmed user token was dispatched as signup confirmation
+        if (error && (!data || !data.session)) {
+          try {
+            const signupAttempt = await supabase.auth.verifyOtp({
+              email: cleanEmail,
+              token: cleanOtp,
+              type: 'signup',
+            });
+            if (!signupAttempt.error && signupAttempt.data?.session) {
+              data = signupAttempt.data;
+              error = null;
+            }
+          } catch {
+            // Ignore fallback error and retain primary error message
+          }
+        }
+
+        if (error || !data || !data.session || !data.user) {
           return { success: false, message: 'Invalid or expired OTP. Please request a new code.' };
         }
 
-        if (data.session && data.user) {
-          const jwt = data.session.access_token;
-          setToken(jwt);
+        const jwt = data.session.access_token;
+        setToken(jwt);
 
-          const synced = await syncProfileOnServer(
-            {
-              id: data.user.id,
-              email: cleanEmail,
-              full_name: (data.user.user_metadata?.full_name as string) || '',
-              role: 'CUSTOMER',
-            },
-            jwt
-          );
+        const synced = await syncProfileOnServer(
+          {
+            id: data.user.id,
+            email: cleanEmail,
+            full_name: (data.user.user_metadata?.full_name as string) || '',
+            role: 'CUSTOMER',
+          },
+          jwt
+        );
 
-          localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: jwt, user: synced }));
-          
-          const missingInfo = !synced.phone || !synced.full_name;
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: jwt, user: synced }));
+        
+        const missingInfo = !synced.phone || !synced.full_name;
 
-          if (!missingInfo) {
-            setIsAuthModalOpen(false);
-            showToast(`Welcome back, ${synced.full_name}!`, 'success');
-          }
-          
-          return { success: true, needsProfileInfo: missingInfo };
+        if (!missingInfo) {
+          setIsAuthModalOpen(false);
+          showToast(`Welcome back, ${synced.full_name}!`, 'success');
         }
+        
+        return { success: true, needsProfileInfo: missingInfo };
       } catch (err) {
         console.warn('Supabase verifyOtp error:', err);
-        return { success: false, message: 'Error verifying OTP' };
+        return { success: false, message: 'Error verifying OTP. Please try again.' };
       }
     }
 
