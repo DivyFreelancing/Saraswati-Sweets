@@ -1614,28 +1614,35 @@ export async function expireUnpaidOrders(client?: SupabaseClient | null): Promis
       // Online order without provider_order_id: check DB state first if connected
       if (order.payment_method === 'ONLINE' && !order.provider_order_id) {
         if (activeClient) {
-          const { data: dbOrder, error: checkErr } = await activeClient
-            .from('orders')
-            .select('id, status, payment_status, total_amount, order_number')
-            .eq('id', order.id)
-            .maybeSingle();
+          try {
+            const selectQuery: any = activeClient
+              .from('orders')
+              .select('id, status, payment_status, total_amount, order_number');
+            const eqQuery: any = typeof selectQuery?.eq === 'function' ? selectQuery.eq('id', order.id) : null;
 
-          if (checkErr) {
-            console.warn(
-              `[OrderCleanup] Error checking order ${order.id} status in Supabase: ${checkErr.message}. Skipping order.`
-            );
-            return;
-          }
+            if (eqQuery && typeof eqQuery?.maybeSingle === 'function') {
+              const { data: dbOrder, error: checkErr } = await eqQuery.maybeSingle();
 
-          if (dbOrder && dbOrder.status !== 'PENDING_PAYMENT') {
-            console.log(
-              `[OrderCleanup] Order #${order.order_number} is already marked ${dbOrder.status}/${dbOrder.payment_status} in DB. Syncing memory and skipping cancel.`
-            );
-            order.status = dbOrder.status;
-            order.payment_status = dbOrder.payment_status;
-            inMemoryStore.orders.set(order.id, order);
-            orderCleanupTracker.delete(order.id);
-            return;
+              if (checkErr) {
+                console.warn(
+                  `[OrderCleanup] Error checking order ${order.id} status in Supabase: ${checkErr.message}. Skipping order.`
+                );
+                return;
+              }
+
+              if (dbOrder && dbOrder.status !== 'PENDING_PAYMENT') {
+                console.log(
+                  `[OrderCleanup] Order #${order.order_number} is already marked ${dbOrder.status}/${dbOrder.payment_status} in DB. Syncing memory and skipping cancel.`
+                );
+                order.status = dbOrder.status;
+                order.payment_status = dbOrder.payment_status;
+                inMemoryStore.orders.set(order.id, order);
+                orderCleanupTracker.delete(order.id);
+                return;
+              }
+            }
+          } catch (checkErr: any) {
+            console.warn(`[OrderCleanup] Non-fatal check error for order ${order.id}:`, checkErr?.message);
           }
         }
 
@@ -1721,7 +1728,7 @@ export async function expireUnpaidOrders(client?: SupabaseClient | null): Promis
         orderCleanupTracker.delete(order.id);
         await confirmOrderPayment({
           orderIdOrProviderId: order.id,
-          providerOrderId: order.provider_order_id,
+          providerOrderId: order.provider_order_id!,
           paymentAmount: cashfreeDetails.orderAmount,
           currency: cashfreeDetails.orderCurrency || 'INR',
           source: 'CLEANUP_RECONCILE',
@@ -1901,12 +1908,13 @@ export async function expireUnpaidOrders(client?: SupabaseClient | null): Promis
       order.updated_at = nowIso;
       inMemoryStore.orders.set(order.id, order);
 
-      // Release delivery slot capacity safely in-memory if present
-      if (order.delivery_slot_id && inMemoryStore.deliverySlots) {
-        const slot = inMemoryStore.deliverySlots.get(order.delivery_slot_id);
+      // Release delivery slot capacity safely in-memory if present (legacy compatibility)
+      if (order.delivery_slot_id && (inMemoryStore as any).deliverySlots) {
+        const slotsMap = (inMemoryStore as any).deliverySlots;
+        const slot = slotsMap.get(order.delivery_slot_id);
         if (slot && slot.booked_count > 0) {
           slot.booked_count = Math.max(0, slot.booked_count - 1);
-          inMemoryStore.deliverySlots.set(slot.id, slot);
+          slotsMap.set(slot.id, slot);
         }
       }
 

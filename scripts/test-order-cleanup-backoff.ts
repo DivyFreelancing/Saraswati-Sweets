@@ -40,7 +40,7 @@ async function runCleanupBackoffTests() {
   try {
     const testOrderId = randomUUID();
     const testOrderNum = `SS-TEST-BACKOFF-${Date.now()}`;
-    const testOrder: ServerOrder = {
+    const testOrder: any = {
       id: testOrderId,
       order_number: testOrderNum,
       provider_order_id: testOrderNum,

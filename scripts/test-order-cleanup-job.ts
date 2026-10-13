@@ -107,7 +107,7 @@ async function runOrderCleanupJobTests() {
 
     // Verify none of these ever cause expireUnpaidOrders to cancel an order
     const transientOrderId = randomUUID();
-    const transientOrder: ServerOrder = {
+    const transientOrder: any = {
       id: transientOrderId,
       order_number: `SS-TRANSIENT-${Date.now()}`,
       provider_order_id: `cf_transient_${Date.now()}`,
@@ -158,7 +158,7 @@ async function runOrderCleanupJobTests() {
     ): Promise<{ finalStatus: string; expiredCount: number }> {
       clearOrderCleanupTracker();
       const testId = randomUUID();
-      const testOrder: ServerOrder = {
+      const testOrder: any = {
         id: testId,
         order_number: `SS-TEST-${simStatus}-${Date.now()}`,
         provider_order_id: `cf_${testId}`,
@@ -251,7 +251,7 @@ async function runOrderCleanupJobTests() {
     console.log('✓ PASS: getNextBackoffDelay calculates correct progression (+2m, +10m, +30m, +2h, +24h)');
 
     const backoffOrderId = randomUUID();
-    const backoffOrder: ServerOrder = {
+    const backoffOrder: any = {
       id: backoffOrderId,
       order_number: `SS-BACKOFF-${Date.now()}`,
       provider_order_id: `cf_backoff_${Date.now()}`,
@@ -315,7 +315,7 @@ async function runOrderCleanupJobTests() {
     clearOrderCleanupTracker();
 
     const stuckCancelOrderId = randomUUID();
-    const stuckCancelOrder: ServerOrder = {
+    const stuckCancelOrder: any = {
       id: stuckCancelOrderId,
       order_number: `SS-STUCK-CANCEL-${Date.now()}`,
       provider_order_id: `cf_stuck_${Date.now()}`,
@@ -419,7 +419,7 @@ async function runOrderCleanupJobTests() {
 
     // 5a. COD pending order
     const codOrderId = randomUUID();
-    const codOrder: ServerOrder = {
+    const codOrder: any = {
       id: codOrderId,
       order_number: `SS-COD-${Date.now()}`,
       status: 'PENDING_PAYMENT',
@@ -450,7 +450,7 @@ async function runOrderCleanupJobTests() {
 
     // 5b. Online order missing provider_order_id
     const noProvOrderId = randomUUID();
-    const noProvOrder: ServerOrder = {
+    const noProvOrder: any = {
       id: noProvOrderId,
       order_number: `SS-NO-PROV-${Date.now()}`,
       status: 'PENDING_PAYMENT',
@@ -597,7 +597,7 @@ async function runOrderCleanupJobTests() {
 
     const expOrderId = randomUUID();
     const expOrderNum = `SS-EXP-NO-NR-${Date.now()}`;
-    const expOrder: ServerOrder = {
+    const expOrder: any = {
       id: expOrderId,
       order_number: expOrderNum,
       customer_id: 'cust-exp-1',
@@ -692,7 +692,7 @@ async function runOrderCleanupJobTests() {
       // Order 1: Online order missing provider_order_id (needs review)
       const order1Id = randomUUID();
       const order1Num = `SS-42703-1-${Date.now()}`;
-      const order1: ServerOrder = {
+      const order1: any = {
         id: order1Id,
         order_number: order1Num,
         customer_id: 'cust-42703',
@@ -710,7 +710,7 @@ async function runOrderCleanupJobTests() {
       // Order 2: Another online order missing provider_order_id (needs review)
       const order2Id = randomUUID();
       const order2Num = `SS-42703-2-${Date.now()}`;
-      const order2: ServerOrder = {
+      const order2: any = {
         id: order2Id,
         order_number: order2Num,
         customer_id: 'cust-42703',
@@ -779,7 +779,7 @@ async function runOrderCleanupJobTests() {
     inMemoryStore.orders.clear();
 
     const candidateId = randomUUID();
-    const candidateOrder: ServerOrder = {
+    const candidateOrder: any = {
       id: candidateId,
       order_number: `SS-CANDIDATE-${Date.now()}`,
       status: 'PENDING_PAYMENT',
