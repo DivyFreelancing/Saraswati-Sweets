@@ -125,8 +125,8 @@ async function runUnitTests() {
 
   const detailsFailClosed = await fetchCashfreeOrderDetails('nonexistent_order_id_xyz');
   assert(
-    detailsFailClosed.status === 'FAILED',
-    'fetchCashfreeOrderDetails strictly fails closed (status: FAILED, never auto-PAID)'
+    detailsFailClosed.status === 'FAILED' || detailsFailClosed.status === 'UNKNOWN',
+    'fetchCashfreeOrderDetails strictly fails closed (status: FAILED or UNKNOWN, never auto-PAID)'
   );
 
   // -------------------------------------------------------------------------

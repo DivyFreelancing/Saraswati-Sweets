@@ -11,7 +11,6 @@ import {
   OrderStatus,
   VALID_ORDER_TRANSITIONS,
   SERVICEABLE_PINCODES,
-  expireUnpaidOrders,
   logAuditEvent,
   validateCouponServer,
   isLiveSupabase,
@@ -118,8 +117,7 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
     customer_phone,
   } = req.body;
 
-  // Run auto-expire check on pending orders and check store-wide auto-reopen
-  expireUnpaidOrders();
+  // Check store-wide auto-reopen
   checkAutoReopen(inMemoryStore.storeSettings);
 
   const cleanFulfilmentType: 'DELIVERY' | 'TAKEAWAY' =

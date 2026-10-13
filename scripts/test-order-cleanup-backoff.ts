@@ -1,3 +1,4 @@
+process.env.ENABLE_ORDER_CLEANUP = 'true';
 import assert from 'node:assert';
 import { randomUUID } from 'node:crypto';
 import {
@@ -66,7 +67,14 @@ async function runCleanupBackoffTests() {
       from: () => ({
         select: () => ({
           eq: () => ({
-            lt: async () => ({ data: [testOrder], error: null }),
+            lt: () => {
+              const chain: any = {
+                order: () => chain,
+                limit: () => chain,
+                then: (resolve: any) => resolve({ data: [testOrder], error: null }),
+              };
+              return chain;
+            },
             maybeSingle: async () => ({ data: testOrder, error: null }),
           }),
         }),

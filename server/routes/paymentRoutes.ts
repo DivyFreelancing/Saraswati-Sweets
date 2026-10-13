@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { Router, Request, Response } from 'express';
-import { AuthenticatedRequest, requireAuth } from '../authMiddleware';
+import { AuthenticatedRequest, requireAuth, requireRole } from '../authMiddleware';
 import {
   inMemoryStore,
   ServerOrder,
@@ -498,7 +498,7 @@ router.post('/webhook/cashfree', async (req: Request, res: Response) => {
   res.status(200).json({ status: 'ok', event, processed: true });
 });
 
-router.post('/expire-check', async (_req: Request, res: Response) => {
+router.post('/expire-check', requireRole(['ADMIN']), async (_req: AuthenticatedRequest, res: Response) => {
   const expiredCount = await expireUnpaidOrders();
   res.json({
     success: true,
