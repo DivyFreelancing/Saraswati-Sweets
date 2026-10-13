@@ -68,11 +68,6 @@ router.post('/sync', requireAuth, async (req: AuthenticatedRequest, res: Respons
     return;
   }
 
-  if (!id) {
-    res.status(400).json({ error: 'MISSING_ID', message: 'User ID is required' });
-    return;
-  }
-
   const cleanPhone = phone ? phone.replace(/\D/g, '').slice(-10) : '';
   const formattedPhone = cleanPhone ? `+91 ${cleanPhone.slice(0, 5)} ${cleanPhone.slice(5)}` : phone;
 

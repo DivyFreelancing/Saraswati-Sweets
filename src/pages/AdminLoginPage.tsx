@@ -35,6 +35,7 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMessage('');
 
     const cleanEmail = email.trim().toLowerCase();
@@ -44,44 +45,50 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
     }
 
     setIsSubmitting(true);
-    const res = await sendEmailOtp(cleanEmail);
-    setIsSubmitting(false);
-
-    if (res.success) {
-      setStep('OTP');
-      setResendCooldown(60);
-      showToast(res.message || 'OTP sent successfully', 'info');
-    } else {
-      setErrorMessage(res.message || 'Failed to send OTP');
+    try {
+      const res = await sendEmailOtp(cleanEmail);
+      if (res.success) {
+        setStep('OTP');
+        setResendCooldown(60);
+        showToast(res.message || 'OTP sent successfully', 'info');
+      } else {
+        setErrorMessage(res.message || 'Failed to send OTP');
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMessage('');
-    if (otp.length < 6) {
+    if (otp.length < 6 || otp.length > 8) {
       setErrorMessage('Please enter the verification code');
       return;
     }
 
     setIsSubmitting(true);
-    const res = await verifyEmailOtp(email, otp);
-    setIsSubmitting(false);
-
-    if (res.success) {
-      if (res.needsProfileInfo || !user?.full_name || !user?.phone) {
-        setStep('PROFILE');
-        showToast('Authentication successful. Please complete your staff profile.', 'success');
+    try {
+      const res = await verifyEmailOtp(email, otp);
+      if (res.success) {
+        if (res.needsProfileInfo || !user?.full_name || !user?.phone) {
+          setStep('PROFILE');
+          showToast('Authentication successful. Please complete your staff profile.', 'success');
+        } else {
+          onLoginSuccess();
+        }
       } else {
-        onLoginSuccess();
+        setErrorMessage(res.message || 'Invalid or expired OTP');
       }
-    } else {
-      setErrorMessage(res.message || 'Invalid or expired OTP');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMessage('');
 
     const cleanName = fullName.trim();
@@ -97,16 +104,19 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
     }
 
     setIsSubmitting(true);
-    const res = await updateUserProfile({
-      full_name: cleanName,
-      phone: `+91 ${clean.slice(0, 5)} ${clean.slice(5)}`
-    });
-    setIsSubmitting(false);
+    try {
+      const res = await updateUserProfile({
+        full_name: cleanName,
+        phone: `+91 ${clean.slice(0, 5)} ${clean.slice(5)}`
+      });
 
-    if (res.success) {
-      onLoginSuccess();
-    } else {
-      setErrorMessage(res.message || 'Failed to save profile');
+      if (res.success) {
+        onLoginSuccess();
+      } else {
+        setErrorMessage(res.message || 'Failed to save profile');
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -186,7 +196,7 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
                 autoFocus
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                placeholder="• • • • • •"
+                placeholder="• • • • • • • •"
                 className="w-full text-center tracking-[0.45em] font-mono font-bold text-2xl py-3.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-[#8A1538] focus:bg-white focus:border-[#8A1538] focus:outline-none transition-all"
               />
             </div>
@@ -203,19 +213,31 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
             <div className="pt-2 flex justify-center text-xs">
               <button
                 type="button"
-                disabled={resendCooldown > 0}
-                onClick={() => {
-                  setOtp('');
-                  sendEmailOtp(email).then((res) => {
+                disabled={resendCooldown > 0 || isSubmitting}
+                onClick={async () => {
+                  if (resendCooldown > 0 || isSubmitting) return;
+                  setErrorMessage('');
+                  setIsSubmitting(true);
+                  try {
+                    const res = await sendEmailOtp(email);
                     if (res.success) {
+                      setOtp('');
                       setResendCooldown(60);
                       showToast(`New code sent to ${email}`, 'info');
+                    } else {
+                      setErrorMessage(res.message || 'Failed to resend code');
                     }
-                  });
+                  } finally {
+                    setIsSubmitting(false);
+                  }
                 }}
                 className="text-[#6E6259] hover:text-[#1F1B16] disabled:opacity-50 transition-colors"
               >
-                {resendCooldown > 0 ? `Resend Code in ${resendCooldown}s` : 'Resend Code'}
+                {isSubmitting
+                  ? 'Sending...'
+                  : resendCooldown > 0
+                  ? `Resend Code in ${resendCooldown}s`
+                  : 'Resend Code'}
               </button>
             </div>
           </form>
