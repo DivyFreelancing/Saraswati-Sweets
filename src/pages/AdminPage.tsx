@@ -1110,6 +1110,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       if (res.ok) {
         showToast(`Coupon ${coupon.code} ${!coupon.is_active ? 'activated' : 'deactivated'}`, 'info');
         loadAllAdminData(true);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        showToast(data.message || 'Failed to toggle coupon status', 'error');
       }
     } catch {
       showToast('Failed to toggle coupon status', 'error');
@@ -1137,6 +1140,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
           if (res.ok) {
             showToast(`Coupon ${coupon.code} deleted.`, 'info');
             loadAllAdminData(true);
+          } else {
+            const data = await res.json().catch(() => ({}));
+            showToast(data.message || 'Failed to delete coupon', 'error');
           }
         } catch {
           showToast('Failed to delete coupon', 'error');
@@ -2912,12 +2918,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                           setCouponForm({
                             code: coup.code,
                             description: coup.description || '',
-                            discount_type: coup.discount_type,
-                            discount_value: coup.discount_value,
-                            min_order_amount: coup.min_order_amount,
+                            discount_type: coup.discount_type || coup.type || 'FLAT',
+                            discount_value: coup.discount_value ?? coup.value ?? 50,
+                            min_order_amount: coup.min_order_amount ?? coup.min_order_value ?? 0,
                             max_discount_amount: coup.max_discount_amount || 150,
-                            usage_limit: coup.usage_limit || '',
-                            per_user_limit: coup.per_user_limit || '',
+                            usage_limit: coup.usage_limit ?? coup.usage_limit_total ?? '',
+                            per_user_limit: coup.per_user_limit ?? coup.usage_limit_per_user ?? '',
                             is_active: coup.is_active,
                           });
                           setIsCouponModalOpen(true);
@@ -2943,9 +2949,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   <div className="text-xs text-[#6B6258] flex items-center justify-between bg-white p-2 rounded-lg border border-[#E8DFD2]">
                     <span className="flex flex-col gap-0.5">
                       <span className="font-semibold text-[#1F1B16]">
-                        {coup.discount_type === 'FLAT' ? `₹${coup.discount_value} OFF` : `${coup.discount_value}% OFF`}
+                        {(coup.discount_type || coup.type) === 'FLAT'
+                          ? `₹${coup.discount_value ?? coup.value} OFF`
+                          : `${coup.discount_value ?? coup.value}% OFF`}
                       </span>
-                      <span className="text-[10px]">Min: ₹{coup.min_order_amount} {coup.max_discount_amount ? `• Max: ₹${coup.max_discount_amount}` : ''}</span>
+                      <span className="text-[10px]">
+                        Min: ₹{coup.min_order_amount ?? coup.min_order_value ?? 0}{' '}
+                        {coup.max_discount_amount ? `• Max: ₹${coup.max_discount_amount}` : ''}
+                      </span>
                     </span>
                     
                     <button
@@ -2959,8 +2970,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
 
                   <div className="flex items-center justify-between pt-1 text-[11px] text-[#6B6258] border-t border-dashed border-[#E8DFD2]">
                     <span>
-                      Total Uses: {coup.usage_count || 0} / {coup.usage_limit ?? '∞'} <br/>
-                      Per User: {coup.per_user_limit ?? '∞'}
+                      Total Uses: {coup.usage_count || 0} / {(coup.usage_limit ?? coup.usage_limit_total) ?? '∞'} <br/>
+                      Per User: {(coup.per_user_limit ?? coup.usage_limit_per_user) ?? '∞'}
                     </span>
                     <button
                       type="button"
@@ -4146,7 +4157,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                     </div>
                     <div className="text-[11px] text-[#6B6258] mt-1">
                       {selectedOrderForDetails.payment_method === 'ONLINE' ? (
-                        <span>Gateway Ref: <code className="bg-stone-200/80 px-1 py-0.5 rounded text-[10px]">{selectedOrderForDetails.provider_order_id || 'N/A'}</code></span>
+                        <span>Gateway Ref: <code className="bg-stone-200/80 px-1 py-0.5 rounded text-[10px]">{selectedOrderForDetails.provider_order_id || (selectedOrderForDetails.payment_method === 'ONLINE' ? selectedOrderForDetails.order_number : 'N/A')}</code></span>
                       ) : (
                         <span>Pay exact cash upon door delivery</span>
                       )}

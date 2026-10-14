@@ -511,6 +511,66 @@ export interface ServerCoupon {
   usage_limit?: number; // Total redemptions across store
   per_user_limit?: number; // Redemptions per user/phone
   usage_count: number;
+  // Database schema column aliases for compatibility
+  type?: 'PERCENTAGE' | 'FLAT';
+  value?: number;
+  min_order_value?: number;
+  usage_limit_total?: number | null;
+  usage_limit_per_user?: number | null;
+  valid_from?: string;
+  valid_until?: string;
+}
+
+/**
+ * Maps a raw database row or coupon payload to ServerCoupon.
+ * Ensures bidirectional compatibility between Supabase physical column names (type, value, min_order_value, etc.)
+ * and in-memory application properties (discount_type, discount_value, min_order_amount, etc.).
+ */
+export function mapDbCouponToStore(row: any): ServerCoupon {
+  const code = String(row.code || '').toUpperCase().trim();
+  const rawType = (row.discount_type || row.type || 'FLAT').toUpperCase();
+  const type: 'PERCENTAGE' | 'FLAT' = rawType === 'PERCENTAGE' ? 'PERCENTAGE' : 'FLAT';
+  const value = Number(row.discount_value ?? row.value ?? 0);
+  const minOrder = Number(row.min_order_amount ?? row.min_order_value ?? 0);
+  const maxDiscount = (row.max_discount_amount !== undefined && row.max_discount_amount !== null && row.max_discount_amount !== '')
+    ? Number(row.max_discount_amount)
+    : undefined;
+  const usageLimit = (row.usage_limit ?? row.usage_limit_total) != null && (row.usage_limit ?? row.usage_limit_total) !== ''
+    ? Number(row.usage_limit ?? row.usage_limit_total)
+    : undefined;
+  const perUserLimit = (row.per_user_limit ?? row.usage_limit_per_user) != null && (row.per_user_limit ?? row.usage_limit_per_user) !== ''
+    ? Number(row.per_user_limit ?? row.usage_limit_per_user)
+    : 1;
+  const startDate = row.start_date || row.valid_from || new Date().toISOString();
+  const endDate = row.end_date || row.valid_until || new Date(Date.now() + 180 * 86400000).toISOString();
+
+  const autoDesc = type === 'PERCENTAGE'
+    ? `${value}% off on orders over ₹${minOrder}${maxDiscount ? ` (max ₹${maxDiscount})` : ''}`
+    : `Flat ₹${value} off on orders over ₹${minOrder}`;
+  const description = row.description ? String(row.description).trim() : autoDesc;
+
+  return {
+    id: row.id,
+    code,
+    description,
+    discount_type: type,
+    discount_value: value,
+    min_order_amount: minOrder,
+    max_discount_amount: maxDiscount,
+    usage_limit: usageLimit,
+    per_user_limit: perUserLimit,
+    usage_count: Number(row.usage_count || 0),
+    is_active: typeof row.is_active === 'boolean' ? row.is_active : true,
+    start_date: startDate,
+    end_date: endDate,
+    type,
+    value,
+    min_order_value: minOrder,
+    usage_limit_total: usageLimit ?? null,
+    usage_limit_per_user: perUserLimit,
+    valid_from: startDate,
+    valid_until: endDate,
+  };
 }
 
 export interface ServerCouponUsage {
@@ -1191,25 +1251,29 @@ export function validateCouponServer(
   }
 
   const now = new Date().getTime();
-  if (coupon.start_date && now < new Date(coupon.start_date).getTime()) {
+  const startDate = coupon.start_date || coupon.valid_from;
+  if (startDate && now < new Date(startDate).getTime()) {
     return { valid: false, discount_amount: 0, error: `Coupon '${cleanCode}' has not started yet`, errorCode: 'COUPON_NOT_STARTED' };
   }
 
-  if (coupon.end_date && now > new Date(coupon.end_date).getTime()) {
+  const endDate = coupon.end_date || coupon.valid_until;
+  if (endDate && now > new Date(endDate).getTime()) {
     return { valid: false, discount_amount: 0, error: `Coupon '${cleanCode}' has expired`, errorCode: 'COUPON_EXPIRED' };
   }
 
-  if (subtotal < coupon.min_order_amount) {
+  const minOrder = Number(coupon.min_order_amount ?? coupon.min_order_value ?? 0);
+  if (subtotal < minOrder) {
     return {
       valid: false,
       discount_amount: 0,
-      error: `Minimum order amount of ₹${coupon.min_order_amount} required to use coupon '${cleanCode}' (current subtotal ₹${subtotal})`,
+      error: `Minimum order amount of ₹${minOrder} required to use coupon '${cleanCode}' (current subtotal ₹${subtotal})`,
       errorCode: 'MIN_ORDER_NOT_MET',
     };
   }
 
   // Check store-wide total usage limit
-  if (coupon.usage_limit && (coupon.usage_count || 0) >= coupon.usage_limit) {
+  const totalLimit = coupon.usage_limit ?? coupon.usage_limit_total;
+  if (totalLimit && (coupon.usage_count || 0) >= totalLimit) {
     return {
       valid: false,
       discount_amount: 0,
@@ -1219,7 +1283,8 @@ export function validateCouponServer(
   }
 
   // Check per-user limit
-  if (coupon.per_user_limit) {
+  const perUserLimit = coupon.per_user_limit ?? coupon.usage_limit_per_user;
+  if (perUserLimit) {
     const userUsageCount = inMemoryStore.couponUsage.filter((usage) => {
       if (usage.coupon_code !== cleanCode) return false;
       const matchUser = userId && usage.user_id === userId;
@@ -1227,11 +1292,11 @@ export function validateCouponServer(
       return Boolean(matchUser || matchPhone);
     }).length;
 
-    if (userUsageCount >= coupon.per_user_limit) {
+    if (userUsageCount >= perUserLimit) {
       return {
         valid: false,
         discount_amount: 0,
-        error: `You have reached the maximum allowed uses (${coupon.per_user_limit}) for coupon '${cleanCode}'`,
+        error: `You have reached the maximum allowed uses (${perUserLimit}) for coupon '${cleanCode}'`,
         errorCode: 'PER_USER_LIMIT_REACHED',
       };
     }
@@ -1239,11 +1304,15 @@ export function validateCouponServer(
 
   // Calculate discount
   let discount = 0;
-  if (coupon.discount_type === 'FLAT') {
-    discount = Math.min(coupon.discount_value, subtotal);
-  } else if (coupon.discount_type === 'PERCENTAGE') {
-    const calculated = (subtotal * coupon.discount_value) / 100;
-    discount = coupon.max_discount_amount ? Math.min(coupon.max_discount_amount, calculated) : calculated;
+  const discountType = (coupon.discount_type || coupon.type || 'FLAT').toUpperCase();
+  const discountVal = Number(coupon.discount_value ?? coupon.value ?? 0);
+  const maxDiscount = (coupon.max_discount_amount !== undefined && coupon.max_discount_amount !== null) ? Number(coupon.max_discount_amount) : null;
+
+  if (discountType === 'FLAT') {
+    discount = Math.min(discountVal, subtotal);
+  } else if (discountType === 'PERCENTAGE') {
+    const calculated = (subtotal * discountVal) / 100;
+    discount = maxDiscount ? Math.min(maxDiscount, calculated) : calculated;
   }
 
   return {
@@ -1496,7 +1565,7 @@ export async function expireUnpaidOrders(client?: SupabaseClient | null): Promis
     // 2. Discover persistent pending orders from Supabase (vital after server restart)
     if (activeClient) {
       const expiryIso = new Date(now - EXPIRY_MS).toISOString();
-      const queryCols = 'id, order_number, status, payment_status, payment_method, total_amount, provider_order_id, delivery_slot_id, created_at, updated_at';
+      const queryCols = 'id, order_number, status, payment_status, payment_method, total_amount, delivery_slot_id, created_at, updated_at';
       const eqQuery: any = activeClient
         .from('orders')
         .select(queryCols)
@@ -1542,6 +1611,9 @@ export async function expireUnpaidOrders(client?: SupabaseClient | null): Promis
       if (dbOrders && Array.isArray(dbOrders)) {
         for (const dbo of dbOrders) {
           if (!pendingOrdersMap.has(dbo.id)) {
+            if (!dbo.provider_order_id && dbo.payment_method === 'ONLINE' && dbo.order_number) {
+              dbo.provider_order_id = dbo.order_number;
+            }
             pendingOrdersMap.set(dbo.id, dbo);
           }
         }
@@ -1972,7 +2044,7 @@ export async function getStalePendingOrdersForReview(
     const expiryIso = new Date(now - EXPIRY_MS).toISOString();
     const { data: dbOrders } = await activeClient
       .from('orders')
-      .select('id, order_number, status, payment_status, payment_method, total_amount, provider_order_id, delivery_slot_id, created_at, updated_at')
+      .select('id, order_number, status, payment_status, payment_method, total_amount, delivery_slot_id, created_at, updated_at')
       .eq('status', 'PENDING_PAYMENT')
       .lt('created_at', expiryIso)
       .order('created_at', { ascending: true })
@@ -1989,7 +2061,7 @@ export async function getStalePendingOrdersForReview(
             payment_status: dbo.payment_status,
             payment_method: dbo.payment_method,
             total_amount: dbo.total_amount,
-            provider_order_id: dbo.provider_order_id,
+            provider_order_id: (dbo as any).provider_order_id || (dbo.payment_method === 'ONLINE' ? dbo.order_number : undefined),
             created_at: dbo.created_at,
             needs_review: tracking?.needsReview || false,
             review_reason: tracking?.reviewReason || null,
@@ -2556,6 +2628,9 @@ export async function loadStoreState(): Promise<void> {
        ords.data.forEach((x: any) => {
            x.items = ordMap.get(x.id) || [];
            x.fulfilment_type = x.fulfilment_type || x.slot_snapshot?.fulfilment_type || (Number(x.delivery_charge) === 0 && x.slot_snapshot ? 'TAKEAWAY' : 'DELIVERY');
+           if (!x.provider_order_id && x.payment_method === 'ONLINE' && x.order_number) {
+             x.provider_order_id = x.order_number;
+           }
            inMemoryStore.orders.set(x.id, x);
        });
     }
@@ -2597,7 +2672,46 @@ export async function loadStoreState(): Promise<void> {
     if (addrs.data) { inMemoryStore.addresses.clear(); addrs.data.forEach(x => inMemoryStore.addresses.set(x.id, x)); }
     if (pays.data) { inMemoryStore.payments.clear(); pays.data.forEach(x => inMemoryStore.payments.set(x.id, x)); }
     if (revs.data) { inMemoryStore.reviews.clear(); revs.data.forEach(x => inMemoryStore.reviews.set(x.id, x)); }
-    if (coups.data) { inMemoryStore.coupons.clear(); coups.data.forEach(x => inMemoryStore.coupons.set(x.code, x)); }
+    if (coups.data) {
+      inMemoryStore.coupons.clear();
+      coups.data.forEach((x: any) => {
+        const mapped = mapDbCouponToStore(x);
+        inMemoryStore.coupons.set(mapped.code, mapped);
+      });
+    }
+
+    // Hydrate couponUsage from persisted orders so total redemptions and per-user limits survive server restarts
+    inMemoryStore.couponUsage = [];
+    if (ords.data) {
+      ords.data.forEach((ord: any) => {
+        const rawCode = ord.coupon_code;
+        if (rawCode && String(rawCode).trim() && ord.status !== 'EXPIRED' && ord.status !== 'CANCELLED') {
+          const cleanCode = String(rawCode).toUpperCase().trim();
+          const coupon = inMemoryStore.coupons.get(cleanCode);
+          inMemoryStore.couponUsage.push({
+            id: `cu-${ord.id}`,
+            coupon_id: coupon?.id || cleanCode,
+            coupon_code: cleanCode,
+            order_id: ord.id,
+            user_id: ord.user_id || undefined,
+            phone: ord.address_snapshot?.recipient_phone || ord.guest_phone || undefined,
+            discount_amount: Number(ord.discount_amount || 0),
+            created_at: ord.created_at || ord.placed_at || new Date().toISOString(),
+          });
+        }
+      });
+    }
+
+    // Derive actual usage_count for each coupon from persisted historical usages
+    const usageCounts = new Map<string, number>();
+    inMemoryStore.couponUsage.forEach((u) => {
+      const code = u.coupon_code.toUpperCase();
+      usageCounts.set(code, (usageCounts.get(code) || 0) + 1);
+    });
+    inMemoryStore.coupons.forEach((c) => {
+      c.usage_count = usageCounts.get(c.code.toUpperCase()) || 0;
+    });
+
     if (bulks.data) { inMemoryStore.bulkEnquiries.clear(); bulks.data.forEach(x => inMemoryStore.bulkEnquiries.set(x.id, x)); }
 
     if (settingsRes && settingsRes.data) {

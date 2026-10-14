@@ -21,6 +21,7 @@ import {
   checkAndReserveSlotCapacity,
   getKolkataDateParts,
   formatTime12h,
+  isUuid,
 } from '../db';
 import { createCashfreeOrder, getCashfreeAppId, fetchCashfreeOrderDetails } from '../services/cashfreeService';
 import { notifyOrderPlaced, notifyOrderStatusChanged } from '../services/notificationService';
@@ -568,7 +569,7 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
 
   // 11. Atomic Order & Coupon Usage Recording in the same transaction
   if (validatedCouponObj && appliedCouponCode) {
-    validatedCouponObj.usage_count = (validatedCouponObj.used_count || 0) + 1;
+    validatedCouponObj.usage_count = (validatedCouponObj.usage_count || 0) + 1;
     inMemoryStore.coupons.set(validatedCouponObj.code, validatedCouponObj);
 
     inMemoryStore.couponUsage.push({
@@ -694,6 +695,18 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
   inMemoryStore.orders.set(orderId, newOrder);
   if (idempotencyKey) {
     inMemoryStore.ordersByIdempotency.set(idempotencyKey, newOrder);
+  }
+
+  // Record coupon usage in Supabase if coupon was applied
+  if (validatedCouponObj && appliedCouponCode && isUuid(validatedCouponObj.id)) {
+    Promise.resolve(supabaseServer.from('coupon_usage').insert([{
+      coupon_id: validatedCouponObj.id,
+      profile_id: isUuid(verifiedUserId) ? verifiedUserId : null,
+      order_id: isUuid(orderId) ? orderId : null,
+      discount_applied: discount,
+    }])).then(({ error }: any) => {
+      if (error) console.warn('[Order] Non-fatal coupon_usage insert note:', error.message);
+    }).catch(() => {});
   }
 
 

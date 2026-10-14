@@ -533,7 +533,7 @@ async function runOrderCleanupJobTests() {
     assert.notStrictEqual(capturedSelectColumns, '*', 'List query does NOT use select=*');
     assert.strictEqual(
       capturedSelectColumns,
-      'id, order_number, status, payment_status, payment_method, total_amount, provider_order_id, delivery_slot_id, created_at, updated_at',
+      'id, order_number, status, payment_status, payment_method, total_amount, delivery_slot_id, created_at, updated_at',
       'List query selects strictly required columns'
     );
     assert.strictEqual(capturedLimit, 200, 'List query explicitly applies limit(200)');

@@ -883,12 +883,13 @@ router.post('/orders/:id/refund', requireRole(['ADMIN']), async (req: Authentica
       return res.status(409).json({ error: 'ALREADY_REFUNDED', message: 'A refund has already been initiated or completed for this order.' });
     }
 
-    if (!order.provider_order_id) {
+    const gatewayOrderId = order.provider_order_id || (order.payment_method === 'ONLINE' ? order.order_number : undefined);
+    if (!gatewayOrderId) {
       return res.status(400).json({ error: 'NO_CASHFREE_ORDER', message: 'Order was not processed via Cashfree or missing provider ID.' });
     }
 
     // Call Cashfree Refund API
-    const refundResult = await createCashfreeRefund(order.provider_order_id, amountInPaise, {
+    const refundResult = await createCashfreeRefund(gatewayOrderId, amountInPaise, {
       orderId: order.id,
       orderNumber: order.order_number,
       reason,
@@ -969,7 +970,11 @@ router.get('/orders/:id/refund/sync', requireRole(['ADMIN']), async (req: Authen
   }
 
   try {
-    const refundData = await fetchCashfreeRefund(order.provider_order_id!, order.provider_refund_id);
+    const gatewayOrderId = order.provider_order_id || (order.payment_method === 'ONLINE' ? order.order_number : undefined);
+    if (!gatewayOrderId) {
+      return res.status(400).json({ error: 'NO_CASHFREE_ORDER', message: 'Missing gateway order reference for Cashfree refund sync.' });
+    }
+    const refundData = await fetchCashfreeRefund(gatewayOrderId, order.provider_refund_id);
     const nowIso = new Date().toISOString();
 
     const cfRefundStatus = refundData.refund_status || 'PENDING';
@@ -1348,6 +1353,30 @@ router.get('/coupons/:code/usage', (req: AuthenticatedRequest, res: Response) =>
   res.json({ couponCode: cleanCode, usages });
 });
 
+/**
+ * Accurately determines if an error from Supabase PostgREST is specifically
+ * caused by a missing 'description' column on the public.coupons table.
+ * Strictly prevents retrying or masking constraint violations, duplicate codes,
+ * or unrelated database failures.
+ */
+function isMissingDescriptionColumnError(error: any): boolean {
+  if (!error) return false;
+  // If the error code indicates a constraint or integrity violation, DO NOT retry
+  if (['23505', '23503', '23514', '23502', '42501'].includes(String(error.code))) {
+    return false;
+  }
+  const combined = `${error.message || ''} ${error.details || ''} ${error.hint || ''}`.toLowerCase();
+  const mentionsDescription = combined.includes('description');
+  const isMissingColumn =
+    error.code === '42703' ||
+    error.code === 'PGRST204' ||
+    combined.includes('schema cache') ||
+    combined.includes('column') ||
+    combined.includes('does not exist');
+
+  return mentionsDescription && isMissingColumn;
+}
+
 router.post('/coupons', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
   if (!assertSupabase(res)) return;
 
@@ -1355,50 +1384,143 @@ router.post('/coupons', requireRole(['ADMIN']), async (req: AuthenticatedRequest
     code, description = '', discount_type = 'FLAT', discount_value = 50,
     min_order_amount = 300, max_discount_amount, usage_limit, per_user_limit,
     is_active = true, start_date, end_date,
+    type, value, min_order_value, usage_limit_total, usage_limit_per_user, valid_from, valid_until
   } = req.body;
 
-  if (!code || !discount_value) {
+  const rawVal = discount_value ?? value;
+  if (!code || rawVal === undefined || rawVal === null) {
     res.status(400).json({ error: 'MISSING_FIELDS', message: 'Coupon code and discount value are required.' });
     return;
   }
 
   const cleanCode = String(code).toUpperCase().trim();
-  const id = randomUUID();
+  if (!cleanCode || cleanCode.length < 2 || cleanCode.length > 50 || !/^[A-Z0-9_-]+$/.test(cleanCode)) {
+    res.status(400).json({ error: 'INVALID_CODE', message: 'Coupon code must be 2-50 alphanumeric characters (hyphens and underscores allowed).' });
+    return;
+  }
 
-  const row = {
+  if (inMemoryStore.coupons.has(cleanCode)) {
+    res.status(409).json({ error: 'ALREADY_EXISTS', message: `Coupon with code '${cleanCode}' already exists.` });
+    return;
+  }
+
+  const cType = (discount_type || type) === 'PERCENTAGE' ? 'PERCENTAGE' : 'FLAT';
+  const cVal = Number(rawVal);
+  if (isNaN(cVal) || cVal <= 0) {
+    res.status(400).json({ error: 'INVALID_VALUE', message: 'Discount value must be a positive number greater than zero.' });
+    return;
+  }
+  if (cType === 'PERCENTAGE' && cVal > 100) {
+    res.status(400).json({ error: 'INVALID_PERCENTAGE', message: 'Percentage discount cannot exceed 100%.' });
+    return;
+  }
+
+  const cMin = Number(min_order_amount ?? min_order_value) || 0;
+  if (isNaN(cMin) || cMin < 0) {
+    res.status(400).json({ error: 'INVALID_MIN_ORDER', message: 'Minimum order amount must be zero or greater.' });
+    return;
+  }
+
+  const rawMax = (max_discount_amount !== undefined && max_discount_amount !== null && max_discount_amount !== '') ? Number(max_discount_amount) : null;
+  if (rawMax !== null && (isNaN(rawMax) || rawMax <= 0)) {
+    res.status(400).json({ error: 'INVALID_MAX_DISCOUNT', message: 'Maximum discount amount must be greater than zero.' });
+    return;
+  }
+  const cMax = rawMax;
+
+  const rawTotalLimit = (usage_limit ?? usage_limit_total) != null && (usage_limit ?? usage_limit_total) !== '' ? Number(usage_limit ?? usage_limit_total) : null;
+  if (rawTotalLimit !== null && (isNaN(rawTotalLimit) || rawTotalLimit <= 0 || !Number.isInteger(rawTotalLimit))) {
+    res.status(400).json({ error: 'INVALID_USAGE_LIMIT', message: 'Store-wide usage limit must be a positive integer.' });
+    return;
+  }
+  const cTotalLimit = rawTotalLimit;
+
+  const rawPerUser = (per_user_limit ?? usage_limit_per_user) != null && (per_user_limit ?? usage_limit_per_user) !== '' ? Number(per_user_limit ?? usage_limit_per_user) : 1;
+  if (isNaN(rawPerUser) || rawPerUser <= 0 || !Number.isInteger(rawPerUser)) {
+    res.status(400).json({ error: 'INVALID_PER_USER_LIMIT', message: 'Per-user usage limit must be a positive integer.' });
+    return;
+  }
+  const cPerUser = rawPerUser;
+
+  const cStart = start_date || valid_from || new Date().toISOString();
+  const cEnd = end_date || valid_until || new Date(Date.now() + 180 * 86400000).toISOString();
+  const startMs = new Date(cStart).getTime();
+  const endMs = new Date(cEnd).getTime();
+  if (isNaN(startMs) || isNaN(endMs)) {
+    res.status(400).json({ error: 'INVALID_DATES', message: 'Invalid start or end date format.' });
+    return;
+  }
+  if (endMs <= startMs) {
+    res.status(400).json({ error: 'INVALID_DATE_RANGE', message: 'Expiration date must be strictly after the start date.' });
+    return;
+  }
+
+  const id = randomUUID();
+  const descText = String(description || '').trim();
+
+  // Payload targeting physical database columns in public.coupons
+  const dbPayload: Record<string, any> = {
     id,
     code: cleanCode,
-    description: String(description).trim(),
-    discount_type: discount_type === 'PERCENTAGE' ? 'PERCENTAGE' : 'FLAT',
-    discount_value: Number(discount_value),
-    min_order_amount: Number(min_order_amount) || 0,
-    max_discount_amount: max_discount_amount ? Number(max_discount_amount) : null,
-    usage_limit: usage_limit ? Number(usage_limit) : null,
-    per_user_limit: per_user_limit ? Number(per_user_limit) : null,
-    usage_count: 0,
+    type: cType,
+    value: cVal,
+    min_order_value: cMin,
+    max_discount_amount: cMax,
+    usage_limit_total: cTotalLimit,
+    usage_limit_per_user: cPerUser,
+    valid_from: cStart,
+    valid_until: cEnd,
     is_active: Boolean(is_active),
-    start_date: start_date || new Date().toISOString(),
-    end_date: end_date || new Date(Date.now() + 180 * 86400000).toISOString(),
   };
 
-  const { error } = await supabaseServer!.from('coupons').insert([row]);
+  if (descText) {
+    dbPayload.description = descText;
+  }
+
+  let { error } = await supabaseServer!.from('coupons').insert([dbPayload]);
+  if (error && isMissingDescriptionColumnError(error)) {
+    console.warn('[Admin] Retrying coupon insert without description column (schema mismatch):', error.message);
+    const { description: _, ...fallbackPayload } = dbPayload;
+    const retry = await supabaseServer!.from('coupons').insert([fallbackPayload]);
+    error = retry.error;
+  }
+
   if (error) {
     console.error('[Admin] Coupon insert failed:', error);
     res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
     return;
   }
 
+  const autoDesc = cType === 'PERCENTAGE'
+    ? `${cVal}% off on orders over ₹${cMin}${cMax ? ` (max ₹${cMax})` : ''}`
+    : `Flat ₹${cVal} off on orders over ₹${cMin}`;
+
   const newCoupon: ServerCoupon = {
-    id, code: cleanCode, description: row.description, discount_type: row.discount_type as any,
-    discount_value: row.discount_value, min_order_amount: row.min_order_amount,
-    max_discount_amount: row.max_discount_amount ?? undefined, usage_limit: row.usage_limit ?? undefined,
-    per_user_limit: row.per_user_limit ?? undefined, usage_count: 0, is_active: row.is_active,
-    start_date: row.start_date, end_date: row.end_date,
+    id,
+    code: cleanCode,
+    description: descText || autoDesc,
+    discount_type: cType,
+    discount_value: cVal,
+    min_order_amount: cMin,
+    max_discount_amount: cMax ?? undefined,
+    usage_limit: cTotalLimit ?? undefined,
+    per_user_limit: cPerUser,
+    usage_count: 0,
+    is_active: Boolean(is_active),
+    start_date: cStart,
+    end_date: cEnd,
+    type: cType,
+    value: cVal,
+    min_order_value: cMin,
+    usage_limit_total: cTotalLimit ?? undefined,
+    usage_limit_per_user: cPerUser,
+    valid_from: cStart,
+    valid_until: cEnd,
   };
   Map.prototype.set.call(inMemoryStore.coupons, cleanCode, newCoupon);
 
   logAuditEvent(req.user, 'COUPON_CREATED', 'COUPON', id, {
-    code: cleanCode, discount_type: row.discount_type, discount_value: row.discount_value, min_order_amount: row.min_order_amount,
+    code: cleanCode, discount_type: cType, discount_value: cVal, min_order_amount: cMin,
   });
   res.status(201).json({ success: true, coupon: newCoupon });
 });
@@ -1413,34 +1535,168 @@ router.put('/coupons/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequ
     return;
   }
 
-  const { description, discount_type, discount_value, min_order_amount, max_discount_amount, usage_limit, per_user_limit, is_active, end_date } = req.body;
+  const {
+    description,
+    discount_type, type,
+    discount_value, value,
+    min_order_amount, min_order_value,
+    max_discount_amount,
+    usage_limit, usage_limit_total,
+    per_user_limit, usage_limit_per_user,
+    is_active,
+    start_date, valid_from,
+    end_date, valid_until
+  } = req.body;
+
   const updates: Record<string, any> = {};
   if (description !== undefined) updates.description = String(description).trim();
-  if (discount_type !== undefined) updates.discount_type = discount_type;
-  if (discount_value !== undefined) updates.discount_value = Number(discount_value);
-  if (min_order_amount !== undefined) updates.min_order_amount = Number(min_order_amount);
-  if (max_discount_amount !== undefined) updates.max_discount_amount = max_discount_amount ? Number(max_discount_amount) : null;
-  if (usage_limit !== undefined) updates.usage_limit = usage_limit ? Number(usage_limit) : null;
-  if (per_user_limit !== undefined) updates.per_user_limit = per_user_limit ? Number(per_user_limit) : null;
-  if (is_active !== undefined) updates.is_active = Boolean(is_active);
-  if (end_date !== undefined) updates.end_date = end_date;
 
-  const { error } = await supabaseServer!.from('coupons').update(updates).eq('id', coupon.id);
+  const targetType = (discount_type || type || coupon.discount_type || coupon.type || 'FLAT').toUpperCase();
+  if (discount_type !== undefined || type !== undefined) {
+    updates.type = targetType === 'PERCENTAGE' ? 'PERCENTAGE' : 'FLAT';
+  }
+
+  if (discount_value !== undefined || value !== undefined) {
+    const v = Number(discount_value ?? value);
+    if (isNaN(v) || v <= 0) {
+      res.status(400).json({ error: 'INVALID_VALUE', message: 'Discount value must be a positive number greater than zero.' });
+      return;
+    }
+    if (targetType === 'PERCENTAGE' && v > 100) {
+      res.status(400).json({ error: 'INVALID_PERCENTAGE', message: 'Percentage discount cannot exceed 100%.' });
+      return;
+    }
+    updates.value = v;
+  }
+
+  if (min_order_amount !== undefined || min_order_value !== undefined) {
+    const mo = Number(min_order_amount ?? min_order_value);
+    if (isNaN(mo) || mo < 0) {
+      res.status(400).json({ error: 'INVALID_MIN_ORDER', message: 'Minimum order amount must be zero or greater.' });
+      return;
+    }
+    updates.min_order_value = mo;
+  }
+
+  if (max_discount_amount !== undefined) {
+    if (max_discount_amount === null || max_discount_amount === '') {
+      updates.max_discount_amount = null;
+    } else {
+      const mx = Number(max_discount_amount);
+      if (isNaN(mx) || mx <= 0) {
+        res.status(400).json({ error: 'INVALID_MAX_DISCOUNT', message: 'Maximum discount amount must be greater than zero.' });
+        return;
+      }
+      updates.max_discount_amount = mx;
+    }
+  }
+
+  if (usage_limit !== undefined || usage_limit_total !== undefined) {
+    const rawLimit = usage_limit ?? usage_limit_total;
+    if (rawLimit === null || rawLimit === '') {
+      updates.usage_limit_total = null;
+    } else {
+      const lim = Number(rawLimit);
+      if (isNaN(lim) || lim <= 0 || !Number.isInteger(lim)) {
+        res.status(400).json({ error: 'INVALID_USAGE_LIMIT', message: 'Store-wide usage limit must be a positive integer.' });
+        return;
+      }
+      updates.usage_limit_total = lim;
+    }
+  }
+
+  if (per_user_limit !== undefined || usage_limit_per_user !== undefined) {
+    const rawPerUser = per_user_limit ?? usage_limit_per_user;
+    if (rawPerUser === null || rawPerUser === '') {
+      updates.usage_limit_per_user = 1;
+    } else {
+      const pu = Number(rawPerUser);
+      if (isNaN(pu) || pu <= 0 || !Number.isInteger(pu)) {
+        res.status(400).json({ error: 'INVALID_PER_USER_LIMIT', message: 'Per-user usage limit must be a positive integer.' });
+        return;
+      }
+      updates.usage_limit_per_user = pu;
+    }
+  }
+
+  if (is_active !== undefined) updates.is_active = Boolean(is_active);
+
+  const newStart = start_date ?? valid_from ?? coupon.start_date ?? coupon.valid_from;
+  const newEnd = end_date ?? valid_until ?? coupon.end_date ?? coupon.valid_until;
+  if (start_date !== undefined || valid_from !== undefined || end_date !== undefined || valid_until !== undefined) {
+    const sMs = new Date(newStart).getTime();
+    const eMs = new Date(newEnd).getTime();
+    if (isNaN(sMs) || isNaN(eMs)) {
+      res.status(400).json({ error: 'INVALID_DATES', message: 'Invalid start or end date format.' });
+      return;
+    }
+    if (eMs <= sMs) {
+      res.status(400).json({ error: 'INVALID_DATE_RANGE', message: 'Expiration date must be strictly after the start date.' });
+      return;
+    }
+    if (end_date !== undefined || valid_until !== undefined) updates.valid_until = newEnd;
+    if (start_date !== undefined || valid_from !== undefined) updates.valid_from = newStart;
+  }
+
+  let { error } = await supabaseServer!.from('coupons').update(updates).eq('id', coupon.id);
+  if (error && isMissingDescriptionColumnError(error)) {
+    console.warn('[Admin] Retrying coupon update without description column (schema mismatch):', error.message);
+    const { description: _, ...fallbackUpdates } = updates;
+    if (Object.keys(fallbackUpdates).length > 0) {
+      const retry = await supabaseServer!.from('coupons').update(fallbackUpdates).eq('id', coupon.id);
+      error = retry.error;
+    } else {
+      error = null;
+    }
+  }
+
   if (error) {
     console.error('[Admin] Coupon update failed:', error);
     res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
     return;
   }
 
-  if (updates.description !== undefined) coupon.description = updates.description;
-  if (updates.discount_type !== undefined) coupon.discount_type = updates.discount_type;
-  if (updates.discount_value !== undefined) coupon.discount_value = updates.discount_value;
-  if (updates.min_order_amount !== undefined) coupon.min_order_amount = updates.min_order_amount;
+  // Update in-memory store
+  if (description !== undefined) coupon.description = String(description).trim();
+  if (updates.type !== undefined) {
+    coupon.discount_type = updates.type;
+    coupon.type = updates.type;
+  }
+  if (updates.value !== undefined) {
+    coupon.discount_value = updates.value;
+    coupon.value = updates.value;
+  }
+  if (updates.min_order_value !== undefined) {
+    coupon.min_order_amount = updates.min_order_value;
+    coupon.min_order_value = updates.min_order_value;
+  }
+  if (updates.max_discount_amount !== undefined) {
+    coupon.max_discount_amount = updates.max_discount_amount ?? undefined;
+  }
+  if (updates.usage_limit_total !== undefined) {
+    coupon.usage_limit = updates.usage_limit_total ?? undefined;
+    coupon.usage_limit_total = updates.usage_limit_total ?? undefined;
+  }
+  if (updates.usage_limit_per_user !== undefined) {
+    coupon.per_user_limit = updates.usage_limit_per_user ?? undefined;
+    coupon.usage_limit_per_user = updates.usage_limit_per_user ?? undefined;
+  }
   if (updates.is_active !== undefined) coupon.is_active = updates.is_active;
-  if (updates.end_date !== undefined) coupon.end_date = updates.end_date;
+  if (updates.valid_until !== undefined) {
+    coupon.end_date = updates.valid_until;
+    coupon.valid_until = updates.valid_until;
+  }
+  if (updates.valid_from !== undefined) {
+    coupon.start_date = updates.valid_from;
+    coupon.valid_from = updates.valid_from;
+  }
   Map.prototype.set.call(inMemoryStore.coupons, coupon.code, coupon);
 
-  logAuditEvent(req.user, 'COUPON_UPDATED', 'COUPON', coupon.id, { is_active: updates.is_active, value: updates.value });
+  logAuditEvent(req.user, 'COUPON_UPDATED', 'COUPON', coupon.id, {
+    is_active: coupon.is_active,
+    discount_type: coupon.discount_type,
+    discount_value: coupon.discount_value,
+  });
   res.json({ success: true, coupon });
 });
 
