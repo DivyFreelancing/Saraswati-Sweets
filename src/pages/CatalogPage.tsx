@@ -66,7 +66,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
           catalogService.getCategories(),
           catalogService.getProducts(),
         ]);
-        setCategories(allCats);
+        setCategories(allCats.filter((c) => c.is_active !== false));
         setProducts(allProds);
       } catch (err) {
         console.error('Failed to load catalog data:', err);

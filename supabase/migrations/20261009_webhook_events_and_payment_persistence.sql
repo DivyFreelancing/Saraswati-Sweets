@@ -161,6 +161,8 @@ DECLARE
     v_existing_payment_id UUID;
     v_existing_payment_by_prov RECORD;
     v_check_amount NUMERIC;
+    v_clean_prov_order_id TEXT := NULLIF(TRIM(p_provider_order_id), '');
+    v_clean_prov_payment_id TEXT := NULLIF(TRIM(p_provider_payment_id), '');
 BEGIN
     -- Step A: Strict Currency Validation (only INR accepted)
     IF p_currency IS NULL OR TRIM(p_currency) = '' OR UPPER(TRIM(p_currency)) <> 'INR' THEN
@@ -208,10 +210,10 @@ BEGIN
     END IF;
 
     -- If not found by p_order_id, look up strictly by provider_order_id
-    IF v_order.id IS NULL AND p_provider_order_id IS NOT NULL AND TRIM(p_provider_order_id) <> '' THEN
+    IF v_order.id IS NULL AND v_clean_prov_order_id IS NOT NULL THEN
         SELECT * INTO v_order 
         FROM public.orders 
-        WHERE provider_order_id = p_provider_order_id
+        WHERE provider_order_id = v_clean_prov_order_id
         FOR UPDATE
         LIMIT 1;
     END IF;
@@ -223,7 +225,7 @@ BEGIN
                 event_id, event_type, provider, provider_order_id, provider_payment_id,
                 status, payload, error_message, updated_at
             ) VALUES (
-                p_event_id, p_event_type, 'CASHFREE', p_provider_order_id, p_provider_payment_id,
+                p_event_id, p_event_type, 'CASHFREE', v_clean_prov_order_id, v_clean_prov_payment_id,
                 'FAILED', p_raw_payload, 'Order not found in database', v_now
             )
             ON CONFLICT (event_id) DO UPDATE SET
@@ -242,20 +244,20 @@ BEGIN
 
     -- Conflict check: if order already has a provider_order_id and a different provider_order_id is passed
     IF v_order.provider_order_id IS NOT NULL AND TRIM(v_order.provider_order_id) <> ''
-       AND p_provider_order_id IS NOT NULL AND TRIM(p_provider_order_id) <> ''
-       AND v_order.provider_order_id <> p_provider_order_id THEN
+       AND v_clean_prov_order_id IS NOT NULL
+       AND v_order.provider_order_id <> v_clean_prov_order_id THEN
         RETURN jsonb_build_object(
             'success', false,
             'already_processed', false,
             'error', 'PROVIDER_ORDER_MISMATCH',
-            'message', format('Order provider_order_id mismatch: expected %s, got %s', v_order.provider_order_id, p_provider_order_id)
+            'message', format('Order provider_order_id mismatch: expected %s, got %s', v_order.provider_order_id, v_clean_prov_order_id)
         );
     END IF;
 
-    -- Conflict check: ensure p_provider_order_id is not already linked to a different order
-    IF p_provider_order_id IS NOT NULL AND TRIM(p_provider_order_id) <> '' THEN
+    -- Conflict check: ensure v_clean_prov_order_id is not already linked to a different order
+    IF v_clean_prov_order_id IS NOT NULL THEN
         PERFORM 1 FROM public.orders 
-        WHERE provider_order_id = p_provider_order_id AND id <> v_order.id;
+        WHERE provider_order_id = v_clean_prov_order_id AND id <> v_order.id;
         IF FOUND THEN
             RETURN jsonb_build_object(
                 'success', false,
@@ -273,7 +275,7 @@ BEGIN
                 event_id, event_type, provider, provider_order_id, provider_payment_id,
                 order_id, status, payload, error_message, updated_at
             ) VALUES (
-                p_event_id, p_event_type, 'CASHFREE', p_provider_order_id, p_provider_payment_id,
+                p_event_id, p_event_type, 'CASHFREE', v_clean_prov_order_id, v_clean_prov_payment_id,
                 v_order.id, 'FAILED', p_raw_payload, 'COD orders cannot be settled via online payment settlement RPC', v_now
             )
             ON CONFLICT (event_id) DO UPDATE SET
@@ -321,7 +323,7 @@ BEGIN
                 event_id, event_type, provider, provider_order_id, provider_payment_id,
                 order_id, status, payload, error_message, updated_at
             ) VALUES (
-                p_event_id, p_event_type, 'CASHFREE', p_provider_order_id, p_provider_payment_id,
+                p_event_id, p_event_type, 'CASHFREE', v_clean_prov_order_id, v_clean_prov_payment_id,
                 v_order.id, 'FAILED', p_raw_payload, format('Amount mismatch: expected ₹%s, got ₹%s', ROUND(v_order.total_amount, 2), v_check_amount), v_now
             )
             ON CONFLICT (event_id) DO UPDATE SET
@@ -350,7 +352,7 @@ BEGIN
                 event_id, event_type, provider, provider_order_id, provider_payment_id,
                 order_id, status, payload, processed_at, updated_at
             ) VALUES (
-                p_event_id, p_event_type, 'CASHFREE', p_provider_order_id, p_provider_payment_id,
+                p_event_id, p_event_type, 'CASHFREE', v_clean_prov_order_id, v_clean_prov_payment_id,
                 v_order.id, 'PROCESSED', p_raw_payload, v_now, v_now
             )
             ON CONFLICT (event_id) DO UPDATE SET
@@ -371,10 +373,10 @@ BEGIN
     END IF;
 
     -- Step G: Duplicate check on provider_payment_id across different orders
-    IF p_provider_payment_id IS NOT NULL AND TRIM(p_provider_payment_id) <> '' THEN
+    IF v_clean_prov_payment_id IS NOT NULL THEN
         SELECT id, order_id INTO v_existing_payment_by_prov
         FROM public.payments
-        WHERE provider_payment_id = p_provider_payment_id AND status = 'CAPTURED'
+        WHERE provider_payment_id = v_clean_prov_payment_id AND status = 'CAPTURED'
         LIMIT 1;
 
         IF FOUND AND v_existing_payment_by_prov.order_id <> v_order.id THEN
@@ -383,7 +385,7 @@ BEGIN
                     event_id, event_type, provider, provider_order_id, provider_payment_id,
                     order_id, status, payload, error_message, updated_at
                 ) VALUES (
-                    p_event_id, p_event_type, 'CASHFREE', p_provider_order_id, p_provider_payment_id,
+                    p_event_id, p_event_type, 'CASHFREE', v_clean_prov_order_id, v_clean_prov_payment_id,
                     v_order.id, 'FAILED', p_raw_payload, 'Duplicate provider payment ID on different order', v_now
                 )
                 ON CONFLICT (event_id) DO UPDATE SET
@@ -406,7 +408,7 @@ BEGIN
     SET 
         status = 'PLACED',
         payment_status = 'CAPTURED',
-        provider_order_id = COALESCE(provider_order_id, p_provider_order_id),
+        provider_order_id = COALESCE(provider_order_id, v_clean_prov_order_id),
         paid_at = COALESCE(p_paid_at, v_now),
         confirmed_at = COALESCE(confirmed_at, v_now),
         updated_at = v_now
@@ -414,7 +416,7 @@ BEGIN
 
     -- Step I: Insert payment record:
     -- - razorpay_* columns set to NULL (do not store Cashfree identifiers in Razorpay columns)
-    -- - provider_payment_id set to p_provider_payment_id (never substitute order ID for missing payment ID)
+    -- - provider_payment_id set to v_clean_prov_payment_id (never substitute order ID for missing payment ID)
     -- - amount persisted as the verified gateway amount (v_check_amount)
     -- - method strictly stored as 'ONLINE' (never raw gateway string like upi/card)
     -- - raw gateway payload preserved in raw_webhook_payload JSONB
@@ -437,8 +439,8 @@ BEGIN
         v_order.id,
         NULL,
         NULL,
-        p_provider_order_id,
-        p_provider_payment_id,
+        v_clean_prov_order_id,
+        v_clean_prov_payment_id,
         v_check_amount,
         'CAPTURED',
         'ONLINE',
@@ -454,7 +456,7 @@ BEGIN
             event_id, event_type, provider, provider_order_id, provider_payment_id,
             order_id, status, payload, processed_at, updated_at
         ) VALUES (
-            p_event_id, p_event_type, 'CASHFREE', p_provider_order_id, p_provider_payment_id,
+            p_event_id, p_event_type, 'CASHFREE', v_clean_prov_order_id, v_clean_prov_payment_id,
             v_order.id, 'PROCESSED', p_raw_payload, v_now, v_now
         )
         ON CONFLICT (event_id) DO UPDATE SET

@@ -9,6 +9,22 @@ import {
 } from '../db';
 import { notifyOrderPlaced } from './notificationService';
 
+let testClientOverride: any = undefined;
+let testIsLiveOverride: boolean | undefined = undefined;
+
+export function _setTestSupabaseClient(client: any, isLive?: boolean) {
+  testClientOverride = client;
+  testIsLiveOverride = isLive;
+}
+
+function getActiveClient() {
+  return testClientOverride !== undefined ? testClientOverride : supabaseServer;
+}
+
+function getActiveIsLive() {
+  return testIsLiveOverride !== undefined ? testIsLiveOverride : isLiveSupabase;
+}
+
 export interface ConfirmPaymentParams {
   orderIdOrProviderId: string;
   providerOrderId: string;
@@ -49,9 +65,11 @@ export async function isWebhookEventProcessed(eventId: string): Promise<boolean>
   }
 
   // Persistent database check: only 'PROCESSED' events short-circuit
-  if (isLiveSupabase && supabaseServer) {
+  const isLive = getActiveIsLive();
+  const client = getActiveClient();
+  if (isLive && client) {
     try {
-      const { data, error } = await supabaseServer
+      const { data, error } = await client
         .from('webhook_events')
         .select('status')
         .eq('event_id', eventId)
@@ -154,7 +172,9 @@ async function executeConfirmOrderPayment(params: ConfirmPaymentParams): Promise
   }
 
   // Database fallback if not in memory
-  if (!order && isLiveSupabase && supabaseServer) {
+  const isLive = getActiveIsLive();
+  const client = getActiveClient();
+  if (!order && isLive && client) {
     if (orderIdOrProviderId) {
       const { order: dbOrder, error: dbErr } = await findOrderInSupabase(orderIdOrProviderId);
       if (dbErr) {
@@ -383,14 +403,12 @@ async function executeConfirmOrderPayment(params: ConfirmPaymentParams): Promise
   // 6. Database Persistence (Transactional via RPC where available, with safe direct fallback)
   let persistedInDb = false;
 
-  if (isLiveSupabase && supabaseServer) {
+  if (isLive && client) {
     const validDbMethod = 'ONLINE'; // Store payments.method strictly as 'ONLINE', preserving raw gateway group in raw_webhook_payload
 
-    let isRpcMissing = false;
-
-    // Attempt Atomic RPC first
+    // Attempt Atomic RPC
     try {
-      const { data: rpcData, error: rpcError } = await supabaseServer.rpc('confirm_order_payment_atomic', {
+      const { data: rpcData, error: rpcError } = await client.rpc('confirm_order_payment_atomic', {
         p_event_id: eventId || null,
         p_event_type: eventType,
         p_provider_order_id: providerOrderId,
@@ -409,6 +427,13 @@ async function executeConfirmOrderPayment(params: ConfirmPaymentParams): Promise
           persistedInDb = true;
           if (rpcData.already_processed) {
             if (eventId) inMemoryStore.processedWebhookEvents.add(eventId);
+            if (order.status !== 'PLACED' || order.payment_status !== 'CAPTURED') {
+              order.status = 'PLACED';
+              order.payment_status = 'CAPTURED';
+              order.provider_order_id = providerOrderId;
+              if (providerPaymentId) order.provider_payment_id = providerPaymentId;
+              inMemoryStore.orders.set(order.id, order);
+            }
             return {
               success: true,
               alreadyProcessed: true,
@@ -416,7 +441,7 @@ async function executeConfirmOrderPayment(params: ConfirmPaymentParams): Promise
             };
           }
         } else {
-          // RPC executed and returned success === false: return that error code immediately, DO NOT fall through to direct writes!
+          // RPC executed and returned success === false: fail closed immediately
           console.error(`[PaymentPersistence] RPC settlement rejected confirmation: ${rpcData.error} - ${rpcData.message}`);
           return {
             success: false,
@@ -426,7 +451,7 @@ async function executeConfirmOrderPayment(params: ConfirmPaymentParams): Promise
           };
         }
       } else if (rpcError) {
-        isRpcMissing =
+        const isRpcMissing =
           rpcError.code === 'PGRST202' ||
           rpcError.message?.includes('PGRST202') ||
           rpcError.message?.toLowerCase().includes('could not find the function') ||
@@ -434,154 +459,62 @@ async function executeConfirmOrderPayment(params: ConfirmPaymentParams): Promise
 
         if (isRpcMissing) {
           console.error(
-            `[PaymentPersistence] CRITICAL WARNING: confirm_order_payment_atomic RPC missing in Supabase (PGRST202). Falling back to direct-write table settlement until migration is applied!`
+            `[PaymentPersistence] CRITICAL ERROR: confirm_order_payment_atomic RPC missing in Supabase (PGRST202). Failing closed! Order #${order.order_number} (${order.id}) will NOT be marked as captured until database migration is applied.`
           );
+          return {
+            success: false,
+            alreadyProcessed: false,
+            error: 'Payment settlement service temporarily unavailable (RPC missing). Please apply database migration.',
+            errorCode: 'RPC_UNAVAILABLE',
+          };
         } else {
           console.error(`[PaymentPersistence] RPC invocation failed with database error (${rpcError.code}): ${rpcError.message}`);
           return {
             success: false,
             alreadyProcessed: false,
-            error: `Database RPC error: ${rpcError.message}`,
+            error: `Database payment settlement error: ${rpcError.message}`,
             errorCode: rpcError.code || 'RPC_INVOCATION_ERROR',
           };
         }
       }
     } catch (rpcEx: any) {
-      isRpcMissing =
+      const isRpcMissing =
         rpcEx.code === 'PGRST202' ||
         rpcEx.message?.includes('PGRST202') ||
         rpcEx.message?.toLowerCase().includes('could not find the function');
 
       if (isRpcMissing) {
         console.error(
-          `[PaymentPersistence] CRITICAL WARNING: confirm_order_payment_atomic RPC missing in Supabase (PGRST202). Falling back to direct-write table settlement until migration is applied!`
+          `[PaymentPersistence] CRITICAL ERROR: confirm_order_payment_atomic RPC missing in Supabase (PGRST202). Failing closed! Order #${order.order_number} (${order.id}) will NOT be marked as captured until database migration is applied.`
         );
+        return {
+          success: false,
+          alreadyProcessed: false,
+          error: 'Payment settlement service temporarily unavailable (RPC missing). Please apply database migration.',
+          errorCode: 'RPC_UNAVAILABLE',
+        };
       } else {
         console.error(`[PaymentPersistence] RPC invocation exception: ${rpcEx.message}`);
         return {
           success: false,
           alreadyProcessed: false,
-          error: `Database RPC exception: ${rpcEx.message}`,
+          error: `Database payment settlement exception: ${rpcEx.message}`,
           errorCode: 'RPC_INVOCATION_EXCEPTION',
         };
       }
     }
 
-    // TODO: REMOVE THIS DIRECT-WRITE FALLBACK ONCE 20261009_webhook_events_and_payment_persistence MIGRATION IS APPLIED TO PRODUCTION!
-    // Direct writes fallback ONLY when the RPC function is missing (PostgREST PGRST202)
-    if (!persistedInDb && isRpcMissing) {
-      console.warn(
-        `[PaymentPersistence] ⚠️ LOUD WARNING: EXECUTING DIRECT-WRITE TABLE FALLBACK for order ${order.id} (PGRST202). Atomic RPC confirm_order_payment_atomic is missing! Apply database migration immediately!`
+    // Fail closed guard: when live Supabase is active, settlement MUST have succeeded in database
+    if (!persistedInDb) {
+      console.error(
+        `[PaymentPersistence] Order #${order.order_number} (${order.id}): Database settlement not confirmed. Failing closed.`
       );
-      // Step A: Update orders table in Supabase
-      const { error: orderUpdateErr } = await supabaseServer
-        .from('orders')
-        .update({
-          status: 'PLACED',
-          payment_status: 'CAPTURED',
-          confirmed_at: paidAtIso,
-          updated_at: nowIso,
-        })
-        .eq('id', order.id);
-
-      if (orderUpdateErr) {
-        console.error(`[PaymentPersistence] FAILED to update order ${order.id} in Supabase:`, {
-          code: orderUpdateErr.code,
-          message: orderUpdateErr.message,
-        });
-        return {
-          success: false,
-          alreadyProcessed: false,
-          error: `Database write failed for order: ${orderUpdateErr.message}`,
-          errorCode: 'DB_ORDER_UPDATE_FAILED',
-        };
-      }
-
-      // Step B: Check for existing captured payment record to prevent duplicates
-      const { data: existingPayment } = await supabaseServer
-        .from('payments')
-        .select('id')
-        .eq('order_id', order.id)
-        .eq('status', 'CAPTURED')
-        .maybeSingle();
-
-      if (!existingPayment) {
-        // Persist verified gateway amount (receivedRupees), do NOT substitute order ID for payment ID
-        const paymentRow: Record<string, any> = {
-          id: randomUUID(),
-          order_id: order.id,
-          razorpay_order_id: null,
-          razorpay_payment_id: null,
-          provider_order_id: providerOrderId,
-          provider_payment_id: providerPaymentId || null,
-          amount: receivedRupees,
-          status: 'CAPTURED',
-          method: validDbMethod,
-          currency: 'INR',
-          raw_webhook_payload: rawPayload || null,
-          created_at: nowIso,
-          updated_at: nowIso,
-        };
-
-        let { error: paymentInsertErr } = await supabaseServer.from('payments').insert([paymentRow]);
-
-        // If pending migration causes error on provider_* or currency columns, fall back to baseline columns
-        if (paymentInsertErr && (paymentInsertErr.message?.includes('provider_') || paymentInsertErr.message?.includes('currency'))) {
-          console.warn(`[PaymentPersistence] Extended payments columns not yet in schema cache. Inserting baseline schema.`);
-          const baselineRow = {
-            id: paymentRow.id,
-            order_id: order.id,
-            razorpay_order_id: null,
-            razorpay_payment_id: null,
-            amount: receivedRupees,
-            status: 'CAPTURED',
-            method: validDbMethod,
-            raw_webhook_payload: rawPayload || null,
-            created_at: nowIso,
-            updated_at: nowIso,
-          };
-          const baselineInsert = await supabaseServer.from('payments').insert([baselineRow]);
-          paymentInsertErr = baselineInsert.error;
-        }
-
-        if (paymentInsertErr) {
-          console.error(`[PaymentPersistence] FAILED to insert payment for order ${order.id} in Supabase:`, {
-            code: paymentInsertErr.code,
-            message: paymentInsertErr.message,
-          });
-          return {
-            success: false,
-            alreadyProcessed: false,
-            error: `Database write failed for payment: ${paymentInsertErr.message}`,
-            errorCode: 'DB_PAYMENT_INSERT_FAILED',
-          };
-        }
-      }
-
-      // Step C: Record webhook event if eventId provided
-      if (eventId) {
-        try {
-          await supabaseServer.from('webhook_events').upsert(
-            {
-              event_id: eventId,
-              event_type: eventType,
-              provider: 'CASHFREE',
-              provider_order_id: providerOrderId,
-              provider_payment_id: providerPaymentId || null,
-              order_id: order.id,
-              status: 'PROCESSED',
-              payload: rawPayload || null,
-              processed_at: nowIso,
-              updated_at: nowIso,
-            },
-            { onConflict: 'event_id' }
-          );
-        } catch (weErr: any) {
-          console.warn(`[PaymentPersistence] Note: webhook_events upsert skipped: ${weErr.message}`);
-        }
-      }
-
-      persistedInDb = true;
+      return {
+        success: false,
+        alreadyProcessed: false,
+        error: 'Database settlement was not confirmed. Order cannot be marked as captured.',
+        errorCode: 'DB_SETTLEMENT_NOT_CONFIRMED',
+      };
     }
   }
 

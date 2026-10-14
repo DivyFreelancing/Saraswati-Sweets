@@ -14,7 +14,7 @@ export const CategoriesPage: React.FC<CategoriesPageProps> = ({ onSelectCategory
 
   useEffect(() => {
     catalogService.getCategories().then((cats) => {
-      setCategories(cats);
+      setCategories(cats.filter((c) => c.is_active !== false));
       setLoading(false);
     });
   }, []);

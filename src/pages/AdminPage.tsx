@@ -809,7 +809,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
 
       const payload = {
         name: productForm.name,
-        category_id: productForm.category_id || categories[0]?.id,
+        category_id: productForm.category_id || categories.find((c) => c.is_active !== false)?.id || categories[0]?.id,
         description: productForm.description,
         image_url: productForm.image_url,
         pure_ghee: productForm.pure_ghee,
@@ -2121,7 +2121,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   setProductForm({
                     id: '',
                     name: '',
-                    category_id: categories[0]?.id || '',
+                    category_id: categories.find((c) => c.is_active !== false)?.id || categories[0]?.id || '',
                     description: '',
                     image_url: '',
                     pure_ghee: true,
@@ -2158,7 +2158,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                 >
                   All Sweets ({products.length})
                 </button>
-                {categories.map((cat) => {
+                {categories.filter((cat) => cat.is_active !== false).map((cat) => {
                   const count = products.filter((p) => p.category_id === cat.id).length;
                   return (
                     <button
@@ -3154,7 +3154,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   onChange={(e) => setProductForm({ ...productForm, category_id: e.target.value })}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-white text-xs font-medium focus:outline-none focus:border-[#8A1538]"
                 >
-                  {categories.map((c) => (
+                  {categories.filter((c) => c.is_active !== false).map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
                     </option>

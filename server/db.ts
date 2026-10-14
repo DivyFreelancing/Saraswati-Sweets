@@ -912,37 +912,37 @@ export const inMemoryStore = {
   processedWebhookEvents: new Set<string>(), // event_id -> deduplication
   categories: new Map<string, ServerCategory>([
     [
-      '687913b9-108c-49e3-94e1-c255718415a5',
+      'c1000000-0000-0000-0000-000000000002',
       {
-        id: '687913b9-108c-49e3-94e1-c255718415a5',
-        name: 'Desi Ghee Sweets',
-        slug: 'desi-ghee-sweets',
-        description: 'Handcrafted in 100% pure cow desi ghee with heritage Awadhi recipes.',
-        image_url: 'https://images.unsplash.com/photo-1505253758473-96b7015fcd40?auto=format&fit=crop&w=600&q=80',
+        id: 'c1000000-0000-0000-0000-000000000002',
+        name: 'Meva',
+        slug: 'meva',
+        description: 'Finest artisanal cashews, almonds, pistachios, figs, and royal dry-fruit confections.',
+        image_url: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=600&q=80',
         display_order: 1,
         is_active: true,
       },
     ],
     [
-      'c1000000-0000-0000-0000-000000000002',
+      '883ae551-dee9-47e0-84e3-651883073ccb',
       {
-        id: 'c1000000-0000-0000-0000-000000000002',
-        name: 'Kaju & Dry Fruit Specials',
-        slug: 'kaju-dry-fruits',
-        description: 'Finest Mangalore cashews and dry-fruit confections adorned with silver foil.',
-        image_url: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=600&q=80',
+        id: '883ae551-dee9-47e0-84e3-651883073ccb',
+        name: 'Bengali',
+        slug: 'bengali',
+        description: 'Fresh cow milk chhena sweets, soft, spongy, and steeped in aromatic rose and saffron nectars.',
+        image_url: 'https://images.unsplash.com/photo-1541832676-9b763b0239ab?auto=format&fit=crop&w=600&q=80',
         display_order: 2,
         is_active: true,
       },
     ],
     [
-      'c1000000-0000-0000-0000-000000000003',
+      'c1000000-0000-0000-0000-000000000001',
       {
-        id: 'c1000000-0000-0000-0000-000000000003',
-        name: 'Chhena & Syrupy Delights',
-        slug: 'chhena-syrupy',
-        description: 'Fresh cow milk chhena sweets steeped in fragrant rose and saffron nectars.',
-        image_url: 'https://images.unsplash.com/photo-1541832676-9b763b0239ab?auto=format&fit=crop&w=600&q=80',
+        id: 'c1000000-0000-0000-0000-000000000001',
+        name: 'Ghee',
+        slug: 'ghee',
+        description: 'Handcrafted in 100% pure cow desi ghee with traditional Awadhi heritage recipes since 1989.',
+        image_url: 'https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?auto=format&fit=crop&w=600&q=80',
         display_order: 3,
         is_active: true,
       },
@@ -951,9 +951,9 @@ export const inMemoryStore = {
       '284272ed-691e-4720-ba2b-11a711478638',
       {
         id: '284272ed-691e-4720-ba2b-11a711478638',
-        name: 'Khoya & Mawa Specials',
-        slug: 'khoya-mawa',
-        description: 'Slow-roasted condensed buffalo milk peda and burfis from Barabanki.',
+        name: 'Khoya',
+        slug: 'khoya',
+        description: 'Slow-roasted condensed buffalo milk pedas, rich burfis, and classic mawa confections.',
         image_url: 'https://images.unsplash.com/photo-1505253758473-96b7015fcd40?auto=format&fit=crop&w=600&q=80',
         display_order: 4,
         is_active: true,
@@ -963,30 +963,14 @@ export const inMemoryStore = {
       'c1000000-0000-0000-0000-000000000005',
       {
         id: 'c1000000-0000-0000-0000-000000000005',
-        name: 'Artisanal Namkeen & Savories',
-        slug: 'namkeen-savories',
-        description: 'Crispy mathri, spicy dalmoth, and salted treats roasted in pure oils.',
+        name: 'Namkeen',
+        slug: 'namkeen',
+        description: 'Crunchy traditional Awadhi snacks, dalmoth, mathri, and savory treats fried fresh in cold-pressed oil.',
         image_url: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=600&q=80',
         display_order: 5,
         is_active: true,
       },
     ],
-    [
-      'c1000000-0000-0000-0000-000000000004',
-      {
-        id: 'c1000000-0000-0000-0000-000000000004',
-        name: 'Festive Hampers & Gift Trunks',
-        slug: 'gift-hampers',
-        description: 'Royal velvet and gold-embossed gift boxes curated for Diwali, Weddings, and Celebrations.',
-        image_url: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=600&q=80',
-        display_order: 6,
-        is_active: true,
-      },
-    ],
-    ['c1000000-0000-0000-0000-000000000005', { id: 'c1000000-0000-0000-0000-000000000005', name: 'Namkeen & Snacks', slug: 'namkeen-snacks', description: 'A crisp, savory selection of traditional namkeen and snacks.', image_url: '', display_order: 7, is_active: true }],
-    ['c1000000-0000-0000-0000-000000000002', { id: 'c1000000-0000-0000-0000-000000000002', name: 'Dry Fruit Sweets', slug: 'dry-fruit-sweets', description: 'Premium dry fruit sweets.', image_url: '', display_order: 4, is_active: true }],
-    ['883ae551-dee9-47e0-84e3-651883073ccb', { id: '883ae551-dee9-47e0-84e3-651883073ccb', name: 'Specialty Sweets', slug: 'specialty-sweets', description: 'Specialty sweets.', image_url: '', display_order: 5, is_active: true }],
-    ['c1000000-0000-0000-0000-000000000001', { id: 'c1000000-0000-0000-0000-000000000001', name: 'Traditional Mithai', slug: 'traditional-mithai', description: 'Traditional mithai.', image_url: '', display_order: 6, is_active: true }],
   ]),
   products: new Map<string, ServerProduct>([
     [
@@ -1014,7 +998,7 @@ export const inMemoryStore = {
         name: 'Pure Shuddh Ghee Motichoor Ladoo',
         slug: 'shuddh-ghee-motichoor-ladoo',
         description: 'Melt-in-mouth tiny gram flour pearls fried in 100% cow desi ghee.',
-        category_id: '687913b9-108c-49e3-94e1-c255718415a5',
+        category_id: 'c1000000-0000-0000-0000-000000000001',
         image_url: 'https://images.unsplash.com/photo-1505253758473-96b7015fcd40?auto=format&fit=crop&w=800&q=80',
         pure_ghee: true,
         shelf_life_days: 7,
@@ -1050,7 +1034,7 @@ export const inMemoryStore = {
         name: 'Awadhi Desi Ghee Besan Ladoo',
         slug: 'desi-ghee-besan-ladoo',
         description: 'Coarsely milled organic gram flour roasted slowly until golden aromatic perfection.',
-        category_id: '687913b9-108c-49e3-94e1-c255718415a5',
+        category_id: 'c1000000-0000-0000-0000-000000000001',
         image_url: 'https://images.unsplash.com/photo-1505253758473-96b7015fcd40?auto=format&fit=crop&w=800&q=80',
         pure_ghee: true,
         shelf_life_days: 21,
@@ -1086,7 +1070,7 @@ export const inMemoryStore = {
         name: 'Kolkata Style Spongy Rasgulla',
         slug: 'kolkata-spongy-rasgulla',
         description: 'Feather-soft fresh chhena balls simmered in light fragrant syrup.',
-        category_id: 'c1000000-0000-0000-0000-000000000003',
+        category_id: '883ae551-dee9-47e0-84e3-651883073ccb',
         image_url: 'https://images.unsplash.com/photo-1616031037011-087000171abe?auto=format&fit=crop&w=800&q=80',
         pure_ghee: false,
         shelf_life_days: 3,
@@ -1155,21 +1139,21 @@ export const inMemoryStore = {
     ['prod-kaju-gujiya', { id: 'prod-kaju-gujiya', name: 'Kaju Gujiya', slug: 'kaju-gujiya', description: 'A delicious traditional sweet – kaju gujiya.', category_id: 'c1000000-0000-0000-0000-000000000002', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
     ['prod-kaju-peda', { id: 'prod-kaju-peda', name: 'Kaju Peda', slug: 'kaju-peda', description: 'A delicious traditional sweet – kaju peda.', category_id: 'c1000000-0000-0000-0000-000000000002', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
     ['prod-kaju-barfi-without-silver-leaf', { id: 'prod-kaju-barfi-without-silver-leaf', name: 'Kaju Barfi (without Silver Leaf)', slug: 'kaju-barfi-without-silver-leaf', description: 'A delicious traditional sweet – kaju barfi (without silver leaf).', category_id: 'c1000000-0000-0000-0000-000000000002', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
-    ['prod-choco-white', { id: 'prod-choco-white', name: 'Choco White', slug: 'choco-white', description: 'A delicious traditional sweet – choco white.', category_id: '883ae551-dee9-47e0-84e3-651883073ccb', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
-    ['prod-orange-white', { id: 'prod-orange-white', name: 'Orange White', slug: 'orange-white', description: 'A delicious traditional sweet – orange white.', category_id: '883ae551-dee9-47e0-84e3-651883073ccb', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
-    ['prod-baklava', { id: 'prod-baklava', name: 'Baklava', slug: 'baklava', description: 'A delicious traditional sweet – baklava.', category_id: '883ae551-dee9-47e0-84e3-651883073ccb', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
-    ['prod-chandrakala', { id: 'prod-chandrakala', name: 'Chandrakala', slug: 'chandrakala', description: 'A delicious traditional sweet – chandrakala.', category_id: 'c1000000-0000-0000-0000-000000000001', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
+    ['prod-choco-white', { id: 'prod-choco-white', name: 'Choco White', slug: 'choco-white', description: 'A delicious traditional sweet – choco white.', category_id: 'c1000000-0000-0000-0000-000000000002', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
+    ['prod-orange-white', { id: 'prod-orange-white', name: 'Orange White', slug: 'orange-white', description: 'A delicious traditional sweet – orange white.', category_id: 'c1000000-0000-0000-0000-000000000002', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
+    ['prod-baklava', { id: 'prod-baklava', name: 'Baklava', slug: 'baklava', description: 'A delicious traditional sweet – baklava.', category_id: 'c1000000-0000-0000-0000-000000000002', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
+    ['prod-chandrakala', { id: 'prod-chandrakala', name: 'Chandrakala', slug: 'chandrakala', description: 'A delicious traditional sweet – chandrakala.', category_id: '284272ed-691e-4720-ba2b-11a711478638', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
     ['prod-batisa-barfi', { id: 'prod-batisa-barfi', name: 'Batisa Barfi', slug: 'batisa-barfi', description: 'A delicious traditional sweet – batisa barfi.', category_id: 'c1000000-0000-0000-0000-000000000001', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
     ['prod-gol-batisa', { id: 'prod-gol-batisa', name: 'Gol Batisa', slug: 'gol-batisa', description: 'A delicious traditional sweet – gol batisa.', category_id: 'c1000000-0000-0000-0000-000000000001', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
-    ['prod-lal-peda', { id: 'prod-lal-peda', name: 'Lal Peda', slug: 'lal-peda', description: 'A delicious traditional sweet – lal peda.', category_id: 'c1000000-0000-0000-0000-000000000001', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
-    ['prod-kesariya-peda', { id: 'prod-kesariya-peda', name: 'Kesariya Peda', slug: 'kesariya-peda', description: 'A delicious traditional sweet – kesariya peda.', category_id: 'c1000000-0000-0000-0000-000000000001', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
-    ['prod-khoya-katli', { id: 'prod-khoya-katli', name: 'Khoya Katli', slug: 'khoya-katli', description: 'A delicious traditional sweet – khoya katli.', category_id: 'c1000000-0000-0000-0000-000000000001', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
+    ['prod-lal-peda', { id: 'prod-lal-peda', name: 'Lal Peda', slug: 'lal-peda', description: 'A delicious traditional sweet – lal peda.', category_id: '284272ed-691e-4720-ba2b-11a711478638', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
+    ['prod-kesariya-peda', { id: 'prod-kesariya-peda', name: 'Kesariya Peda', slug: 'kesariya-peda', description: 'A delicious traditional sweet – kesariya peda.', category_id: '284272ed-691e-4720-ba2b-11a711478638', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
+    ['prod-khoya-katli', { id: 'prod-khoya-katli', name: 'Khoya Katli', slug: 'khoya-katli', description: 'A delicious traditional sweet – khoya katli.', category_id: '284272ed-691e-4720-ba2b-11a711478638', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
     ['prod-mini-balushahi', { id: 'prod-mini-balushahi', name: 'Mini Balushahi', slug: 'mini-balushahi', description: 'A delicious traditional sweet – mini balushahi.', category_id: 'c1000000-0000-0000-0000-000000000001', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
-    ['prod-mewa-laddu', { id: 'prod-mewa-laddu', name: 'Mewa Laddu', slug: 'mewa-laddu', description: 'A delicious traditional sweet – mewa laddu.', category_id: 'c1000000-0000-0000-0000-000000000001', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
-    ['prod-khoya-gilori', { id: 'prod-khoya-gilori', name: 'Khoya Gilori', slug: 'khoya-gilori', description: 'A delicious traditional sweet – khoya gilori.', category_id: 'c1000000-0000-0000-0000-000000000001', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
-    ['prod-doda-barfi', { id: 'prod-doda-barfi', name: 'Doda Barfi', slug: 'doda-barfi', description: 'A delicious traditional sweet – doda barfi.', category_id: 'c1000000-0000-0000-0000-000000000001', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
+    ['prod-mewa-laddu', { id: 'prod-mewa-laddu', name: 'Mewa Laddu', slug: 'mewa-laddu', description: 'A delicious traditional sweet – mewa laddu.', category_id: 'c1000000-0000-0000-0000-000000000002', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
+    ['prod-khoya-gilori', { id: 'prod-khoya-gilori', name: 'Khoya Gilori', slug: 'khoya-gilori', description: 'A delicious traditional sweet – khoya gilori.', category_id: '284272ed-691e-4720-ba2b-11a711478638', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
+    ['prod-doda-barfi', { id: 'prod-doda-barfi', name: 'Doda Barfi', slug: 'doda-barfi', description: 'A delicious traditional sweet – doda barfi.', category_id: '284272ed-691e-4720-ba2b-11a711478638', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
     ['prod-magdal', { id: 'prod-magdal', name: 'Magdal', slug: 'magdal', description: 'A delicious traditional sweet – magdal.', category_id: 'c1000000-0000-0000-0000-000000000001', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
-    ['prod-milk-barfi', { id: 'prod-milk-barfi', name: 'Milk Barfi', slug: 'milk-barfi', description: 'A delicious traditional sweet – milk barfi.', category_id: 'c1000000-0000-0000-0000-000000000001', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
+    ['prod-milk-barfi', { id: 'prod-milk-barfi', name: 'Milk Barfi', slug: 'milk-barfi', description: 'A delicious traditional sweet – milk barfi.', category_id: '284272ed-691e-4720-ba2b-11a711478638', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
     ['prod-mewa-motichur-laddu', { id: 'prod-mewa-motichur-laddu', name: 'Mewa Motichur Laddu', slug: 'mewa-motichur-laddu', description: 'A delicious traditional sweet – mewa motichur laddu.', category_id: 'c1000000-0000-0000-0000-000000000001', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
     ['prod-soonth-laddu', { id: 'prod-soonth-laddu', name: 'Soonth Laddu', slug: 'soonth-laddu', description: 'A delicious traditional sweet – soonth laddu.', category_id: 'c1000000-0000-0000-0000-000000000001', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
     ['prod-churma-laddu', { id: 'prod-churma-laddu', name: 'Churma Laddu', slug: 'churma-laddu', description: 'A delicious traditional sweet – churma laddu.', category_id: 'c1000000-0000-0000-0000-000000000001', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
@@ -1177,10 +1161,10 @@ export const inMemoryStore = {
     ['prod-batisa-laddu', { id: 'prod-batisa-laddu', name: 'Batisa Laddu', slug: 'batisa-laddu', description: 'A delicious traditional sweet – batisa laddu.', category_id: 'c1000000-0000-0000-0000-000000000001', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
     ['prod-karachi-halwa', { id: 'prod-karachi-halwa', name: 'Karachi Halwa', slug: 'karachi-halwa', description: 'A delicious traditional sweet – karachi halwa.', category_id: 'c1000000-0000-0000-0000-000000000001', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
     ['prod-pinni', { id: 'prod-pinni', name: 'Pinni', slug: 'pinni', description: 'A delicious traditional sweet – pinni.', category_id: 'c1000000-0000-0000-0000-000000000001', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
-    ['prod-kala-jam', { id: 'prod-kala-jam', name: 'Kala Jam', slug: 'kala-jam', description: 'A delicious traditional sweet – kala jam.', category_id: 'c1000000-0000-0000-0000-000000000001', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
-    ['prod-milk-cake', { id: 'prod-milk-cake', name: 'Milk Cake', slug: 'milk-cake', description: 'A delicious traditional sweet – milk cake.', category_id: 'c1000000-0000-0000-0000-000000000001', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
-    ['prod-nariyal-barfi-coconut-barfi', { id: 'prod-nariyal-barfi-coconut-barfi', name: 'Nariyal Barfi (Coconut Barfi)', slug: 'nariyal-barfi-coconut-barfi', description: 'A delicious traditional sweet – nariyal barfi (coconut barfi).', category_id: 'c1000000-0000-0000-0000-000000000001', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
-    ['prod-khoya-kalakand', { id: 'prod-khoya-kalakand', name: 'Khoya Kalakand', slug: 'khoya-kalakand', description: 'A delicious traditional sweet – khoya kalakand.', category_id: 'c1000000-0000-0000-0000-000000000001', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
+    ['prod-kala-jam', { id: 'prod-kala-jam', name: 'Kala Jam', slug: 'kala-jam', description: 'A delicious traditional sweet – kala jam.', category_id: '284272ed-691e-4720-ba2b-11a711478638', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
+    ['prod-milk-cake', { id: 'prod-milk-cake', name: 'Milk Cake', slug: 'milk-cake', description: 'A delicious traditional sweet – milk cake.', category_id: '284272ed-691e-4720-ba2b-11a711478638', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
+    ['prod-nariyal-barfi-coconut-barfi', { id: 'prod-nariyal-barfi-coconut-barfi', name: 'Nariyal Barfi (Coconut Barfi)', slug: 'nariyal-barfi-coconut-barfi', description: 'A delicious traditional sweet – nariyal barfi (coconut barfi).', category_id: '284272ed-691e-4720-ba2b-11a711478638', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
+    ['prod-khoya-kalakand', { id: 'prod-khoya-kalakand', name: 'Khoya Kalakand', slug: 'khoya-kalakand', description: 'A delicious traditional sweet – khoya kalakand.', category_id: '284272ed-691e-4720-ba2b-11a711478638', image_url: '', pure_ghee: true, shelf_life_days: 15, is_active: true, ingredients: '' }],
   ]),
   variants: new Map<string, MasterVariant>(MASTER_VARIANTS.map((v) => [v.id, v])),
   deliveryPartners: new Map<any, any>(),
@@ -2582,10 +2566,65 @@ export async function loadStoreState(): Promise<void> {
     ]);
 
     // Populate SyncMaps (bypassing the custom .set to avoid re-upserting)
-    if (cats.data) { inMemoryStore.categories.clear(); cats.data.forEach(x => inMemoryStore.categories.set(x.id, x)); }
+    const CANONICAL_CATEGORIES: Record<string, Partial<ServerCategory>> = {
+      'c1000000-0000-0000-0000-000000000002': { name: 'Meva', slug: 'meva', display_order: 1, is_active: true },
+      '883ae551-dee9-47e0-84e3-651883073ccb': { name: 'Bengali', slug: 'bengali', display_order: 2, is_active: true },
+      'c1000000-0000-0000-0000-000000000001': { name: 'Ghee', slug: 'ghee', display_order: 3, is_active: true },
+      '284272ed-691e-4720-ba2b-11a711478638': { name: 'Khoya', slug: 'khoya', display_order: 4, is_active: true },
+      'c1000000-0000-0000-0000-000000000005': { name: 'Namkeen', slug: 'namkeen', display_order: 5, is_active: true },
+    };
+
+    if (cats.data) {
+      inMemoryStore.categories.clear();
+      cats.data.forEach((x: any) => {
+        const canonical = CANONICAL_CATEGORIES[x.id];
+        if (canonical) {
+          inMemoryStore.categories.set(x.id, { ...x, ...canonical });
+        } else {
+          inMemoryStore.categories.set(x.id, { ...x, is_active: false });
+        }
+      });
+      for (const [id, canonical] of Object.entries(CANONICAL_CATEGORIES)) {
+        if (!inMemoryStore.categories.has(id)) {
+          inMemoryStore.categories.set(id, {
+            id,
+            name: canonical.name || '',
+            slug: canonical.slug || '',
+            description: '',
+            image_url: '',
+            display_order: canonical.display_order || 1,
+            is_active: true,
+            ...canonical,
+          });
+        }
+      }
+    }
+
     if (offs.data) { inMemoryStore.offers.clear(); offs.data.forEach(x => inMemoryStore.offers.set(x.id, x)); }
     if (bans.data) { inMemoryStore.banners.clear(); bans.data.forEach(x => inMemoryStore.banners.set(x.id, x)); }
     if (hampers.data) { inMemoryStore.giftHampers.clear(); hampers.data.forEach(x => inMemoryStore.giftHampers.set(x.id, x)); }
+
+    const PRODUCT_NAME_CATEGORY_REMAP: Record<string, string> = {
+      'Gulab Jamun': '284272ed-691e-4720-ba2b-11a711478638',
+      'Kala Jam': '284272ed-691e-4720-ba2b-11a711478638',
+      'Lal Peda': '284272ed-691e-4720-ba2b-11a711478638',
+      'Kesariya Peda': '284272ed-691e-4720-ba2b-11a711478638',
+      'Milk Barfi': '284272ed-691e-4720-ba2b-11a711478638',
+      'Milk Cake': '284272ed-691e-4720-ba2b-11a711478638',
+      'Doda Barfi': '284272ed-691e-4720-ba2b-11a711478638',
+      'Chandrakala': '284272ed-691e-4720-ba2b-11a711478638',
+      'Nariyal Barfi (Coconut Barfi)': '284272ed-691e-4720-ba2b-11a711478638',
+      'Malai Roll': '284272ed-691e-4720-ba2b-11a711478638',
+      'Khoya Katli': '284272ed-691e-4720-ba2b-11a711478638',
+      'Khoya Kalakand': '284272ed-691e-4720-ba2b-11a711478638',
+      'Khoya Gilori': '284272ed-691e-4720-ba2b-11a711478638',
+      'Meva Laddu': 'c1000000-0000-0000-0000-000000000002',
+      'Baklava': 'c1000000-0000-0000-0000-000000000002',
+      'Choco White': 'c1000000-0000-0000-0000-000000000002',
+      'Orange White': 'c1000000-0000-0000-0000-000000000002',
+      'Choco Bite': 'c1000000-0000-0000-0000-000000000002',
+      'Orange Bite': 'c1000000-0000-0000-0000-000000000002',
+    };
 
     if (prods.data) {
       inMemoryStore.products.clear();
@@ -2598,6 +2637,9 @@ export async function loadStoreState(): Promise<void> {
       prods.data.forEach((x: any) => {
           x.pure_ghee = x.is_pure_ghee;
           x.image_url = imgMap.get(x.id) || x.image_url;
+          if (PRODUCT_NAME_CATEGORY_REMAP[x.name]) {
+            x.category_id = PRODUCT_NAME_CATEGORY_REMAP[x.name];
+          }
           inMemoryStore.products.set(x.id, x);
       });
     }

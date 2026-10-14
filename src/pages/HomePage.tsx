@@ -98,12 +98,11 @@ export const HomePage: React.FC<HomePageProps> = ({
     loadHomeData();
   }, []);
 
-  // Quick navigation categories mapped to actual catalogue slugs (curated to 5 distinct paths)
+  // Quick navigation categories mapped to actual catalogue slugs
   const quickNavItems = [
     { label: 'All Sweets', slug: '', isAll: true },
     ...categories
-      .filter((c) => !c.slug.includes('hamper'))
-      .slice(0, 3)
+      .filter((c) => !c.slug.includes('hamper') && c.is_active)
       .map((c) => ({ label: c.name, slug: c.slug })),
     { label: 'Gift Hampers', slug: 'hampers', isHamperPage: true },
   ];
@@ -187,13 +186,13 @@ export const HomePage: React.FC<HomePageProps> = ({
           />
 
           {loading && categories.length === 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-4 sm:gap-6">
-              {Array.from({ length: 4 }).map((_, i) => (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6">
+              {Array.from({ length: 5 }).map((_, i) => (
                 <CategoryCardSkeleton key={i} />
               ))}
             </div>
           ) : categories.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-4 sm:gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6">
               {categories.map((category) => (
                 <CategoryCard
                   key={category.id}
