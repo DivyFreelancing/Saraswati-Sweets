@@ -766,6 +766,7 @@ export interface ServerOrder {
   paid_at?: string;
   expires_at?: string;
   confirmed_at?: string;
+  confirmation_email_sent_at?: string;
   preparing_at?: string;
   ready_at?: string;
   out_for_delivery_at?: string;
@@ -2630,6 +2631,9 @@ export async function loadStoreState(): Promise<void> {
            x.fulfilment_type = x.fulfilment_type || x.slot_snapshot?.fulfilment_type || (Number(x.delivery_charge) === 0 && x.slot_snapshot ? 'TAKEAWAY' : 'DELIVERY');
            if (!x.provider_order_id && x.payment_method === 'ONLINE' && x.order_number) {
              x.provider_order_id = x.order_number;
+           }
+           if (!x.confirmation_email_sent_at && x.slot_snapshot?.confirmation_email_sent_at) {
+             x.confirmation_email_sent_at = x.slot_snapshot.confirmation_email_sent_at;
            }
            inMemoryStore.orders.set(x.id, x);
        });

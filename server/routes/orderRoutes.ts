@@ -24,7 +24,7 @@ import {
   isUuid,
 } from '../db';
 import { createCashfreeOrder, getCashfreeAppId, fetchCashfreeOrderDetails } from '../services/cashfreeService';
-import { notifyOrderPlaced, notifyOrderStatusChanged } from '../services/notificationService';
+import { notifyOrderPlaced, notifyOrderStatusChanged, sendCustomerOrderConfirmationEmail } from '../services/notificationService';
 import { confirmOrderPayment } from '../services/paymentPersistenceService';
 import { BUSINESS_INFO } from '../config/businessInfo';
 
@@ -1085,7 +1085,17 @@ router.patch('/orders/:id/status', requireAuth, async (req: AuthenticatedRequest
   const currentStatus = order.status;
   const nextStatus = targetStatus as OrderStatus;
 
-  // 1. Customer Cancel Rule: Only allowed if status is PLACED or CONFIRMED
+  // 1. Idempotency Guard: If the order is already in target status, return 200 without duplicate actions
+  if (currentStatus === nextStatus) {
+    res.json({
+      success: true,
+      message: `Order #${order.order_number} is already ${nextStatus}`,
+      order,
+    });
+    return;
+  }
+
+  // 2. Customer Cancel Rule: Only allowed if status is PLACED or CONFIRMED
   const isCustomer = req.user?.role === 'CUSTOMER';
   if (isCustomer) {
     if (order.user_id && order.user_id !== req.user?.id) {
@@ -1110,7 +1120,7 @@ router.patch('/orders/:id/status', requireAuth, async (req: AuthenticatedRequest
     }
   }
 
-  // 2. State Machine Transition Graph Check
+  // 3. State Machine Transition Graph Check
   const allowedNext = VALID_ORDER_TRANSITIONS[currentStatus] || [];
   if (!allowedNext.includes(nextStatus)) {
     res.status(409).json({
@@ -1120,13 +1130,26 @@ router.patch('/orders/:id/status', requireAuth, async (req: AuthenticatedRequest
     return;
   }
 
-  // 3. Update timestamps
+  // 4. Update timestamps & check if first confirmation
   const nowIso = new Date().toISOString();
+  const isFirstConfirmation =
+    nextStatus === 'CONFIRMED' &&
+    !order.confirmed_at &&
+    !order.confirmation_email_sent_at &&
+    !order.slot_snapshot?.confirmation_email_sent_at;
+
   order.status = nextStatus;
   order.updated_at = nowIso;
 
-  if (nextStatus === 'CONFIRMED') order.confirmed_at = nowIso;
-  else if (nextStatus === 'PREPARING') order.preparing_at = nowIso;
+  if (nextStatus === 'CONFIRMED') {
+    order.confirmed_at = nowIso;
+    if (isFirstConfirmation) {
+      if (!order.slot_snapshot || typeof order.slot_snapshot !== 'object') {
+        order.slot_snapshot = {};
+      }
+      order.slot_snapshot.confirmation_email_sent_at = nowIso;
+    }
+  } else if (nextStatus === 'PREPARING') order.preparing_at = nowIso;
   else if (nextStatus === 'READY_FOR_PICKUP') order.ready_at = nowIso;
   else if (nextStatus === 'OUT_FOR_DELIVERY') order.out_for_delivery_at = nowIso;
   else if (nextStatus === 'DELIVERED') {
@@ -1136,10 +1159,17 @@ router.patch('/orders/:id/status', requireAuth, async (req: AuthenticatedRequest
     order.cancelled_at = nowIso;
   }
 
-  
   if (!isLiveSupabase || !supabaseServer) {
     if (process.env.UNIT_TEST === 'true') {
       inMemoryStore.orders.set(order.id, order);
+      if (isFirstConfirmation) {
+        sendCustomerOrderConfirmationEmail(order).catch((err) =>
+          console.error('[sendCustomerOrderConfirmationEmail Error]:', err?.message)
+        );
+      }
+      notifyOrderStatusChanged(order, currentStatus, nextStatus).catch((err) =>
+        console.error('[Notification Dispatch Error]:', err)
+      );
       res.json({ success: true, order });
       return;
     }
@@ -1151,8 +1181,12 @@ router.patch('/orders/:id/status', requireAuth, async (req: AuthenticatedRequest
     status: nextStatus,
     updated_at: nowIso,
   };
-  if (nextStatus === 'CONFIRMED') updates.confirmed_at = nowIso;
-  else if (nextStatus === 'PREPARING') updates.preparing_at = nowIso;
+  if (nextStatus === 'CONFIRMED') {
+    updates.confirmed_at = nowIso;
+    if (isFirstConfirmation && order.slot_snapshot) {
+      updates.slot_snapshot = order.slot_snapshot;
+    }
+  } else if (nextStatus === 'PREPARING') updates.preparing_at = nowIso;
   else if (nextStatus === 'READY_FOR_PICKUP') updates.ready_at = nowIso;
   else if (nextStatus === 'OUT_FOR_DELIVERY') updates.out_for_delivery_at = nowIso;
   else if (nextStatus === 'DELIVERED') {
@@ -1171,7 +1205,6 @@ router.patch('/orders/:id/status', requireAuth, async (req: AuthenticatedRequest
 
   inMemoryStore.orders.set(order.id, order);
 
-
   logAuditEvent(req.user, 'ORDER_STATUS_CHANGED', 'ORDER', order.id, {
     orderNumber: order.order_number,
     from: currentStatus,
@@ -1179,7 +1212,14 @@ router.patch('/orders/:id/status', requireAuth, async (req: AuthenticatedRequest
     reason: reason || undefined,
   });
 
-  // Notify customer of order status transition (email + in-app notification)
+  // Exactly ONE customer confirmation email is dispatched only on the first successful confirmation
+  if (isFirstConfirmation) {
+    sendCustomerOrderConfirmationEmail(order).catch((err) =>
+      console.error('[sendCustomerOrderConfirmationEmail Error]:', err?.message)
+    );
+  }
+
+  // Notify customer of order status transition (in-app notification, and cancellation email if cancelled)
   notifyOrderStatusChanged(order, currentStatus, nextStatus).catch((err) =>
     console.error('[Notification Dispatch Error]:', err)
   );

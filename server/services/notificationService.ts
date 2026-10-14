@@ -8,6 +8,8 @@ import {
   ServerProfile,
   STORE_SETTINGS,
   inMemoryStore,
+  isLiveSupabase,
+  supabaseServer,
 } from '../db';
 import { BUSINESS_INFO } from '../config/businessInfo';
 
@@ -45,6 +47,8 @@ export interface EmailMessage {
   recipientName?: string;
   notificationType?: string;
   isPromotional?: boolean;
+  templateKey?: string;
+  mergeInfo?: Record<string, any>;
 }
 
 export interface EmailSendResult {
@@ -180,8 +184,48 @@ export class ZeptoMailProvider implements IEmailProvider {
     // 2. If live ZeptoMail API key is present and not placeholder, call ZeptoMail Send Mail API
     const token = extractZeptoMailToken(this.apiKey);
     if (token && !token.includes('placeholder')) {
+      const authHeader = formatZeptoAuthHeader(this.apiKey);
+
+      // 2a. Template-based dispatch if templateKey is provided
+      if (message.templateKey) {
+        try {
+          const tmplPayload = {
+            mail_template_key: message.templateKey,
+            from: { address: this.fromAddress },
+            to: [
+              {
+                email_address: {
+                  address: message.to,
+                  name: message.recipientName || this.fromName,
+                },
+              },
+            ],
+            merge_info: message.mergeInfo || {},
+          };
+
+          const tmplRes = await fetch(`${this.baseUrl}/v1.1/email/template`, {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              'Authorization': authHeader,
+            },
+            body: JSON.stringify(tmplPayload),
+          });
+
+          if (tmplRes.ok) {
+            const data: any = await tmplRes.json().catch(() => null);
+            console.log(`[ZeptoMail] [${typeTag}_TEMPLATE] dispatched successfully (HTTP ${tmplRes.status})`);
+            return { success: true, id: data?.data?.[0]?.message_id || `zepto_${Date.now()}` };
+          }
+
+          console.warn(`[ZeptoMail] Template dispatch returned HTTP ${tmplRes.status}; falling back to direct HTML.`);
+        } catch (err: any) {
+          console.warn(`[ZeptoMail] Template network error (${err.message}); falling back to direct HTML.`);
+        }
+      }
+
       try {
-        const authHeader = formatZeptoAuthHeader(this.apiKey);
         const payload = {
           from: {
             address: this.fromAddress,
@@ -840,14 +884,25 @@ export function buildDirectOrderConfirmationHtml(
 }
 
 /**
- * 1. Notify Order Placed (to Customer and Store Owner)
+ * Safely masks an email address to keep customer PII out of application logs.
+ * e.g., 'customer@example.com' -> 'cu******@example.com'
+ */
+function maskEmail(email?: string): string {
+  if (!email) return '(none)';
+  const parts = email.split('@');
+  if (parts.length !== 2) return '***';
+  const name = parts[0];
+  const maskedName = name.length <= 2 ? `${name[0]}*` : `${name.slice(0, 2)}${'*'.repeat(Math.max(1, name.length - 2))}`;
+  return `${maskedName}@${parts[1]}`;
+}
+
+/**
+ * 1. Notify Order Placed (to Store Owner & In-App Alerts only)
+ * NOTE: Customer confirmation email is strictly decoupled and only sent
+ * when the admin explicitly accepts/confirms the order for the first time.
  */
 export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
-  // Bug #5 Fix: Determine the correct customer contact.
-  // Priority: real guest_email → fall back to store owner notification only (no fake phone emails).
-  const realCustomerEmail = order.guest_email || undefined;
   const targetUserId = order.user_id || order.guest_phone || order.address_snapshot.recipient_phone;
-  const customerPhone = order.address_snapshot.recipient_phone || order.guest_phone || 'N/A';
 
   const isTakeaway = order.fulfilment_type === 'TAKEAWAY';
   const pickupTimeText = order.slot_snapshot?.slot_time_formatted
@@ -861,7 +916,7 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
   console.log(
     `[notifyOrderPlaced] Order #${order.order_number} [${
       order.fulfilment_type || 'DELIVERY'
-    }] | customer email: ${realCustomerEmail || '(none — phone user)'} | phone: ${customerPhone} | tracking: ${trackingUrl}`
+    }] | customer email: ${maskEmail(order.guest_email)} | tracking: ${trackingUrl}`
   );
 
   // In-app notification for Customer
@@ -870,8 +925,8 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
       userId: targetUserId,
       title: `Order #${order.order_number} Placed!`,
       message: isTakeaway
-        ? `Your fresh mithai order of ₹${order.total_amount} is confirmed for takeaway. Pickup scheduled for ${pickupTimeText} at the Saraswati Sweets counter.`
-        : `Your fresh mithai order of ₹${order.total_amount} has been confirmed for preparation and delivery.`,
+        ? `Your fresh mithai order of ₹${order.total_amount} is placed for takeaway. Pickup scheduled for ${pickupTimeText} at the Saraswati Sweets counter.`
+        : `Your fresh mithai order of ₹${order.total_amount} has been placed. We will notify you once confirmed by the store.`,
       type: 'ORDER_PLACED',
       metadata: {
         orderId: order.id,
@@ -898,85 +953,7 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
     },
   });
 
-  // Transactional Email to Customer
-  if (realCustomerEmail) {
-    const zeptoMailApiKey = process.env.ZEPTOMAIL_API_KEY;
-    const zeptoMailTemplateKey = process.env.ZEPTOMAIL_TEMPLATE_KEY;
-    const baseUrl = process.env.ZEPTOMAIL_BASE_URL || 'https://cpaas.zoho.in';
-    const fromAddress = getSenderEmail();
-    const mergeInfo = buildZeptoMailOrderConfirmationMergeInfo(order, trackingUrl);
-    const directHtml = buildDirectOrderConfirmationHtml(order, trackingUrl, mergeInfo);
-
-    let templateSentSuccessfully = false;
-
-    if (zeptoMailApiKey && !zeptoMailApiKey.includes('placeholder') && zeptoMailTemplateKey) {
-      try {
-        const payload = {
-          mail_template_key: zeptoMailTemplateKey,
-          from: { address: fromAddress },
-          to: [
-            {
-              email_address: {
-                address: realCustomerEmail,
-                name: order.address_snapshot?.recipient_name || 'Valued Customer',
-              },
-            },
-          ],
-          merge_info: mergeInfo,
-        };
-
-        const response = await fetch(`${baseUrl}/v1.1/email/template`, {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': formatZeptoAuthHeader(zeptoMailApiKey),
-          },
-          body: JSON.stringify(payload),
-        });
-
-        const data: any = await response.json().catch(() => null);
-        if (!response.ok) {
-          const sanitizedError = {
-            code: data?.error?.code || 'UNKNOWN_ERROR',
-            message: data?.error?.message || data?.message || response.statusText,
-            details:
-              data?.error?.details?.map((d: any) => ({
-                code: d?.code,
-                message: d?.message,
-                target: d?.target,
-              })) || undefined,
-          };
-          console.warn(
-            `[ZeptoMail API Error] [ORDER_CONFIRMATION_TEMPLATE] HTTP ${response.status}:`,
-            JSON.stringify(sanitizedError)
-          );
-        } else {
-          templateSentSuccessfully = true;
-          console.log(
-            `[ZeptoMail] [ORDER_CONFIRMATION_TEMPLATE] dispatched successfully (HTTP ${response.status})`
-          );
-        }
-      } catch (err: any) {
-        console.error('[ZeptoMail Network Error] [ORDER_CONFIRMATION_TEMPLATE]:', err.message);
-      }
-    }
-
-    // Resilient fallback: If template was not sent (template key missing, API error, or network error),
-    // dispatch styled direct HTML confirmation so customer is never left without confirmation.
-    if (!templateSentSuccessfully) {
-      console.log(`[ZeptoMail] Template email not sent; dispatching rich direct HTML order confirmation.`);
-      await emailProvider.sendEmail({
-        to: realCustomerEmail,
-        recipientName: order.address_snapshot?.recipient_name || 'Customer',
-        notificationType: 'ORDER_CONFIRMATION_DIRECT',
-        subject: `Order Confirmation #${order.order_number} - Saraswati Sweets (Barabanki)`,
-        html: directHtml,
-      });
-    }
-  } // end if (realCustomerEmail)
-
-  // Transactional Email to Store Owner — always fires regardless of customer email availability
+  // Transactional Email to Store Owner — always fires so store staff is alerted immediately
   await emailProvider.sendEmail({
     to: getAdminNotificationRecipient(),
     recipientName: 'Saraswati Sweets Store Owner',
@@ -990,7 +967,7 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
         ${isTakeaway ? `<p><strong>Scheduled Slot:</strong> ${escapeHtml(pickupTimeText)}</p>` : `<p><strong>Address:</strong> ${escapeHtml(order.address_snapshot.street_address)}, Barabanki - ${escapeHtml(order.address_snapshot.pincode)}</p>`}
         <p><strong>Items:</strong></p>
         <ul>
-          ${order.items.map((i) => `<li>${escapeHtml(i.product_name)} (${escapeHtml(i.variant_label)}) x ${i.quantity} = ₹${i.total_price}</li>`).join('')}
+          ${(order.items || []).map((i) => `<li>${escapeHtml(i.product_name)} (${escapeHtml(i.variant_label)}) x ${i.quantity} = ₹${i.total_price}</li>`).join('')}
         </ul>
         <p><strong>Order Total:</strong> ₹${order.total_amount} [${escapeHtml(order.payment_method)} / ${escapeHtml(order.payment_status)}]</p>
         <p><strong>Order Tracking Link:</strong> <a href="${escapeHtml(trackingUrl)}">${escapeHtml(trackingUrl)}</a></p>
@@ -998,7 +975,7 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
     `,
   });
 
-  // 3. Emit real-time event to connected admin dashboard clients
+  // Emit real-time event to connected admin dashboard clients
   try {
     const itemCount = Array.isArray(order.items)
       ? order.items.reduce((sum, item) => sum + (item.quantity || 1), 0)
@@ -1030,8 +1007,92 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
   }
 }
 
+const inFlightConfirmationEmailLocks = new Set<string>();
+
 /**
- * 2. Notify Order Status Changed (to Customer)
+ * Sends exactly ONE customer order-confirmation email upon the admin's first
+ * explicit acceptance/confirmation of the order.
+ * 
+ * Idempotency & Concurrency:
+ * - Persisted notification marker in slot_snapshot.confirmation_email_sent_at and confirmed_at
+ * - In-flight concurrency lock to prevent duplicate sends on concurrent requests
+ * - If order is already confirmed, skips sending
+ * - Safe against email provider errors (does not loop or duplicate)
+ */
+export async function sendCustomerOrderConfirmationEmail(
+  order: ServerOrder
+): Promise<{ sent: boolean; reason?: string }> {
+  const realCustomerEmail = order.guest_email?.trim() || undefined;
+  if (!realCustomerEmail) {
+    return { sent: false, reason: 'NO_CUSTOMER_EMAIL' };
+  }
+
+  // Idempotency: verify not already sent
+  if (
+    order.confirmation_email_sent_at ||
+    order.slot_snapshot?.confirmation_email_sent_at
+  ) {
+    console.log(`[OrderConfirmationEmail] Email already sent for Order #${order.order_number}; skipping duplicate.`);
+    return { sent: false, reason: 'ALREADY_SENT' };
+  }
+
+  // Concurrency lock
+  const lockKey = order.id || order.order_number;
+  if (inFlightConfirmationEmailLocks.has(lockKey)) {
+    console.log(`[OrderConfirmationEmail] Confirmation email already in flight for Order #${order.order_number}; skipping concurrent call.`);
+    return { sent: false, reason: 'IN_FLIGHT' };
+  }
+  inFlightConfirmationEmailLocks.add(lockKey);
+
+  try {
+    const trackingUrl = buildOrderTrackingUrl(order.order_number);
+    const zeptoMailApiKey = process.env.ZEPTOMAIL_API_KEY;
+    const zeptoMailTemplateKey = process.env.ZEPTOMAIL_TEMPLATE_KEY;
+    const mergeInfo = buildZeptoMailOrderConfirmationMergeInfo(order, trackingUrl);
+    const directHtml = buildDirectOrderConfirmationHtml(order, trackingUrl, mergeInfo);
+
+    console.log(`[sendCustomerOrderConfirmationEmail] Dispatching customer confirmation for #${order.order_number} to ${maskEmail(realCustomerEmail)}.`);
+
+    await emailProvider.sendEmail({
+      to: realCustomerEmail,
+      recipientName: order.address_snapshot?.recipient_name || 'Customer',
+      notificationType: 'ORDER_CONFIRMATION',
+      subject: `Order Confirmation #${order.order_number} - Saraswati Sweets (Barabanki)`,
+      html: directHtml,
+      templateKey: zeptoMailApiKey && !zeptoMailApiKey.includes('placeholder') ? zeptoMailTemplateKey : undefined,
+      mergeInfo,
+    });
+
+    // Persist marker both in memory and database
+    const nowIso = new Date().toISOString();
+    order.confirmation_email_sent_at = nowIso;
+    if (!order.slot_snapshot || typeof order.slot_snapshot !== 'object') {
+      order.slot_snapshot = {};
+    }
+    order.slot_snapshot.confirmation_email_sent_at = nowIso;
+    inMemoryStore.orders.set(order.id, order);
+
+    if (isLiveSupabase && supabaseServer && order.id) {
+      const updates: any = {
+        slot_snapshot: order.slot_snapshot,
+        updated_at: nowIso,
+      };
+      Promise.resolve(supabaseServer.from('orders').update(updates).eq('id', order.id))
+        .catch((err: any) => console.warn('[sendCustomerOrderConfirmationEmail] Marker persistence note:', err?.message));
+    }
+
+    return { sent: true };
+  } finally {
+    inFlightConfirmationEmailLocks.delete(lockKey);
+  }
+}
+
+/**
+ * 2. Notify Order Status Changed
+ * In-app notifications are sent for customer tracking.
+ * Email notifications are ONLY sent if the order is cancelled (ORDER_CANCELLED).
+ * Forward transitions (CONFIRMED, PREPARING, READY_FOR_PICKUP, OUT_FOR_DELIVERY, DELIVERED)
+ * never send customer emails.
  */
 export async function notifyOrderStatusChanged(
   order: ServerOrder,
@@ -1065,31 +1126,18 @@ export async function notifyOrderStatusChanged(
     });
   }
 
-  // Email notification via ZeptoMail
-  if (targetEmail) {
-    const isCancelled = newStatus === 'CANCELLED';
+  // Email notification via ZeptoMail — STRICTLY for order cancellation only
+  if (targetEmail && newStatus === 'CANCELLED') {
     await emailProvider.sendEmail({
       to: targetEmail,
       recipientName: order.address_snapshot.recipient_name,
-      notificationType: isCancelled ? 'ORDER_CANCELLED' : 'ORDER_STATUS_CHANGED',
-      subject: isCancelled
-        ? `Order #${order.order_number} Cancelled - Saraswati Sweets`
-        : `Order Update #${order.order_number}: ${statusLabel}`,
+      notificationType: 'ORDER_CANCELLED',
+      subject: `Order #${order.order_number} Cancelled - Saraswati Sweets`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e8dfd2; border-radius: 8px;">
-          <h2 style="color: ${isCancelled ? '#B3261E' : '#8A1538'};">Order #${order.order_number} ${isCancelled ? 'Cancelled' : 'Update'}</h2>
+          <h2 style="color: #B3261E;">Order #${order.order_number} Cancelled</h2>
           <p>Dear ${order.address_snapshot.recipient_name},</p>
-          <p>${isCancelled
-            ? `Your order <strong>#${order.order_number}</strong> has been cancelled. If payment was completed, any refund due will be credited to your source account within 5-7 business days.`
-            : `Your order status has changed to: <strong>${statusLabel}</strong>`}</p>
-          ${
-            order.delivery_partner_name && !isCancelled
-              ? `<div style="background: #fbf7f1; padding: 12px; border-radius: 6px; margin: 12px 0;">
-                  <p style="margin: 0;"><strong>Delivery Partner:</strong> ${order.delivery_partner_name} (${order.delivery_partner_phone || ''})</p>
-                 </div>`
-              : ''
-          }
-          ${!isCancelled ? `<p>Fresh preparation dispatched directly from our Indira Market store, Barabanki.</p>` : ''}
+          <p>Your order <strong>#${order.order_number}</strong> has been cancelled. If payment was completed, any refund due will be credited to your source account within 5-7 business days.</p>
           <p style="margin-top: 20px; font-size: 13px; color: #6B6258;">Need assistance? Call our Barabanki shop at ${STORE_SETTINGS.store_phone} or WhatsApp ${STORE_SETTINGS.whatsapp}.</p>
         </div>
       `,
