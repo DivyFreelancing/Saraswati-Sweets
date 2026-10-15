@@ -7,9 +7,10 @@ import { AddressProvider } from './context/AddressContext';
 import { Header } from './components/layout/Header';
 import { Footer } from './components/layout/Footer';
 import { MobileBottomNav } from './components/layout/MobileBottomNav';
-import { CartDrawer } from './components/cart/CartDrawer';
-import { ProductDetailModal } from './components/catalog/ProductDetailModal';
-import { AuthModal } from './components/auth/AuthModal';
+// Code-split modals and slide-overs so initial render bundle contains only critical shell
+const CartDrawer = React.lazy(() => import('./components/cart/CartDrawer').then(m => ({ default: m.CartDrawer })));
+const ProductDetailModal = React.lazy(() => import('./components/catalog/ProductDetailModal').then(m => ({ default: m.ProductDetailModal })));
+const AuthModal = React.lazy(() => import('./components/auth/AuthModal').then(m => ({ default: m.AuthModal })));
 import { ToastContainer } from './components/common/Toast';
 import { OfflineIndicator } from './components/common/OfflineIndicator';
 
@@ -34,7 +35,7 @@ const CertificationsPage = React.lazy(() => import('./pages/CertificationsPage')
 import { Product } from './types/database';
 
 function AppContent() {
-  const { openAuthModal } = useAuth();
+  const { openAuthModal, isAuthModalOpen } = useAuth();
   const [currentPath, setCurrentPath] = useState<string>(() => {
     return window.location.pathname || '/';
   });
@@ -262,23 +263,35 @@ function AppContent() {
       />
 
       {/* Cart Drawer Slide-over */}
-      <CartDrawer
-        isOpen={isCartDrawerOpen}
-        onClose={() => setIsCartDrawerOpen(false)}
-        onNavigateToCheckout={() => navigateTo('/checkout')}
-        onContinueShopping={() => navigateTo('/catalog')}
-      />
+      {isCartDrawerOpen && (
+        <React.Suspense fallback={null}>
+          <CartDrawer
+            isOpen={isCartDrawerOpen}
+            onClose={() => setIsCartDrawerOpen(false)}
+            onNavigateToCheckout={() => navigateTo('/checkout')}
+            onContinueShopping={() => navigateTo('/catalog')}
+          />
+        </React.Suspense>
+      )}
 
       {/* Product Detail Modal */}
-      <ProductDetailModal
-        product={selectedProduct}
-        isOpen={isDetailModalOpen}
-        onClose={handleCloseProductDetail}
-        onSelectRelatedProduct={(rel) => setSelectedProduct(rel)}
-      />
+      {isDetailModalOpen && (
+        <React.Suspense fallback={null}>
+          <ProductDetailModal
+            product={selectedProduct}
+            isOpen={isDetailModalOpen}
+            onClose={handleCloseProductDetail}
+            onSelectRelatedProduct={(rel) => setSelectedProduct(rel)}
+          />
+        </React.Suspense>
+      )}
 
       {/* Phone OTP Authentication Modal */}
-      <AuthModal />
+      {isAuthModalOpen && (
+        <React.Suspense fallback={null}>
+          <AuthModal />
+        </React.Suspense>
+      )}
 
       {/* Global Notifications */}
       <ToastContainer />

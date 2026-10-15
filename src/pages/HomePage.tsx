@@ -498,7 +498,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <div className="relative aspect-[4/5] max-w-[240px] sm:max-w-[260px] mx-auto rounded-2xl overflow-hidden border-2 border-white/80 shadow-[0_6px_24px_rgba(0,0,0,0.3)] bg-[#5E0D20] p-1.5">
                   <div className="w-full h-full rounded-xl overflow-hidden relative">
                     <img
-                      src="https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=600&q=80"
+                      src="https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=400&q=75"
                       alt="Indira Market Flagship Store"
                       width="260"
                       height="325"
@@ -522,7 +522,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <div className="relative aspect-[4/5] max-w-[240px] sm:max-w-[260px] mx-auto rounded-2xl overflow-hidden border-2 border-white/80 shadow-[0_6px_24px_rgba(0,0,0,0.3)] bg-[#5E0D20] p-1.5">
                   <div className="w-full h-full rounded-xl overflow-hidden relative">
                     <img
-                      src="https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=600&q=80"
+                      src="https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=400&q=75"
                       alt="Bilona Cow Ghee Kitchens"
                       width="260"
                       height="325"
@@ -546,7 +546,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <div className="relative aspect-[4/5] max-w-[240px] sm:max-w-[260px] mx-auto rounded-2xl overflow-hidden border-2 border-white/80 shadow-[0_6px_24px_rgba(0,0,0,0.3)] bg-[#5E0D20] p-1.5">
                   <div className="w-full h-full rounded-xl overflow-hidden relative">
                     <img
-                      src="https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=600&q=80"
+                      src="https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=400&q=75"
                       alt="Artisanal Chhena & Namkeen Counter"
                       width="260"
                       height="325"

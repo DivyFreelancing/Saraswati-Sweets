@@ -43,7 +43,7 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
     ? CATEGORY_IMAGE_FALLBACKS[category.slug] || 'https://images.unsplash.com/photo-1505253758473-96b7015fcd40'
     : category.image_url;
 
-  const optimizedImage = getOptimizedImageUrl(resolvedImageUrl, 200, 80);
+  const optimizedImage = getOptimizedImageUrl(resolvedImageUrl, 160, 75);
 
   return (
     <button

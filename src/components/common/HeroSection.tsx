@@ -150,15 +150,15 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
               {(index === 0 || loadSecondarySlides || isActive) && (
                 <picture>
                   <source media="(max-width: 640px)" srcSet={mobileSrc} type="image/webp" />
-                  <source srcSet={slide.image} type="image/webp" />
+                  <source media="(min-width: 641px)" srcSet={slide.image} type="image/webp" />
                   <img
-                    src={slide.image}
+                    src={mobileSrc}
                     alt={slide.titlePrefix}
                     width={index === 0 ? '800' : '1920'}
                     height={index === 0 ? '305' : '731'}
-                    className="w-full h-full object-cover object-center scale-102 transition-transform duration-7000 ease-out"
+                    className="w-full h-full object-cover object-center"
                     loading={index === 0 ? 'eager' : 'lazy'}
-                    decoding="async"
+                    decoding={index === 0 ? 'sync' : 'async'}
                     fetchPriority={index === 0 ? 'high' : 'low'}
                   />
                 </picture>

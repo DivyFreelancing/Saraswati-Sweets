@@ -19,9 +19,20 @@ export const ProductCarousel: React.FC<ProductCarouselProps> = ({
   const [isInteracting, setIsInteracting] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   
-  const containerRef = useRef<HTMLDivElement>(null);
-  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
   
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Detect mobile / touch devices to prevent unwanted autoplay reflows
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobileDevice(window.innerWidth < 768 || 'ontouchstart' in window);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile, { passive: true });
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   // Track system preference for reduced motion
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -32,55 +43,56 @@ export const ProductCarousel: React.FC<ProductCarouselProps> = ({
     return () => mediaQuery.removeEventListener('change', handler);
   }, []);
 
-  const getScrollAmount = () => {
-    if (!containerRef.current || itemRefs.current.length === 0) return 0;
-    const firstItem = itemRefs.current[0];
-    if (!firstItem) return 0;
-    return firstItem.offsetWidth;
-  };
-
   const slideNext = useCallback(() => {
     if (!containerRef.current || products.length <= 1) return;
     
-    const container = containerRef.current;
-    const maxScroll = container.scrollWidth - container.clientWidth;
-    const scrollAmount = getScrollAmount();
-    
-    if (container.scrollLeft >= maxScroll - 10) {
-      // Reached the end, loop back to start
-      container.scrollTo({ left: 0, behavior: prefersReducedMotion ? 'auto' : 'smooth' });
-    } else {
-      container.scrollBy({ left: scrollAmount, behavior: prefersReducedMotion ? 'auto' : 'smooth' });
-    }
+    window.requestAnimationFrame(() => {
+      const container = containerRef.current;
+      if (!container) return;
+      const width = container.clientWidth;
+      const maxScroll = container.scrollWidth - width;
+      const scrollAmount = Math.max(280, Math.round(width * 0.75));
+      
+      if (container.scrollLeft >= maxScroll - 10) {
+        // Reached the end, loop back to start
+        container.scrollTo({ left: 0, behavior: prefersReducedMotion ? 'auto' : 'smooth' });
+      } else {
+        container.scrollBy({ left: scrollAmount, behavior: prefersReducedMotion ? 'auto' : 'smooth' });
+      }
+    });
   }, [products.length, prefersReducedMotion]);
 
   const slidePrev = useCallback(() => {
     if (!containerRef.current || products.length <= 1) return;
     
-    const container = containerRef.current;
-    const scrollAmount = getScrollAmount();
-    
-    if (container.scrollLeft <= 10) {
-      // Reached the start, loop to end
-      const maxScroll = container.scrollWidth - container.clientWidth;
-      container.scrollTo({ left: maxScroll, behavior: prefersReducedMotion ? 'auto' : 'smooth' });
-    } else {
-      container.scrollBy({ left: -scrollAmount, behavior: prefersReducedMotion ? 'auto' : 'smooth' });
-    }
+    window.requestAnimationFrame(() => {
+      const container = containerRef.current;
+      if (!container) return;
+      const width = container.clientWidth;
+      const maxScroll = container.scrollWidth - width;
+      const scrollAmount = Math.max(280, Math.round(width * 0.75));
+      
+      if (container.scrollLeft <= 10) {
+        // Reached the start, loop to end
+        container.scrollTo({ left: maxScroll, behavior: prefersReducedMotion ? 'auto' : 'smooth' });
+      } else {
+        container.scrollBy({ left: -scrollAmount, behavior: prefersReducedMotion ? 'auto' : 'smooth' });
+      }
+    });
   }, [products.length, prefersReducedMotion]);
 
-  // Auto-slide logic
+  // Auto-slide logic (desktop only, relaxed 5s interval to eliminate forced reflow)
   useEffect(() => {
-    if (isLoading || products.length <= 1 || prefersReducedMotion || isHovered || isInteracting) {
+    if (isLoading || products.length <= 1 || prefersReducedMotion || isMobileDevice || isHovered || isInteracting) {
       return;
     }
 
     const timer = setInterval(() => {
       slideNext();
-    }, 3000);
+    }, 5000);
 
     return () => clearInterval(timer);
-  }, [isLoading, products.length, prefersReducedMotion, isHovered, isInteracting, slideNext]);
+  }, [isLoading, products.length, prefersReducedMotion, isMobileDevice, isHovered, isInteracting, slideNext]);
 
   // Handle touch events to pause autoplay
   const handleTouchStart = () => setIsInteracting(true);
@@ -123,7 +135,6 @@ export const ProductCarousel: React.FC<ProductCarouselProps> = ({
           {products.map((product, idx) => (
             <div 
               key={`${product.id}-${idx}`}
-              ref={(el) => { itemRefs.current[idx] = el; }}
               className="w-[85vw] sm:w-[38vw] md:w-[30vw] lg:w-[24vw] xl:w-[23vw] shrink-0 snap-start px-2 sm:px-3 lg:px-4"
               role="group"
               aria-roledescription="slide"
