@@ -154,7 +154,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenDetail 
 
       {/* Product Image Frame: Soft rounded corners with breathing room to prevent cutting off product trays */}
       <div className="py-2 flex justify-center">
-        <div className="w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40 rounded-2xl p-1 overflow-hidden bg-[#F5EAD9] border-2 border-white shadow-xs ring-1 ring-[#E8DCC8] relative shrink-0 flex items-center justify-center">
+        <div className="w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40 aspect-square rounded-2xl p-1 overflow-hidden bg-[#F5EAD9] border-2 border-white shadow-xs ring-1 ring-[#E8DCC8] relative shrink-0 flex items-center justify-center">
           {primaryImage && !imageFailed ? (
             <img
               src={primaryImage}
@@ -164,13 +164,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenDetail 
               loading="lazy"
               decoding="async"
               onError={() => setImageFailed(true)}
-              className={`w-full h-full object-cover rounded-xl transition-transform duration-500 ease-out group-hover:scale-105 ${
+              className={`w-full h-full object-contain object-center rounded-xl transition-transform duration-500 ease-out group-hover:scale-105 ${
                 isAllOutOfStock ? 'opacity-70 contrast-90 grayscale-[25%]' : ''
               }`}
             />
           ) : (
             <ProductImagePlaceholder
-              aspect="circle"
+              aspect="square"
               productName={product.name}
               className="w-full h-full"
             />

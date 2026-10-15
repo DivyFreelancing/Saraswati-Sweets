@@ -9,9 +9,9 @@ export const ProductCardSkeleton: React.FC = () => {
         <div className="w-16 h-4 rounded-full bg-[#E8DCC8]/50" />
       </div>
 
-      {/* Circular photo skeleton */}
+      {/* Photo skeleton */}
       <div className="py-2">
-        <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-full bg-[#F5EAD9] border-2 border-[#E8DCC8]/50" />
+        <div className="w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40 aspect-square rounded-2xl bg-[#F5EAD9] border-2 border-white shadow-xs ring-1 ring-[#E8DCC8]" />
       </div>
 
       {/* Title & info skeletons */}

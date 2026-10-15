@@ -24,14 +24,14 @@ export function getOptimizedImageUrl(
       '/storage/v1/render/image/public/'
     );
     const separator = transformed.includes('?') ? '&' : '?';
-    return `${transformed}${separator}width=${width}&quality=${quality}&format=webp`;
+    return `${transformed}${separator}width=${width}&resize=contain&quality=${quality}&format=webp`;
   }
 
   // Already transformed Supabase URL: ensure width/format params
   if (trimmed.includes('.supabase.co/storage/v1/render/image/public/')) {
     if (!trimmed.includes('format=webp')) {
       const separator = trimmed.includes('?') ? '&' : '?';
-      return `${trimmed}${separator}width=${width}&quality=${quality}&format=webp`;
+      return `${trimmed}${separator}width=${width}&resize=contain&quality=${quality}&format=webp`;
     }
     return trimmed;
   }
@@ -41,7 +41,7 @@ export function getOptimizedImageUrl(
     try {
       const u = new URL(trimmed);
       u.searchParams.set('auto', 'format');
-      u.searchParams.set('fit', 'crop');
+      u.searchParams.set('fit', 'max');
       u.searchParams.set('w', width.toString());
       u.searchParams.set('q', quality.toString());
       return u.toString();
