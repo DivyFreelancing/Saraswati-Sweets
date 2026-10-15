@@ -31,6 +31,58 @@ interface HeaderProps {
   onOpenCart: () => void;
 }
 
+const AnnouncementItem: React.FC<{ 'aria-hidden'?: boolean | 'true' | 'false'; className?: string }> = ({
+  'aria-hidden': ariaHidden,
+  className = '',
+}) => {
+  return (
+    <div
+      aria-hidden={ariaHidden}
+      className={`flex items-center gap-2.5 sm:gap-3.5 shrink-0 px-4 sm:px-6 select-text ${className}`}
+    >
+      <span className="bg-[#C79A3D] text-[#2A0E14] text-[10px] uppercase font-bold px-2 py-0.5 rounded-full shrink-0 tracking-wider shadow-2xs">
+        Barabanki
+      </span>
+
+      <span className="text-[#FAF4DE]/95 font-medium whitespace-nowrap">
+        Pure Desi Ghee Mithai Since 1989 · Barabanki · Open Daily 6:30 AM – 10:00 PM · Delivering across Barabanki &amp; Nearby
+      </span>
+
+      <span className="text-[#C79A3D] font-bold text-xs shrink-0 select-none" aria-hidden="true">
+        ·
+      </span>
+
+      <a
+        href={BUSINESS_INFO.phoneTel}
+        className="inline-flex items-center gap-1.5 text-[#FAF4DE] hover:text-[#C79A3D] transition-colors whitespace-nowrap focus:outline-none focus:underline"
+        tabIndex={ariaHidden ? -1 : 0}
+      >
+        <Phone className="w-3 h-3 text-[#C79A3D] shrink-0" />
+        <span className="font-semibold">{BUSINESS_INFO.phone}</span>
+      </a>
+
+      <span className="text-[#FAF4DE]/40 shrink-0 select-none" aria-hidden="true">
+        |
+      </span>
+
+      <a
+        href={BUSINESS_INFO.googleMapsUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1.5 text-[#FAF4DE] hover:text-[#C79A3D] transition-colors whitespace-nowrap focus:outline-none focus:underline"
+        tabIndex={ariaHidden ? -1 : 0}
+      >
+        <MapPin className="w-3 h-3 text-[#C79A3D] shrink-0" />
+        <span>{BUSINESS_INFO.landmark}</span>
+      </a>
+
+      <span className="text-[#C79A3D]/70 font-serif text-xs shrink-0 select-none ml-2" aria-hidden="true">
+        ✦
+      </span>
+    </div>
+  );
+};
+
 export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenCart }) => {
   const { totalItems, subtotal } = useCart();
   const { user, isAuthenticated, openAuthModal, signOut } = useAuth();
@@ -111,32 +163,21 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
 
   return (
     <>
-      {/* 1. Thin trust strip above the header (scrolls naturally with page) */}
-      <div className="bg-[#2A0E14] text-[#FAF4DE] py-1.5 px-4 text-xs font-medium tracking-wide">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2 truncate">
-            <span className="bg-[#C79A3D] text-[#2A0E14] text-[10px] uppercase font-bold px-2 py-0.5 rounded-full shrink-0">
-              Barabanki
-            </span>
-            <span className="truncate text-[#FAF4DE]/95">
-              Pure Desi Ghee Mithai Since 1989 · Barabanki · Open Daily 6:30 AM – 10:00 PM · Delivering across Barabanki & Nearby
-            </span>
-          </div>
-
-          <div className="hidden md:flex items-center gap-4 shrink-0 text-[#FAF4DE]/90 text-[11px]">
-            <a
-              href={BUSINESS_INFO.phoneTel}
-              className="flex items-center gap-1 hover:text-white transition-colors"
-            >
-              <Phone className="w-3 h-3 text-[#C79A3D]" />
-              <span>{BUSINESS_INFO.phone}</span>
-            </a>
-            <span className="text-[#FAF4DE]/40">|</span>
-            <span className="flex items-center gap-1">
-              <MapPin className="w-3 h-3 text-[#C79A3D]" />
-              <span>{BUSINESS_INFO.landmark}</span>
-            </span>
-          </div>
+      {/* 1. Continuous Scrolling News-Ticker Announcement Bar */}
+      <div
+        role="region"
+        aria-label="Store Announcement"
+        className="announcement-ticker-container bg-[#2A0E14] text-[#FAF4DE] py-1.5 text-xs font-medium tracking-wide relative flex items-center min-h-[32px] border-b border-[#2A0E14]"
+      >
+        <div className="announcement-ticker-track">
+          <AnnouncementItem />
+          <AnnouncementItem aria-hidden="true" className="reduced-motion-hidden" />
+          <AnnouncementItem aria-hidden="true" className="reduced-motion-hidden" />
+        </div>
+        <div className="announcement-ticker-track announcement-ticker-duplicate" aria-hidden="true">
+          <AnnouncementItem aria-hidden="true" />
+          <AnnouncementItem aria-hidden="true" />
+          <AnnouncementItem aria-hidden="true" />
         </div>
       </div>
 

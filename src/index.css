@@ -229,4 +229,60 @@ h1, h2, h3, .font-display {
   }
 }
 
+/* ==========================================================
+   Continuous News-Ticker for Top Announcement Bar
+   ========================================================== */
+@keyframes announcement-ticker {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-100%, 0, 0);
+  }
+}
+
+.announcement-ticker-container {
+  display: flex;
+  overflow: hidden;
+  width: 100%;
+  white-space: nowrap;
+  mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent);
+}
+
+.announcement-ticker-track {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  will-change: transform;
+  animation: announcement-ticker 50s linear infinite;
+}
+
+/* Pause animation on hover or focus-within for readable interaction and clicking */
+.announcement-ticker-container:hover .announcement-ticker-track,
+.announcement-ticker-container:focus-within .announcement-ticker-track {
+  animation-play-state: paused;
+}
+
+/* Accessibility: prefers-reduced-motion fallback */
+@media (prefers-reduced-motion: reduce) {
+  .announcement-ticker-container {
+    mask-image: none !important;
+    -webkit-mask-image: none !important;
+    overflow-x: auto !important;
+    justify-content: center !important;
+  }
+  .announcement-ticker-track {
+    animation: none !important;
+    transform: none !important;
+  }
+  .announcement-ticker-duplicate {
+    display: none !important;
+  }
+  .reduced-motion-hidden {
+    display: none !important;
+  }
+}
+
+
 
