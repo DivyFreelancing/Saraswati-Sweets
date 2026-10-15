@@ -70,6 +70,7 @@ import { AdminDashboardHeader } from '../components/admin/AdminDashboardHeader';
 import { AdminKpiGrid } from '../components/admin/AdminKpiGrid';
 import { AdminSalesChartCard } from '../components/admin/AdminSalesChartCard';
 import { AdminPendingOrdersCard } from '../components/admin/AdminPendingOrdersCard';
+import { AdminReportsTab } from '../components/admin/AdminReportsTab';
 
 interface AdminPageProps {
   onBackToStore: () => void;
@@ -79,6 +80,7 @@ interface AdminPageProps {
 
 type AdminTab =
   | 'overview'
+  | 'reports'
   | 'orders'
   | 'products'
   | 'categories'
@@ -95,6 +97,7 @@ type AdminTab =
 
 const tabTitles: Record<AdminTab, string> = {
   overview: 'Dashboard',
+  reports: 'Reports & Analytics',
   orders: 'Orders',
   products: 'Sweets & Stock',
   categories: 'Categories',
@@ -1454,7 +1457,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
           )}
 
           {/* 5. Quick Action Shortcuts */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <button
               type="button"
               onClick={() => setActiveTab('orders')}
@@ -1465,6 +1468,20 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   Manage Live Orders
                 </div>
                 <div className="text-xs text-[#6B6258] mt-0.5">Order confirmation, dispatch, and delivery</div>
+              </div>
+              <ArrowRight className="w-4 h-4 text-[#7A1129] group-hover:translate-x-0.5 transition-transform" strokeWidth={1.8} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('reports')}
+              className="p-4 rounded-[14px] bg-white border border-[#E9E2D8] hover:border-[#7A1129] hover:bg-[#F3E9DC]/40 text-left transition-all shadow-2xs flex items-center justify-between cursor-pointer group"
+            >
+              <div>
+                <div className="font-bold text-sm text-[#241C17] group-hover:text-[#7A1129] transition-colors">
+                  Reports & Analytics
+                </div>
+                <div className="text-xs text-[#6B6258] mt-0.5">Sales summaries, bestsellers, gateway & exports</div>
               </div>
               <ArrowRight className="w-4 h-4 text-[#7A1129] group-hover:translate-x-0.5 transition-transform" strokeWidth={1.8} />
             </button>
@@ -1490,6 +1507,16 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       )}
 
       {/* ==================================================== */}
+      {/* TAB: REPORTS & ANALYTICS                             */}
+      {/* ==================================================== */}
+      {activeTab === 'reports' && (
+        <AdminReportsTab
+          getAuthHeaders={getAuthHeaders}
+          onNavigateToOrders={() => setActiveTab('orders')}
+        />
+      )}
+
+      {/* ==================================================== */}
       {/* TAB B: ORDERS MANAGEMENT                             */}
       {/* ==================================================== */}
       {activeTab === 'orders' && (
@@ -1500,9 +1527,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                 <ShoppingCart className="w-5 h-5 text-[#7A1129]" />
                 <span>Orders Dashboard (Live Polling every 20s)</span>
               </h3>
-              <p className="text-xs text-[#6B5F55]">
-                Enforce state transitions, assign delivery riders, and process Cashfree refunds.
-              </p>
+             
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs text-[#6B5F55] flex items-center gap-1.5">
@@ -2178,9 +2203,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                 <FolderTree className="w-5 h-5 text-[#7A1129]" />
                 <span>Categories Directory</span>
               </h3>
-              <p className="text-xs text-[#6B5F55]">
-                Organize Barabanki sweets into storefront collection tiles.
-              </p>
+              
             </div>
             {isAdmin && (
               <button

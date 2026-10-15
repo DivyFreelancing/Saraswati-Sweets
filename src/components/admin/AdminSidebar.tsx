@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   BarChart3,
+  LineChart,
   ShoppingCart,
   Package,
   FolderTree,
@@ -19,6 +20,7 @@ import {
 
 export type AdminTab =
   | 'overview'
+  | 'reports'
   | 'orders'
   | 'products'
   | 'categories'
@@ -77,6 +79,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
 }) => {
   const navTabs: AdminNavTabItem[] = [
     { key: 'overview', label: 'Dashboard', icon: BarChart3 },
+    { key: 'reports', label: 'Reports & Analytics', icon: LineChart },
     { key: 'orders', label: 'Orders', count: counts.orders, icon: ShoppingCart },
     { key: 'products', label: 'Sweets & Stock', count: counts.products, icon: Package },
     { key: 'categories', label: 'Categories', count: counts.categories, icon: FolderTree },

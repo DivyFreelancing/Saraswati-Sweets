@@ -2566,7 +2566,7 @@ export async function loadStoreState(): Promise<void> {
     const [
       cats, prods, vars, offs, bans, hampers, 
       ords, profs, addrs, pays, revs, 
-      coups, bulks, prodImgs, ordItems, settingsRes
+      coups, bulks, prodImgs, ordItems, settingsRes, refundsRes
     ] = await Promise.all([
       supabaseServer.from('categories').select('*'),
       supabaseServer.from('products').select('*'),
@@ -2583,7 +2583,8 @@ export async function loadStoreState(): Promise<void> {
       supabaseServer.from('bulk_enquiries').select('*'),
       supabaseServer.from('product_images').select('*'),
       supabaseServer.from('order_items').select('*'),
-      supabaseServer.from('store_settings').select('*').eq('id', 1).maybeSingle()
+      supabaseServer.from('store_settings').select('*').eq('id', 1).maybeSingle(),
+      supabaseServer.from('refunds').select('*')
     ]);
 
     // Populate SyncMaps (bypassing the custom .set to avoid re-upserting)
@@ -2738,6 +2739,7 @@ export async function loadStoreState(): Promise<void> {
     });
     if (addrs.data) { inMemoryStore.addresses.clear(); addrs.data.forEach(x => inMemoryStore.addresses.set(x.id, x)); }
     if (pays.data) { inMemoryStore.payments.clear(); pays.data.forEach(x => inMemoryStore.payments.set(x.id, x)); }
+    if (refundsRes && refundsRes.data) { inMemoryStore.refunds.clear(); refundsRes.data.forEach((x: any) => inMemoryStore.refunds.set(x.id, x)); }
     if (revs.data) { inMemoryStore.reviews.clear(); revs.data.forEach(x => inMemoryStore.reviews.set(x.id, x)); }
     if (coups.data) {
       inMemoryStore.coupons.clear();

@@ -28,6 +28,7 @@ import {
 } from '../db';
 import { createCashfreeRefund, fetchCashfreeRefund } from '../services/cashfreeService';
 import { adminOrderEvents, AdminOrderNotificationPayload, emailProvider, getAdminNotificationRecipient } from '../services/notificationService';
+import { generateReportsAnalytics } from '../services/reportService';
 
 const router = Router();
 
@@ -139,6 +140,30 @@ router.get('/overview', (req: AuthenticatedRequest, res: Response) => {
     },
     storeSettings: inMemoryStore.storeSettings,
   });
+});
+
+// ==========================================================
+// 1B. REPORTS & ANALYTICS (Authoritative Express Endpoint)
+// ==========================================================
+router.get('/reports/analytics', (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { range = 'last7days', startDate, endDate, groupBy = 'day' } = req.query;
+
+    const payload = generateReportsAnalytics(
+      String(range) as any,
+      startDate ? String(startDate) : undefined,
+      endDate ? String(endDate) : undefined,
+      groupBy === 'week' || groupBy === 'month' ? groupBy : 'day'
+    );
+
+    res.json(payload);
+  } catch (err: any) {
+    console.error('[Admin] Error generating reports analytics:', err);
+    res.status(500).json({
+      error: 'REPORTS_ERROR',
+      message: 'Failed to generate reports and analytics data.',
+    });
+  }
 });
 
 // ==========================================================
