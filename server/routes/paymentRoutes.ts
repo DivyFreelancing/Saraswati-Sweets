@@ -11,7 +11,9 @@ import {
 } from '../db';
 import {
   fetchCashfreeOrderDetails,
+  fetchCashfreeOrderPayments,
   verifyWebhookSignature,
+  extractCashfreePaymentId,
 } from '../services/cashfreeService';
 import {
   confirmOrderPayment,
@@ -36,28 +38,8 @@ router.post('/verify', async (req: AuthenticatedRequest, res: Response) => {
     return;
   }
 
-  // 1. Verify payment status directly with Cashfree's authoritative API
-  const cashfreeDetails = await fetchCashfreeOrderDetails(targetOrderId);
-
-  if (cashfreeDetails.status === 'ACTIVE') {
-    res.status(200).json({
-      success: false,
-      pending: true,
-      message: 'Payment verification pending. We are waiting for Cashfree to confirm.',
-    });
-    return;
-  }
-
-  if (cashfreeDetails.status !== 'PAID') {
-    res.status(400).json({
-      error: 'PAYMENT_NOT_PAID',
-      message: 'Payment was not successful or has failed.',
-    });
-    return;
-  }
-
-  // 2. Authorize order ownership
-  let order: ServerOrder | undefined = inMemoryStore.orders.get(order_id);
+  // 1. Authorize order ownership first by looking up order in memory and DB
+  let order: ServerOrder | undefined = order_id ? inMemoryStore.orders.get(order_id) : undefined;
   if (!order) {
     order = Array.from(inMemoryStore.orders.values()).find(
       (o) => o.provider_order_id === targetOrderId || o.order_number === targetOrderId || o.id === targetOrderId
@@ -137,12 +119,79 @@ router.post('/verify', async (req: AuthenticatedRequest, res: Response) => {
     }
   }
 
-  // 3. Confirm and persist payment reliably via unified service
+  // Determine authoritative Cashfree order ID for gateway lookups
+  const gatewayOrderId = order.provider_order_id || targetOrderId;
+
+  // 3. Verify payment status directly with Cashfree's authoritative API
+  const cashfreeDetails = await fetchCashfreeOrderDetails(gatewayOrderId);
+
+  if (cashfreeDetails.status === 'ACTIVE') {
+    res.status(200).json({
+      success: false,
+      pending: true,
+      message: 'Payment verification pending. We are waiting for Cashfree to confirm.',
+    });
+    return;
+  }
+
+  if (cashfreeDetails.status !== 'PAID') {
+    res.status(400).json({
+      error: 'PAYMENT_NOT_PAID',
+      message: 'Payment was not successful or has failed.',
+    });
+    return;
+  }
+
+  // 4. Obtain authoritative provider payment ID from Cashfree's payments endpoint
+  let cfPaymentId: string | undefined = undefined;
+  let paymentMethod = 'ONLINE';
+  let paidAt = new Date().toISOString();
+  let paymentAmount = cashfreeDetails.orderAmount;
+  let paymentCurrency = cashfreeDetails.orderCurrency || 'INR';
+  let successfulPayment: any = null;
+
+  const payments = await fetchCashfreeOrderPayments(gatewayOrderId);
+  successfulPayment = payments.find((p) => p.payment_status === 'SUCCESS');
+  if (successfulPayment) {
+    cfPaymentId = extractCashfreePaymentId(successfulPayment);
+    if (successfulPayment.payment_group) paymentMethod = successfulPayment.payment_group;
+    if (successfulPayment.payment_time) paidAt = successfulPayment.payment_time;
+    if (successfulPayment.payment_amount) paymentAmount = successfulPayment.payment_amount;
+    if (successfulPayment.payment_currency) paymentCurrency = successfulPayment.payment_currency;
+  }
+
+  // Fallback to order_number if gatewayOrderId was internal and returned empty
+  if (!cfPaymentId && order.order_number && order.order_number !== gatewayOrderId) {
+    const fallbackPayments = await fetchCashfreeOrderPayments(order.order_number);
+    const fallbackSuccess = fallbackPayments.find((p) => p.payment_status === 'SUCCESS');
+    if (fallbackSuccess) {
+      successfulPayment = fallbackSuccess;
+      cfPaymentId = extractCashfreePaymentId(fallbackSuccess);
+      if (fallbackSuccess.payment_group) paymentMethod = fallbackSuccess.payment_group;
+      if (fallbackSuccess.payment_time) paidAt = fallbackSuccess.payment_time;
+      if (fallbackSuccess.payment_amount) paymentAmount = fallbackSuccess.payment_amount;
+      if (fallbackSuccess.payment_currency) paymentCurrency = fallbackSuccess.payment_currency;
+    }
+  }
+
+  if (!cfPaymentId) {
+    res.status(400).json({
+      error: 'MISSING_PROVIDER_PAYMENT_ID',
+      message: 'No successful payment record found on gateway for this order.',
+    });
+    return;
+  }
+
+  // 5. Confirm and persist payment reliably via unified service
   const confirmResult = await confirmOrderPayment({
-    orderIdOrProviderId: targetOrderId,
-    providerOrderId: targetOrderId,
-    paymentAmount: cashfreeDetails.orderAmount,
-    currency: cashfreeDetails.orderCurrency,
+    orderIdOrProviderId: order.id,
+    providerOrderId: gatewayOrderId,
+    providerPaymentId: cfPaymentId,
+    paymentAmount,
+    currency: paymentCurrency,
+    paymentMethod,
+    paidAt,
+    rawPayload: successfulPayment,
     source: 'VERIFY',
   });
 
@@ -252,7 +301,9 @@ router.post('/webhook/cashfree', async (req: Request, res: Response) => {
   const payload = req.body;
   const event = payload?.type;
   const cfOrderId = payload?.data?.order?.order_id?.toString();
-  const cfPaymentId = payload?.data?.payment?.cf_payment_id?.toString();
+  let cfPaymentId =
+    extractCashfreePaymentId(payload?.data?.payment) ||
+    extractCashfreePaymentId(payload?.data);
 
   if (!cfOrderId) {
     res.status(400).json({
@@ -312,6 +363,36 @@ router.post('/webhook/cashfree', async (req: Request, res: Response) => {
         message: `Gateway reports order status as ${gatewayDetails.status}`,
       });
       return;
+    }
+
+    // 2. Authoritatively retrieve provider payment ID from Cashfree's payments endpoint if missing in payload
+    if (!cfPaymentId && cfOrderId) {
+      try {
+        const payments = await fetchCashfreeOrderPayments(cfOrderId);
+        const successfulPayment = payments.find((p) => p.payment_status === 'SUCCESS');
+        if (successfulPayment) {
+          cfPaymentId = extractCashfreePaymentId(successfulPayment);
+        }
+      } catch (payFetchErr: any) {
+        console.warn(`[Cashfree Webhook] Error fetching payments for order ${cfOrderId}: ${payFetchErr.message}`);
+      }
+    }
+
+    if (!cfPaymentId) {
+      console.error(
+        `[Cashfree Webhook] Authoritative provider payment ID is missing for successful order ${cfOrderId}. Failing closed.`
+      );
+      res.status(500).json({
+        error: 'MISSING_PROVIDER_PAYMENT_ID',
+        message: 'Valid provider payment ID is required for successful online settlement. Event will be retried.',
+        retryable: true,
+      });
+      return;
+    }
+
+    // Update eventId if it was constructed before resolving payment ID
+    if (!payload?.event_id && cfPaymentId && !eventId.includes(cfPaymentId)) {
+      eventId = `${event}_${cfPaymentId}`;
     }
 
     const paymentAmount =

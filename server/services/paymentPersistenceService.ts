@@ -8,6 +8,7 @@ import {
   findOrderInSupabase,
 } from '../db';
 import { notifyOrderPlaced } from './notificationService';
+import { extractCashfreePaymentId, fetchCashfreeOrderPayments } from './cashfreeService';
 
 let testClientOverride: any = undefined;
 let testIsLiveOverride: boolean | undefined = undefined;
@@ -138,6 +139,8 @@ async function executeConfirmOrderPayment(params: ConfirmPaymentParams): Promise
 
   const nowIso = new Date().toISOString();
   const paidAtIso = paidAt || nowIso;
+  const isLive = getActiveIsLive();
+  const client = getActiveClient();
 
   // 1. Strict Currency Validation (INR only)
   if (!currency || currency.trim().toUpperCase() !== 'INR') {
@@ -172,8 +175,6 @@ async function executeConfirmOrderPayment(params: ConfirmPaymentParams): Promise
   }
 
   // Database fallback if not in memory
-  const isLive = getActiveIsLive();
-  const client = getActiveClient();
   if (!order && isLive && client) {
     if (orderIdOrProviderId) {
       const { order: dbOrder, error: dbErr } = await findOrderInSupabase(orderIdOrProviderId);
@@ -233,7 +234,52 @@ async function executeConfirmOrderPayment(params: ConfirmPaymentParams): Promise
     };
   }
 
-  // 3. Strict Payment Method Validation (Reject COD immediately)
+  // 3. Strict Provider Payment ID Validation & Authoritative Resolution
+  // Never substitute order ID for payment ID
+  let cleanProvPaymentId = (providerPaymentId || '').trim();
+
+  // If missing from params, attempt extraction from rawPayload
+  if (!cleanProvPaymentId && rawPayload) {
+    cleanProvPaymentId =
+      extractCashfreePaymentId(rawPayload?.data?.payment) ||
+      extractCashfreePaymentId(rawPayload?.payment) ||
+      extractCashfreePaymentId(rawPayload?.data) ||
+      extractCashfreePaymentId(rawPayload) ||
+      '';
+  }
+
+  // If still missing and order is already captured, preserve existing captured payment ID
+  if (!cleanProvPaymentId && order && order.payment_status === 'CAPTURED' && order.provider_payment_id) {
+    cleanProvPaymentId = order.provider_payment_id;
+  }
+
+  // If still missing, query Cashfree's authoritative order payments endpoint
+  if (!cleanProvPaymentId) {
+    const gatewayLookup = providerOrderId || order?.provider_order_id || order?.order_number;
+    if (gatewayLookup) {
+      try {
+        const paymentList = await fetchCashfreeOrderPayments(gatewayLookup);
+        const successfulPayment = paymentList.find(
+          (p) => p.payment_status?.toUpperCase() === 'SUCCESS' || p.payment_status?.toUpperCase() === 'PAID'
+        ) || paymentList[0];
+        cleanProvPaymentId = extractCashfreePaymentId(successfulPayment) || '';
+      } catch (cfErr: any) {
+        console.warn(`[PaymentPersistence] Warning querying gateway payments for ${gatewayLookup}: ${cfErr.message}`);
+      }
+    }
+  }
+
+  if (!cleanProvPaymentId) {
+    console.error(`[PaymentPersistence] Missing or blank provider payment ID for order '${orderIdOrProviderId}'`);
+    return {
+      success: false,
+      alreadyProcessed: false,
+      error: 'Valid provider payment ID is required for successful online settlement',
+      errorCode: 'MISSING_PROVIDER_PAYMENT_ID',
+    };
+  }
+
+  // 4. Strict Payment Method Validation (Reject COD immediately)
   if (order.payment_method === 'COD' || (paymentMethod && paymentMethod.toUpperCase() === 'COD')) {
     console.error(`[PaymentPersistence] Cannot settle COD order #${order.order_number} via online settlement`);
     return {
@@ -244,7 +290,7 @@ async function executeConfirmOrderPayment(params: ConfirmPaymentParams): Promise
     };
   }
 
-  // 4. Conflict & Strict Mapping Checks
+  // 5. Conflict & Strict Mapping Checks
   // A. Check if order's existing provider_order_id conflicts with incoming providerOrderId
   if (order.provider_order_id && providerOrderId && order.provider_order_id !== providerOrderId) {
     console.error(
@@ -258,7 +304,43 @@ async function executeConfirmOrderPayment(params: ConfirmPaymentParams): Promise
     };
   }
 
-  // B. Check if incoming providerOrderId is already linked to a DIFFERENT order
+  // B. Check if order's existing provider_payment_id conflicts with incoming providerPaymentId on captured orders
+  if (
+    order.payment_status === 'CAPTURED' &&
+    order.provider_payment_id &&
+    cleanProvPaymentId &&
+    order.provider_payment_id !== cleanProvPaymentId
+  ) {
+    console.error(
+      `[PaymentPersistence] Provider payment ID mismatch for order #${order.order_number}: expected '${order.provider_payment_id}', received '${cleanProvPaymentId}'`
+    );
+    return {
+      success: false,
+      alreadyProcessed: false,
+      error: `Order is already linked to provider payment '${order.provider_payment_id}', cannot settle with different payment ID '${cleanProvPaymentId}'`,
+      errorCode: 'PAYMENT_ID_MISMATCH',
+    };
+  }
+
+  // C. Check if incoming providerPaymentId is already used on another captured order
+  if (cleanProvPaymentId) {
+    const conflictingPayment = Array.from(inMemoryStore.payments.values()).find(
+      (p) => p.provider_payment_id === cleanProvPaymentId && p.order_id !== order!.id && p.status === 'CAPTURED'
+    );
+    if (conflictingPayment) {
+      console.error(
+        `[PaymentPersistence] Provider payment ID '${cleanProvPaymentId}' is already used on order #${conflictingPayment.order_number || conflictingPayment.order_id}`
+      );
+      return {
+        success: false,
+        alreadyProcessed: false,
+        error: `Provider payment '${cleanProvPaymentId}' is already assigned to a different order`,
+        errorCode: 'PAYMENT_ID_ALREADY_USED',
+      };
+    }
+  }
+
+  // D. Check if incoming providerOrderId is already linked to a DIFFERENT order
   if (providerOrderId) {
     const conflictingMemOrder = Array.from(inMemoryStore.orders.values()).find(
       (o) => o.provider_order_id === providerOrderId && o.id !== order!.id
@@ -275,9 +357,9 @@ async function executeConfirmOrderPayment(params: ConfirmPaymentParams): Promise
       };
     }
 
-    if (isLiveSupabase && supabaseServer) {
+    if (isLive && client) {
       try {
-        const { data: conflictingDbOrder } = await supabaseServer
+        const { data: conflictingDbOrder } = await client
           .from('orders')
           .select('id, order_number')
           .eq('order_number', providerOrderId)
@@ -301,60 +383,107 @@ async function executeConfirmOrderPayment(params: ConfirmPaymentParams): Promise
     }
   }
 
-  // 5. Idempotency Check for Webhook Events (with payload conflict validation)
-  if (eventId && (await isWebhookEventProcessed(eventId))) {
-    console.log(`[PaymentPersistence] Event ${eventId} already processed (source: ${source})`);
-
-    // Validate that this event ID was actually processed for THIS order
-    if (isLiveSupabase && supabaseServer) {
-      const { data: existingEvt } = await supabaseServer
+  // 6. Idempotency Check for Webhook Events (with identity conflict validation)
+  if (eventId) {
+    if (isLive && client) {
+      const { data: existingEvt } = await client
         .from('webhook_events')
-        .select('order_id, provider_order_id')
+        .select('id, status, order_id, provider_order_id, provider_payment_id')
         .eq('event_id', eventId)
         .maybeSingle();
 
-      if (existingEvt && existingEvt.order_id && existingEvt.order_id !== order.id) {
-        console.error(
-          `[PaymentPersistence] Duplicate event '${eventId}' targets order '${order.id}', but was previously processed for order '${existingEvt.order_id}'!`
-        );
+      if (existingEvt) {
+        if (
+          (existingEvt.order_id && existingEvt.order_id !== order.id) ||
+          (existingEvt.provider_order_id && providerOrderId && existingEvt.provider_order_id !== providerOrderId) ||
+          (existingEvt.provider_payment_id && cleanProvPaymentId && existingEvt.provider_payment_id !== cleanProvPaymentId)
+        ) {
+          console.error(
+            `[PaymentPersistence] Duplicate event '${eventId}' targets order '${order.id}', but was previously associated with a different order or payment!`
+          );
+          return {
+            success: false,
+            alreadyProcessed: false,
+            error: `Event ID was already processed or recorded for a different order or payment`,
+            errorCode: 'EVENT_ID_CONFLICT',
+          };
+        }
+
+        if (existingEvt.status === 'PROCESSED') {
+          inMemoryStore.processedWebhookEvents.add(eventId);
+          return {
+            success: true,
+            alreadyProcessed: true,
+            order,
+          };
+        }
+      }
+    } else {
+      const memEvt = inMemoryStore.webhookEvents.get(eventId);
+      if (memEvt) {
+        if (
+          (memEvt.orderId && memEvt.orderId !== order.id) ||
+          (memEvt.providerOrderId && providerOrderId && memEvt.providerOrderId !== providerOrderId) ||
+          (memEvt.providerPaymentId && cleanProvPaymentId && memEvt.providerPaymentId !== cleanProvPaymentId)
+        ) {
+          console.error(
+            `[PaymentPersistence] Duplicate event '${eventId}' targets order '${order.id}', but was previously associated with a different order or payment!`
+          );
+          return {
+            success: false,
+            alreadyProcessed: false,
+            error: `Event ID was already processed or recorded for a different order or payment`,
+            errorCode: 'EVENT_ID_CONFLICT',
+          };
+        }
+
+        if (memEvt.status === 'PROCESSED') {
+          inMemoryStore.processedWebhookEvents.add(eventId);
+          return {
+            success: true,
+            alreadyProcessed: true,
+            order,
+          };
+        }
+      } else if (inMemoryStore.processedWebhookEvents.has(eventId)) {
+        console.log(`[PaymentPersistence] Event ${eventId} already processed (source: ${source})`);
         return {
-          success: false,
-          alreadyProcessed: false,
-          error: `Event ID was already processed for a different order`,
-          errorCode: 'EVENT_ORDER_MISMATCH',
+          success: true,
+          alreadyProcessed: true,
+          order,
         };
       }
     }
-
-    return {
-      success: true,
-      alreadyProcessed: true,
-      order,
-    };
   }
 
-  // 4. Check if order is already captured
+  // 7. Check if order is already captured
   if (order.payment_status === 'CAPTURED' && order.status !== 'PENDING_PAYMENT') {
     console.log(`[PaymentPersistence] Order #${order.order_number} already in CAPTURED state`);
-    if (eventId && isLiveSupabase && supabaseServer) {
-      supabaseServer
-        .from('webhook_events')
-        .upsert(
-          {
-            event_id: eventId,
-            event_type: eventType,
-            provider: 'CASHFREE',
-            provider_order_id: providerOrderId,
-            provider_payment_id: providerPaymentId || null,
-            order_id: order.id,
-            status: 'PROCESSED',
-            payload: rawPayload || null,
-            processed_at: nowIso,
-            updated_at: nowIso,
-          },
-          { onConflict: 'event_id' }
-        )
-        .then(() => {}, () => {});
+    if (eventId && isLive && client && typeof client.from === 'function') {
+      try {
+        const table = client.from('webhook_events');
+        if (typeof table?.upsert === 'function') {
+          table
+            .upsert(
+              {
+                event_id: eventId,
+                event_type: eventType,
+                provider: 'CASHFREE',
+                provider_order_id: providerOrderId,
+                provider_payment_id: providerPaymentId || null,
+                order_id: order.id,
+                status: 'PROCESSED',
+                payload: rawPayload || null,
+                processed_at: nowIso,
+                updated_at: nowIso,
+              },
+              { onConflict: 'event_id' }
+            )
+            .then(() => {}, () => {});
+        }
+      } catch (upsertErr: any) {
+        console.warn(`[PaymentPersistence] Warning upserting webhook event: ${upsertErr.message}`);
+      }
       inMemoryStore.processedWebhookEvents.add(eventId);
     }
     return {
@@ -364,11 +493,12 @@ async function executeConfirmOrderPayment(params: ConfirmPaymentParams): Promise
     };
   }
 
-  // 5. Strict Authoritative Payment Amount Validation & Explicit Unit Handling
+  // 8. Strict Authoritative Payment Amount Validation & Explicit Unit Handling
   if (
     paymentAmount === undefined ||
     paymentAmount === null ||
     isNaN(Number(paymentAmount)) ||
+    !isFinite(Number(paymentAmount)) ||
     Number(paymentAmount) <= 0
   ) {
     console.error(`[PaymentPersistence] Missing or invalid payment amount for order #${order.order_number}: ${paymentAmount}`);
@@ -380,27 +510,39 @@ async function executeConfirmOrderPayment(params: ConfirmPaymentParams): Promise
     };
   }
 
-  // Explicit unit conversion without heuristics
-  const verifiedAmountRupees =
-    amountUnit === 'PAISE' ? Number(paymentAmount) / 100 : Number(paymentAmount);
+  // Explicit unit validation
+  if (amountUnit && amountUnit !== 'RUPEES' && amountUnit !== 'PAISE') {
+    return {
+      success: false,
+      alreadyProcessed: false,
+      error: 'Amount unit must be RUPEES or PAISE',
+      errorCode: 'INVALID_AMOUNT_UNIT',
+    };
+  }
 
-  const expectedRupees = Number(order.total_amount.toFixed(2));
-  const receivedRupees = Number(verifiedAmountRupees.toFixed(2));
+  // Enforce exact paise equality (zero difference permitted)
+  const expectedPaise = Math.round(order.total_amount * 100);
+  const receivedPaise =
+    amountUnit === 'PAISE'
+      ? Math.round(Number(paymentAmount))
+      : Math.round(Number(paymentAmount) * 100);
 
-  // Enforce exact 2-decimal precision comparison (tolerance <= 0.01)
-  if (Math.abs(expectedRupees - receivedRupees) > 0.01) {
+  if (expectedPaise !== receivedPaise) {
     console.error(
-      `[PaymentPersistence] Amount mismatch for order #${order.order_number}: expected ₹${expectedRupees.toFixed(2)}, got ₹${receivedRupees.toFixed(2)}`
+      `[PaymentPersistence] Amount mismatch for order #${order.order_number}: expected ₹${(expectedPaise / 100).toFixed(2)}, got ₹${(receivedPaise / 100).toFixed(2)}`
     );
     return {
       success: false,
       alreadyProcessed: false,
-      error: `Amount mismatch: expected ₹${expectedRupees.toFixed(2)}, received ₹${receivedRupees.toFixed(2)}`,
+      error: `Amount mismatch: expected ₹${(expectedPaise / 100).toFixed(2)}, received ₹${(receivedPaise / 100).toFixed(2)}`,
       errorCode: 'AMOUNT_MISMATCH',
     };
   }
 
-  // 6. Database Persistence (Transactional via RPC where available, with safe direct fallback)
+  const receivedRupees = Number((receivedPaise / 100).toFixed(2));
+  const verifiedAmountRupees = receivedRupees;
+
+  // 6. Database Persistence (Strictly transactional via confirm_order_payment_atomic RPC; strictly fails closed if unavailable)
   let persistedInDb = false;
 
   if (isLive && client) {
@@ -412,7 +554,7 @@ async function executeConfirmOrderPayment(params: ConfirmPaymentParams): Promise
         p_event_id: eventId || null,
         p_event_type: eventType,
         p_provider_order_id: providerOrderId,
-        p_provider_payment_id: providerPaymentId || null,
+        p_provider_payment_id: cleanProvPaymentId,
         p_order_id: order.id,
         p_amount: receivedRupees,
         p_currency: 'INR',
@@ -431,7 +573,7 @@ async function executeConfirmOrderPayment(params: ConfirmPaymentParams): Promise
               order.status = 'PLACED';
               order.payment_status = 'CAPTURED';
               order.provider_order_id = providerOrderId;
-              if (providerPaymentId) order.provider_payment_id = providerPaymentId;
+              if (cleanProvPaymentId) order.provider_payment_id = cleanProvPaymentId;
               inMemoryStore.orders.set(order.id, order);
             }
             return {
@@ -519,37 +661,81 @@ async function executeConfirmOrderPayment(params: ConfirmPaymentParams): Promise
   }
 
   // 7. Update In-Memory Store ONLY after database write has succeeded
-  order.status = 'PLACED';
-  order.payment_status = 'CAPTURED';
-  order.paid_at = paidAtIso;
-  order.updated_at = nowIso;
-  order.provider_order_id = providerOrderId;
-  order.provider_payment_id = providerPaymentId || undefined;
+  // Atomic settlement for in-memory store: Snapshot order so that if payment insertion fails,
+  // the order remains completely unmodified.
+  const originalStatus = order.status;
+  const originalPaymentStatus = order.payment_status;
+  const originalPaidAt = order.paid_at;
+  const originalConfirmedAt = order.confirmed_at;
+  const originalUpdatedAt = order.updated_at;
+  const originalProviderOrderId = order.provider_order_id;
+  const originalProviderPaymentId = order.provider_payment_id;
 
-  inMemoryStore.orders.set(order.id, order);
+  try {
+    if ((inMemoryStore as any)._forcePaymentInsertFailure) {
+      throw new Error('Forced payment insertion failure for atomicity testing');
+    }
 
-  const paymentRecord: ServerPayment = {
-    id: randomUUID(),
-    order_id: order.id,
-    order_number: order.order_number,
-    provider_order_id: providerOrderId,
-    provider_payment_id: providerPaymentId || undefined,
-    amount: receivedRupees, // in rupees, consistent with database payments.amount NUMERIC(10, 2)
-    currency: 'INR',
-    status: 'CAPTURED',
-    method: 'ONLINE',
-    created_at: nowIso,
-    updated_at: nowIso,
-  };
-  inMemoryStore.payments.set(paymentRecord.id, paymentRecord);
+    const paymentRecord: ServerPayment = {
+      id: randomUUID(),
+      order_id: order.id,
+      order_number: order.order_number,
+      provider_order_id: providerOrderId,
+      provider_payment_id: cleanProvPaymentId || undefined,
+      amount: receivedRupees, // in rupees, consistent with database payments.amount NUMERIC(10, 2)
+      currency: 'INR',
+      status: 'CAPTURED',
+      method: 'ONLINE',
+      created_at: nowIso,
+      updated_at: nowIso,
+    };
+    inMemoryStore.payments.set(paymentRecord.id, paymentRecord);
 
-  if (eventId) {
-    inMemoryStore.processedWebhookEvents.add(eventId);
+    order.status = 'PLACED';
+    order.payment_status = 'CAPTURED';
+    order.paid_at = paidAtIso;
+    order.confirmed_at = order.confirmed_at || nowIso;
+    order.updated_at = nowIso;
+    order.provider_order_id = providerOrderId;
+    order.provider_payment_id = cleanProvPaymentId || undefined;
+
+    inMemoryStore.orders.set(order.id, order);
+
+    if (eventId) {
+      inMemoryStore.processedWebhookEvents.add(eventId);
+      inMemoryStore.webhookEvents.set(eventId, {
+        eventId,
+        eventType,
+        status: 'PROCESSED',
+        orderId: order.id,
+        providerOrderId,
+        providerPaymentId: cleanProvPaymentId,
+        payload: rawPayload,
+      });
+    }
+
+    console.log(
+      `[PaymentPersistence] SUCCESS: Order #${order.order_number} confirmed as PLACED & CAPTURED for ₹${receivedRupees} (source: ${source})`
+    );
+  } catch (insertErr: any) {
+    // Atomic rollback: restore order to pre-settlement state
+    order.status = originalStatus;
+    order.payment_status = originalPaymentStatus;
+    order.paid_at = originalPaidAt;
+    order.confirmed_at = originalConfirmedAt;
+    order.updated_at = originalUpdatedAt;
+    order.provider_order_id = originalProviderOrderId;
+    order.provider_payment_id = originalProviderPaymentId;
+    inMemoryStore.orders.set(order.id, order);
+
+    console.error(`[PaymentPersistence] Payment insertion failed. Atomically rolled back order: ${insertErr.message}`);
+    return {
+      success: false,
+      alreadyProcessed: false,
+      error: `Payment insertion failed: ${insertErr.message}`,
+      errorCode: 'PAYMENT_INSERT_FAILED',
+    };
   }
-
-  console.log(
-    `[PaymentPersistence] SUCCESS: Order #${order.order_number} confirmed as PLACED & CAPTURED for ₹${receivedRupees} (source: ${source})`
-  );
 
   // 8. Dispatch notifications asynchronously (safe from duplicate calls)
   notifyOrderPlaced(order).catch((err) =>

@@ -339,3 +339,85 @@ export async function fetchCashfreeRefund(orderId: string, refundId: string): Pr
 
   return await response.json();
 }
+
+export interface CashfreePaymentItem {
+  cf_payment_id?: string | number;
+  payment_id?: string | number;
+  payment_status: 'SUCCESS' | 'FAILED' | 'PENDING' | 'USER_DROPPED' | string;
+  payment_amount: number;
+  payment_currency: string;
+  payment_time?: string;
+  payment_method?: any;
+  payment_group?: string;
+  payment_gateway_details?: {
+    gateway_name?: string;
+    gateway_order_id?: string;
+    gateway_payment_id?: string;
+    gateway_order_reference_id?: string;
+  };
+}
+
+/**
+ * Safely extracts the authoritative Cashfree payment ID from any Cashfree payment entity or webhook object.
+ * Handles string and numeric representations of cf_payment_id, payment_id, and gateway_payment_id.
+ * Never returns order IDs, fallback references, or placeholders.
+ */
+export function extractCashfreePaymentId(paymentObj: any): string | undefined {
+  if (!paymentObj || typeof paymentObj !== 'object') return undefined;
+
+  const candidate =
+    paymentObj.cf_payment_id ??
+    paymentObj.payment_id ??
+    paymentObj.payment_gateway_details?.gateway_payment_id ??
+    paymentObj.gateway_payment_id;
+
+  if (candidate !== null && candidate !== undefined) {
+    const s = String(candidate).trim();
+    if (s && s !== 'null' && s !== 'undefined') {
+      return s;
+    }
+  }
+
+  return undefined;
+}
+
+export async function fetchCashfreeOrderPayments(orderId: string): Promise<CashfreePaymentItem[]> {
+  if (!orderId) return [];
+
+  if (isPlaceholderOrMissingCredentials()) {
+    return [
+      {
+        cf_payment_id: `cf_pay_sim_${orderId.slice(0, 30)}`,
+        payment_status: 'SUCCESS',
+        payment_amount: 0,
+        payment_currency: 'INR',
+        payment_time: new Date().toISOString(),
+        payment_group: 'ONLINE',
+      },
+    ];
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/orders/${orderId}/payments`, {
+      method: 'GET',
+      headers: {
+        'x-client-id': CASHFREE_APP_ID,
+        'x-client-secret': CASHFREE_SECRET_KEY,
+        'x-api-version': '2023-08-01',
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      console.warn(`[Cashfree API] Failed to fetch order payments for ${orderId}: HTTP ${response.status}`);
+      return [];
+    }
+
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+  } catch (err: any) {
+    console.error(`[Cashfree API] Network error fetching order payments for ${orderId}:`, err.message);
+    return [];
+  }
+}
+

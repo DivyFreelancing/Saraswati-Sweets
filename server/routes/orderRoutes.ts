@@ -23,7 +23,7 @@ import {
   formatTime12h,
   isUuid,
 } from '../db';
-import { createCashfreeOrder, getCashfreeAppId, fetchCashfreeOrderDetails } from '../services/cashfreeService';
+import { createCashfreeOrder, getCashfreeAppId, fetchCashfreeOrderDetails, fetchCashfreeOrderPayments, extractCashfreePaymentId } from '../services/cashfreeService';
 import { notifyOrderPlaced, notifyOrderStatusChanged, sendCustomerOrderConfirmationEmail } from '../services/notificationService';
 import { confirmOrderPayment } from '../services/paymentPersistenceService';
 import { BUSINESS_INFO } from '../config/businessInfo';
@@ -858,23 +858,30 @@ router.get('/checkout/order-status/:orderId', requireAuth, async (req: Authentic
     const cashfreeDetails = await fetchCashfreeOrderDetails(gatewayLookupId);
 
     if (cashfreeDetails.status === 'PAID') {
-      const confirmResult = await confirmOrderPayment({
-        orderIdOrProviderId: order.id,
-        providerOrderId: gatewayLookupId,
-        paymentAmount: cashfreeDetails.orderAmount,
-        currency: cashfreeDetails.orderCurrency,
-        source: 'STATUS_POLL',
-      });
+      const payments = await fetchCashfreeOrderPayments(gatewayLookupId);
+      const successfulPayment = payments.find((p) => p.payment_status === 'SUCCESS');
+      const cfPaymentId = extractCashfreePaymentId(successfulPayment);
 
-      if (confirmResult.success && confirmResult.order) {
-        res.json({
-          success: true,
-          status: confirmResult.order.status,
-          payment_status: confirmResult.order.payment_status,
-          reconciled: true,
-          order: confirmResult.order,
+      if (cfPaymentId) {
+        const confirmResult = await confirmOrderPayment({
+          orderIdOrProviderId: order.id,
+          providerOrderId: gatewayLookupId,
+          providerPaymentId: cfPaymentId,
+          paymentAmount: cashfreeDetails.orderAmount,
+          currency: cashfreeDetails.orderCurrency,
+          source: 'STATUS_POLL',
         });
-        return;
+
+        if (confirmResult.success && confirmResult.order) {
+          res.json({
+            success: true,
+            status: confirmResult.order.status,
+            payment_status: confirmResult.order.payment_status,
+            reconciled: true,
+            order: confirmResult.order,
+          });
+          return;
+        }
       }
     } else if (cashfreeDetails.status === 'ACTIVE') {
       res.json({
@@ -1010,15 +1017,22 @@ router.post(
     try {
       const gatewayDetails = await fetchCashfreeOrderDetails(gatewayLookupId);
       if (gatewayDetails.status === 'PAID') {
-        const confirmResult = await confirmOrderPayment({
-          orderIdOrProviderId: order.id,
-          providerOrderId: gatewayLookupId,
-          paymentAmount: gatewayDetails.orderAmount,
-          currency: gatewayDetails.orderCurrency,
-          source: 'STATUS_POLL',
-        });
-        if (confirmResult.success && confirmResult.order) {
-          order = confirmResult.order;
+        const payments = await fetchCashfreeOrderPayments(gatewayLookupId);
+        const successfulPayment = payments.find((p) => p.payment_status === 'SUCCESS');
+        const cfPaymentId = extractCashfreePaymentId(successfulPayment);
+
+        if (cfPaymentId) {
+          const confirmResult = await confirmOrderPayment({
+            orderIdOrProviderId: order.id,
+            providerOrderId: gatewayLookupId,
+            providerPaymentId: cfPaymentId,
+            paymentAmount: gatewayDetails.orderAmount,
+            currency: gatewayDetails.orderCurrency,
+            source: 'STATUS_POLL',
+          });
+          if (confirmResult.success && confirmResult.order) {
+            order = confirmResult.order;
+          }
         }
       }
     } catch (reconcileErr: any) {

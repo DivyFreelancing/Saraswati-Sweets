@@ -201,6 +201,7 @@ async function runUnitTests() {
   const missingAmountResult = await confirmOrderPayment({
     orderIdOrProviderId: orderId,
     providerOrderId: cfOrderId,
+    providerPaymentId: 'cf_pay_amt_test',
     currency: 'INR',
     source: 'WEBHOOK',
   });
@@ -212,6 +213,7 @@ async function runUnitTests() {
   const zeroAmountResult = await confirmOrderPayment({
     orderIdOrProviderId: orderId,
     providerOrderId: cfOrderId,
+    providerPaymentId: 'cf_pay_amt_test',
     paymentAmount: 0,
     currency: 'INR',
     source: 'WEBHOOK',
@@ -224,6 +226,7 @@ async function runUnitTests() {
   const negativeAmountResult = await confirmOrderPayment({
     orderIdOrProviderId: orderId,
     providerOrderId: cfOrderId,
+    providerPaymentId: 'cf_pay_amt_test',
     paymentAmount: -800,
     currency: 'INR',
     source: 'WEBHOOK',
@@ -237,6 +240,7 @@ async function runUnitTests() {
   const explicitPaiseResult = await confirmOrderPayment({
     orderIdOrProviderId: orderId,
     providerOrderId: cfOrderId,
+    providerPaymentId: 'cf_pay_paise_test',
     paymentAmount: 80000,
     amountUnit: 'PAISE',
     currency: 'INR',
@@ -260,6 +264,7 @@ async function runUnitTests() {
   const amountMismatchResult = await confirmOrderPayment({
     orderIdOrProviderId: orderId,
     providerOrderId: cfOrderId,
+    providerPaymentId: 'cf_pay_mismatch_test',
     paymentAmount: 799.00, // ₹1 short
     amountUnit: 'RUPEES',
     currency: 'INR',
@@ -268,6 +273,36 @@ async function runUnitTests() {
   assert(
     amountMismatchResult.success === false && amountMismatchResult.errorCode === 'AMOUNT_MISMATCH',
     'Payment rejected when amount differs by more than 0.01 (expected ₹800, got ₹799)'
+  );
+
+  // 3e. Exact Paise Precision Equality Validation (zero tolerance)
+  const exactPaiseFailResult = await confirmOrderPayment({
+    orderIdOrProviderId: orderId,
+    providerOrderId: cfOrderId,
+    providerPaymentId: 'cf_pay_one_paisa_test',
+    paymentAmount: 800.01, // 1 paisa over ₹800.00
+    amountUnit: 'RUPEES',
+    currency: 'INR',
+    source: 'WEBHOOK',
+  });
+  assert(
+    exactPaiseFailResult.success === false && exactPaiseFailResult.errorCode === 'AMOUNT_MISMATCH',
+    'Payment rejected on 1 paisa difference (zero tolerance exact paise equality)'
+  );
+
+  // 3f. Unsupported Amount Unit Validation
+  const invalidUnitResult = await confirmOrderPayment({
+    orderIdOrProviderId: orderId,
+    providerOrderId: cfOrderId,
+    providerPaymentId: 'cf_pay_unit_test',
+    paymentAmount: 800.00,
+    amountUnit: 'DOLLARS' as any,
+    currency: 'INR',
+    source: 'WEBHOOK',
+  });
+  assert(
+    invalidUnitResult.success === false && invalidUnitResult.errorCode === 'INVALID_AMOUNT_UNIT',
+    'Payment rejected with unsupported amount unit (INVALID_AMOUNT_UNIT)'
   );
 
   // -------------------------------------------------------------------------
@@ -363,17 +398,32 @@ async function runUnitTests() {
     source: 'WEBHOOK',
   });
 
-  assert(noPayIdResult.success === true, 'Settlement succeeds when payment ID is absent');
-  const paymentForOrder2 = Array.from(inMemoryStore.payments.values()).find((p) => p.order_id === order2Id);
   assert(
-    paymentForOrder2?.provider_payment_id === undefined || paymentForOrder2?.provider_payment_id === null,
-    'Missing payment ID is preserved as null/undefined and NEVER substituted with order ID'
+    noPayIdResult.success === false && noPayIdResult.errorCode === 'MISSING_PROVIDER_PAYMENT_ID',
+    'Settlement is rejected when provider payment ID is missing or blank (MISSING_PROVIDER_PAYMENT_ID)'
+  );
+
+  const blankPayIdResult = await confirmOrderPayment({
+    orderIdOrProviderId: order2Id,
+    providerOrderId: cfOrder2Id,
+    providerPaymentId: '   ',
+    paymentAmount: 500.00,
+    amountUnit: 'RUPEES',
+    currency: 'INR',
+    source: 'WEBHOOK',
+  });
+
+  assert(
+    blankPayIdResult.success === false && blankPayIdResult.errorCode === 'MISSING_PROVIDER_PAYMENT_ID',
+    'Settlement is rejected when provider payment ID is all whitespace'
   );
 
   // 4c. Sequential repeated delivery with identical event ID
   const repeatedEventResult = await confirmOrderPayment({
     orderIdOrProviderId: orderId,
     providerOrderId: cfOrderId,
+    providerPaymentId: cfPaymentId,
+    paymentAmount: 800.00,
     eventId: simultaneousEventId,
     currency: 'INR',
     source: 'WEBHOOK',
@@ -422,6 +472,7 @@ async function runUnitTests() {
   const codSettlementAttempt = await confirmOrderPayment({
     orderIdOrProviderId: codOrderId,
     providerOrderId: `cf_cod_hack_${Date.now()}`,
+    providerPaymentId: 'cf_pay_cod_hack',
     paymentAmount: 800.00,
     currency: 'INR',
     source: 'WEBHOOK',
@@ -434,6 +485,7 @@ async function runUnitTests() {
   const codMethodParamAttempt = await confirmOrderPayment({
     orderIdOrProviderId: order2Id,
     providerOrderId: cfOrder2Id,
+    providerPaymentId: 'cf_pay_cod_param',
     paymentAmount: 500.00,
     paymentMethod: 'COD',
     currency: 'INR',
@@ -449,6 +501,7 @@ async function runUnitTests() {
   const conflictingProviderResult = await confirmOrderPayment({
     orderIdOrProviderId: orderId,
     providerOrderId: 'cf_different_unexpected_id',
+    providerPaymentId: 'cf_pay_conf_prov',
     paymentAmount: 800.00,
     currency: 'INR',
     source: 'WEBHOOK',
@@ -465,13 +518,16 @@ async function runUnitTests() {
     id: order3Id,
     order_number: `SW-ORD3-${Date.now()}`,
     provider_order_id: undefined,
+    provider_payment_id: undefined,
     status: 'PENDING_PAYMENT',
+    payment_status: 'PENDING',
   };
   inMemoryStore.orders.set(order3Id, mockOrder3);
 
   const duplicateProviderOnOrder3 = await confirmOrderPayment({
     orderIdOrProviderId: order3Id,
     providerOrderId: cfOrder2Id, // Already linked to order2
+    providerPaymentId: 'cf_pay_dup_ord3',
     paymentAmount: 800.00,
     currency: 'INR',
     source: 'WEBHOOK',
@@ -490,6 +546,7 @@ async function runUnitTests() {
     id: nonUuidOrderId,
     order_number: nonUuidOrderNum,
     provider_order_id: nonUuidCfOrderId,
+    provider_payment_id: undefined,
     status: 'PENDING_PAYMENT',
     payment_status: 'PENDING',
     total_amount: 650.00,
@@ -499,6 +556,7 @@ async function runUnitTests() {
   const nonUuidResult = await confirmOrderPayment({
     orderIdOrProviderId: nonUuidOrderNum, // Passing order_number (non-UUID string) as p_order_id
     providerOrderId: nonUuidCfOrderId,
+    providerPaymentId: 'cf_pay_nonuuid_1',
     paymentAmount: 650.00,
     currency: 'INR',
     paymentMethod: 'upi', // Raw gateway payment group
@@ -527,6 +585,7 @@ async function runUnitTests() {
     id: emptyIdOrderId,
     order_number: `SW-EMPTY-${Date.now()}`,
     provider_order_id: emptyIdCfOrderId,
+    provider_payment_id: undefined,
     status: 'PENDING_PAYMENT',
     payment_status: 'PENDING',
     total_amount: 400.00,
@@ -536,6 +595,7 @@ async function runUnitTests() {
   const emptyIdResult = await confirmOrderPayment({
     orderIdOrProviderId: '', // Empty p_order_id
     providerOrderId: emptyIdCfOrderId,
+    providerPaymentId: 'cf_pay_emptyid_1',
     paymentAmount: 400.00,
     currency: 'INR',
     paymentMethod: 'card', // Raw gateway payment group
@@ -556,10 +616,25 @@ async function runUnitTests() {
   );
 
   // 4i. Failed Event Retryability Test
+  const retryOrderId = randomUUID();
+  const retryCfOrderId = `cf_retryable_${Date.now()}`;
+  const mockOrderRetry: ServerOrder = {
+    ...mockOrder,
+    id: retryOrderId,
+    order_number: `SW-RETRY-${Date.now()}`,
+    provider_order_id: retryCfOrderId,
+    provider_payment_id: undefined,
+    status: 'PENDING_PAYMENT',
+    payment_status: 'PENDING',
+    total_amount: 800.00,
+  };
+  inMemoryStore.orders.set(retryOrderId, mockOrderRetry);
+
   const retryableEventId = `RETRY_EVT_${Date.now()}`;
   const failedAttempt = await confirmOrderPayment({
-    orderIdOrProviderId: order3Id,
-    providerOrderId: `cf_retryable_${Date.now()}`,
+    orderIdOrProviderId: retryOrderId,
+    providerOrderId: retryCfOrderId,
+    providerPaymentId: 'cf_pay_retryable_1',
     paymentAmount: 99999, // Mismatched amount -> will fail
     currency: 'INR',
     eventId: retryableEventId,
@@ -573,8 +648,9 @@ async function runUnitTests() {
 
   // Now retry the same event ID with correct parameters
   const successfulRetry = await confirmOrderPayment({
-    orderIdOrProviderId: order3Id,
-    providerOrderId: `cf_retryable_${Date.now()}`,
+    orderIdOrProviderId: retryOrderId,
+    providerOrderId: retryCfOrderId,
+    providerPaymentId: 'cf_pay_retryable_1',
     paymentAmount: 800.00, // Correct amount
     currency: 'INR',
     eventId: retryableEventId,
@@ -583,6 +659,21 @@ async function runUnitTests() {
   assert(
     successfulRetry.success === true,
     'Previously failed event ID succeeds upon valid retry delivery'
+  );
+
+  // 4j. Event ID Conflict Test: Same event ID reused with different order
+  const eventConflictResult = await confirmOrderPayment({
+    orderIdOrProviderId: nonUuidOrderId,
+    providerOrderId: nonUuidCfOrderId,
+    providerPaymentId: 'cf_pay_conflict_attempt',
+    paymentAmount: 650.00,
+    currency: 'INR',
+    eventId: retryableEventId, // Reusing event ID already processed for retryOrderId!
+    source: 'WEBHOOK',
+  });
+  assert(
+    eventConflictResult.success === false && (eventConflictResult.errorCode === 'EVENT_ID_CONFLICT' || eventConflictResult.errorCode === 'PAYMENT_ID_MISMATCH'),
+    'Reusing an event ID with a conflicting payment or order is rejected'
   );
 
   // -------------------------------------------------------------------------
@@ -958,12 +1049,27 @@ async function runUnitTests() {
   };
   inMemoryStore.orders.set(authOrderAliceId, authOrderAlice);
 
-  // Setup mock for Cashfree fetch order
+  // Setup mock for Cashfree fetch order & payments
   const origFetchForVerify = globalThis.fetch;
   globalThis.fetch = async (input: any, init?: any) => {
     const urlStr = typeof input === 'string' ? input : input?.url || '';
     if (urlStr.includes(`/orders/${verifyGuestCfId}`) || urlStr.includes(`/orders/${authOrderAliceCfId}`)) {
       const matchedId = urlStr.includes(verifyGuestCfId) ? verifyGuestCfId : authOrderAliceCfId;
+      if (urlStr.includes('/payments')) {
+        return new Response(
+          JSON.stringify([
+            {
+              cf_payment_id: `cf_pay_${matchedId}`,
+              payment_status: 'SUCCESS',
+              payment_amount: 350.00,
+              payment_currency: 'INR',
+              payment_time: new Date().toISOString(),
+              payment_group: 'ONLINE',
+            },
+          ]),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
       return new Response(
         JSON.stringify({
           order_id: matchedId,

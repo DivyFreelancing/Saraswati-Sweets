@@ -180,6 +180,8 @@ async function runDatabaseConcurrencyTests() {
     order_number: `SW-CONFLICT-${Date.now()}`,
     provider_order_id: undefined,
     status: 'PENDING_PAYMENT',
+    payment_status: 'PENDING',
+    provider_payment_id: undefined,
     total_amount: 1200.00,
   };
   inMemoryStore.orders.set(conflictingOrderId, conflictingOrder);
@@ -187,6 +189,7 @@ async function runDatabaseConcurrencyTests() {
   const duplicateProviderUseResult = await confirmOrderPayment({
     orderIdOrProviderId: conflictingOrderId,
     providerOrderId: raceCfOrderId, // Already linked to raceOrderId!
+    providerPaymentId: 'cf_pay_conflict_test',
     paymentAmount: 1200.00,
     currency: 'INR',
     source: 'WEBHOOK',
@@ -445,6 +448,7 @@ async function runDatabaseConcurrencyTests() {
   const nonUuidRpcResult = await confirmOrderPayment({
     orderIdOrProviderId: nonUuidRpcOrderNum, // Non-UUID string passed as p_order_id
     providerOrderId: nonUuidRpcProviderId,
+    providerPaymentId: 'cf_pay_999',
     paymentAmount: 1200.00,
     currency: 'INR',
     paymentMethod: 'upi', // Raw gateway payment_group
@@ -473,6 +477,7 @@ async function runDatabaseConcurrencyTests() {
   const emptyRpcResult = await confirmOrderPayment({
     orderIdOrProviderId: '', // Empty p_order_id
     providerOrderId: emptyRpcProviderId,
+    providerPaymentId: 'cf_pay_888',
     paymentAmount: 750.00,
     currency: 'INR',
     paymentMethod: 'netbanking', // Raw gateway payment_group

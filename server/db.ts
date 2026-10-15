@@ -910,6 +910,20 @@ export const inMemoryStore = {
   payments: new Map<string, ServerPayment>(), // provider_payment_id or provider_order_id -> payment
   refunds: new Map<string, ServerRefund>(),
   processedWebhookEvents: new Set<string>(), // event_id -> deduplication
+  webhookEvents: new Map<
+    string,
+    {
+      eventId: string;
+      eventType: string;
+      status: string;
+      orderId?: string;
+      providerOrderId?: string;
+      providerPaymentId?: string;
+      payload?: any;
+      errorMessage?: string;
+    }
+  >(),
+  _forcePaymentInsertFailure: false,
   categories: new Map<string, ServerCategory>([
     [
       'c1000000-0000-0000-0000-000000000002',
@@ -1535,7 +1549,7 @@ export async function expireUnpaidOrders(client?: SupabaseClient | null): Promis
     const EXPIRY_MS = 25 * 60 * 1000; // 25 minutes
     let expiredCount = 0;
 
-    const { fetchCashfreeOrderDetails } = await import('./services/cashfreeService');
+    const { fetchCashfreeOrderDetails, fetchCashfreeOrderPayments } = await import('./services/cashfreeService');
     const { confirmOrderPayment } = await import('./services/paymentPersistenceService');
 
     const pendingOrdersMap = new Map<string, ServerOrder>();
@@ -1782,24 +1796,31 @@ export async function expireUnpaidOrders(client?: SupabaseClient | null): Promis
 
       // 1. If Cashfree confirms payment was PAID, reconcile via confirmOrderPayment and do NOT cancel!
       if (cashfreeDetails.status === 'PAID') {
-        orderCleanupTracker.delete(order.id);
-        await confirmOrderPayment({
-          orderIdOrProviderId: order.id,
-          providerOrderId: order.provider_order_id!,
-          paymentAmount: cashfreeDetails.orderAmount,
-          currency: cashfreeDetails.orderCurrency || 'INR',
-          source: 'CLEANUP_RECONCILE',
-        });
-        logOrderCleanupDecision({
-          orderId: order.id,
-          orderNumber: order.order_number,
-          paymentMethod: order.payment_method,
-          hasProviderOrderId: true,
-          cashfreeStatus: 'PAID',
-          decision: 'confirm',
-          reason: 'Order confirmed PAID by Cashfree API; reconciled',
-        });
-        return;
+        const payments = await fetchCashfreeOrderPayments(order.provider_order_id!);
+        const successfulPayment = payments.find((p: any) => p.payment_status === 'SUCCESS');
+        const cfPaymentId = successfulPayment?.cf_payment_id ? String(successfulPayment.cf_payment_id) : undefined;
+
+        if (cfPaymentId) {
+          orderCleanupTracker.delete(order.id);
+          await confirmOrderPayment({
+            orderIdOrProviderId: order.id,
+            providerOrderId: order.provider_order_id!,
+            providerPaymentId: cfPaymentId,
+            paymentAmount: cashfreeDetails.orderAmount,
+            currency: cashfreeDetails.orderCurrency || 'INR',
+            source: 'CLEANUP_RECONCILE',
+          });
+          logOrderCleanupDecision({
+            orderId: order.id,
+            orderNumber: order.order_number,
+            paymentMethod: order.payment_method,
+            hasProviderOrderId: true,
+            cashfreeStatus: 'PAID',
+            decision: 'confirm',
+            reason: 'Order confirmed PAID by Cashfree API; reconciled',
+          });
+          return;
+        }
       }
 
       // 2. Non-terminal states: UNKNOWN, ACTIVE, TERMINATION_REQUESTED, configError, transient ALWAYS defer

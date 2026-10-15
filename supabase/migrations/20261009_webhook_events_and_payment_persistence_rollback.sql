@@ -30,6 +30,8 @@
 --      These columns are left as nullable and must be managed via forward fix.
 -- ====================================================================
 
+BEGIN;
+
 -- 1. Drop atomic RPC functions
 DROP FUNCTION IF EXISTS public.confirm_order_payment_atomic(
     TEXT, TEXT, TEXT, TEXT, TEXT, NUMERIC, TEXT, TEXT, TIMESTAMPTZ, JSONB, TEXT
@@ -53,20 +55,22 @@ DO $$
 DECLARE
     v_incompatible_rows_count INT;
 BEGIN
-    -- Check if any existing orders use CAPTURED, REFUND_PENDING, or REFUND_FAILED
+    -- Check if any existing orders use CAPTURED or unsupported status values
     SELECT COUNT(*) INTO v_incompatible_rows_count
     FROM public.orders
-    WHERE payment_status NOT IN ('PENDING', 'COMPLETED', 'FAILED', 'REFUNDED');
+    WHERE payment_status = 'CAPTURED'
+       OR payment_status IS NULL
+       OR payment_status NOT IN ('PENDING', 'COMPLETED', 'FAILED', 'REFUNDED', 'REFUND_PENDING', 'REFUND_FAILED');
 
     IF v_incompatible_rows_count = 0 THEN
-        -- Safe to restore legacy constraint: No rows violate baseline set
+        -- Safe to restore legacy 20261004 baseline constraint: No rows violate baseline set
         ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_payment_status_check;
         ALTER TABLE public.orders ADD CONSTRAINT orders_payment_status_check 
-            CHECK (payment_status IN ('PENDING', 'COMPLETED', 'FAILED', 'REFUNDED'));
-        RAISE NOTICE 'orders_payment_status_check successfully reverted to baseline (0 incompatible rows).';
+            CHECK (payment_status IN ('PENDING', 'COMPLETED', 'FAILED', 'REFUNDED', 'REFUND_PENDING', 'REFUND_FAILED'));
+        RAISE NOTICE 'orders_payment_status_check successfully reverted to 20261004 baseline (0 incompatible rows).';
     ELSE
         -- Incompatible rows present: PRESERVE expanded constraint to protect existing orders
-        RAISE NOTICE 'Preserved expanded orders_payment_status_check: % row(s) use CAPTURED or REFUND_* statuses. Constraint not tightened to prevent transaction failure and data rejection.', v_incompatible_rows_count;
+        RAISE NOTICE 'Preserved expanded orders_payment_status_check: % row(s) use CAPTURED, NULL, or unsupported statuses. Constraint not tightened to prevent transaction failure and data rejection.', v_incompatible_rows_count;
     END IF;
 END $$;
 
@@ -74,3 +78,5 @@ END $$;
 -- Table `public.webhook_events` is retained to prevent accidental loss of webhook event history.
 -- If running in a disposable local test environment where complete teardown is explicitly desired:
 -- DROP TABLE IF EXISTS public.webhook_events CASCADE;
+
+COMMIT;
