@@ -349,13 +349,8 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               <div className="flex items-center justify-center gap-4 text-[11px] pt-1">
                 <button
                   type="button"
-                  onClick={() =>
-                    openLegal(
-                      'Privacy Policy',
-                      'At Saraswati Sweets, we value your privacy. We collect customer names, delivery addresses, and phone numbers strictly to fulfill sweet delivery orders in Barabanki and send status updates. We never sell or share your personal data with third-party advertisers.'
-                    )
-                  }
-                  className="hover:text-[#7A1129] hover:underline"
+                  onClick={() => onNavigate('/privacy-policy')}
+                  className="hover:text-[#7A1129] hover:underline font-medium"
                 >
                   Privacy Policy
                 </button>
