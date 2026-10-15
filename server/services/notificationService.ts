@@ -144,7 +144,7 @@ import {
  * 3. customFallback if provided and valid
  * 4. Default admin inbox: 'saraswatisweetsbarabanki@gmail.com'
  *
- * Guaranteed: Under no circumstances does this fall back to the old invalid 'order@saraswatisweets.in'.
+ * Guaranteed: Under no circumstances does this fall back to unverified or disallowed domains.
  */
 export function getAdminNotificationRecipient(customFallback?: string | null): string {
   return getAdminRecipientEmail(customFallback);

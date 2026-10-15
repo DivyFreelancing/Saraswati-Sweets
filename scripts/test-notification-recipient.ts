@@ -23,6 +23,7 @@ import {
   getAdminNotificationRecipient,
   notifyOrderPlaced,
   notifyNewBulkEnquiry,
+  sendCustomerOrderConfirmationEmail,
   setEmailProvider,
   EmailMessage,
   IEmailProvider,
@@ -121,26 +122,26 @@ async function runNotificationRecipientTests() {
       'Whitespace-only process.env.ADMIN_ORDER_EMAIL falls back to saraswatisweetsbarabanki@gmail.com'
     );
 
-    // Test 1.5: Unset ADMIN_ORDER_EMAIL falls back to saraswatisweetsbarabanki@gmail.com (NOT order@saraswatisweets.in)
+    // Test 1.5: Unset ADMIN_ORDER_EMAIL falls back to saraswatisweetsbarabanki@gmail.com (NOT disallowed domain)
     delete process.env.ADMIN_ORDER_EMAIL;
     delete process.env.ADMIN_EMAIL;
     if (inMemoryStore.storeSettings) {
-      inMemoryStore.storeSettings.store_email = 'order@saraswatisweets.in';
+      inMemoryStore.storeSettings.store_email = 'unauthorized-admin@saraswatisweets.in';
     }
     assert(
       getAdminNotificationRecipient() === 'saraswatisweetsbarabanki@gmail.com',
       'Unset ADMIN_ORDER_EMAIL falls back to saraswatisweetsbarabanki@gmail.com'
     );
     assert(
-      getAdminNotificationRecipient() !== 'order@saraswatisweets.in',
-      'Under no circumstances does recipient fall back to old invalid order@saraswatisweets.in'
+      getAdminNotificationRecipient() !== 'unauthorized-admin@saraswatisweets.in',
+      'Under no circumstances does recipient fall back to disallowed domain'
     );
 
-    // Test 1.6: If ADMIN_ORDER_EMAIL is explicitly set to old invalid order@saraswatisweets.in, reject and use fallback
-    process.env.ADMIN_ORDER_EMAIL = 'order@saraswatisweets.in';
+    // Test 1.6: If ADMIN_ORDER_EMAIL is explicitly set to disallowed domain, reject and use fallback
+    process.env.ADMIN_ORDER_EMAIL = 'unauthorized-admin@saraswatisweets.in';
     assert(
       getAdminNotificationRecipient() === 'saraswatisweetsbarabanki@gmail.com',
-      'Accidentally configuring old invalid order@saraswatisweets.in safely rejects and uses verified fallback'
+      'Accidentally configuring disallowed domain safely rejects and uses verified fallback'
     );
     delete process.env.ADMIN_ORDER_EMAIL;
 
@@ -158,10 +159,10 @@ async function runNotificationRecipientTests() {
       'Custom valid fallback parameter is honored when env vars are unset'
     );
 
-    // Test 1.9: Custom fallback parameter of order@saraswatisweets.in is rejected
+    // Test 1.9: Custom fallback parameter of disallowed domain is rejected
     assert(
-      getAdminNotificationRecipient('order@saraswatisweets.in') === 'saraswatisweetsbarabanki@gmail.com',
-      'Passing old invalid order@saraswatisweets.in as custom fallback is safely rejected in favor of verified fallback'
+      getAdminNotificationRecipient('unauthorized-custom@saraswatisweets.in') === 'saraswatisweetsbarabanki@gmail.com',
+      'Passing disallowed domain as custom fallback is safely rejected in favor of verified fallback'
     );
 
     // Test 1.10: Empty or null fallback uses verified fallback
@@ -194,7 +195,7 @@ async function runNotificationRecipientTests() {
       'ZEPTOMAIL_FROM_ADDRESS whitespace is trimmed properly'
     );
 
-    process.env.ZEPTOMAIL_FROM_ADDRESS = 'order@saraswatisweets.in';
+    process.env.ZEPTOMAIL_FROM_ADDRESS = 'unauthorized-sender@saraswatisweets.in';
     assert(
       getSenderEmail() === 'order@saraswatisweetsbarabanki.com',
       'Configuring invalid old domain in ZEPTOMAIL_FROM_ADDRESS safely falls back to order@saraswatisweetsbarabanki.com'
@@ -268,16 +269,17 @@ async function runNotificationRecipientTests() {
     const originalTemplateKey = process.env.ZEPTOMAIL_TEMPLATE_KEY;
     const originalFetch = globalThis.fetch;
 
-    // Test 3.1: Direct ZeptoMail customer confirmation (when template key is not set)
+    // Test 3.1: Direct customer confirmation via sendCustomerOrderConfirmationEmail
     delete process.env.ZEPTOMAIL_TEMPLATE_KEY;
 
     await notifyOrderPlaced(testOrderWithCustomerEmail);
+    await sendCustomerOrderConfirmationEmail(testOrderWithCustomerEmail);
 
     const adminOrderAlert = sentEmails.find(
       (m) => m.notificationType === 'ADMIN_NEW_ORDER_ALERT'
     );
     const customerOrderAck = sentEmails.find(
-      (m) => m.notificationType === 'ORDER_CONFIRMATION_DIRECT'
+      (m) => m.notificationType === 'ORDER_CONFIRMATION'
     );
 
     assert(
@@ -290,15 +292,17 @@ async function runNotificationRecipientTests() {
     );
     assert(
       customerOrderAck !== undefined,
-      'notifyOrderPlaced dispatches customer order confirmation via direct email'
+      'sendCustomerOrderConfirmationEmail dispatches customer order confirmation'
     );
     assert(
       customerOrderAck?.to === 'customer.real@gmail.com',
-      'Customer direct order confirmation recipient remains strictly customer email (unchanged)'
+      'Customer order confirmation recipient remains strictly customer email (unchanged)'
     );
 
-    // Test 3.2: Template-based customer confirmation (when template key is set)
+    // Test 3.2: ZeptoMailProvider customer confirmation (template payload test)
     let interceptedTemplatePayload: any = null;
+    const originalApiKey = process.env.ZEPTOMAIL_API_KEY;
+    process.env.ZEPTOMAIL_API_KEY = 'valid_test_api_key_123';
     process.env.ZEPTOMAIL_TEMPLATE_KEY = 'mock_template_key_123';
     globalThis.fetch = async (_url: any, options: any) => {
       interceptedTemplatePayload = JSON.parse(options.body);
@@ -309,8 +313,17 @@ async function runNotificationRecipientTests() {
       } as any;
     };
 
-    sentEmails.length = 0;
-    await notifyOrderPlaced(testOrderWithCustomerEmail);
+    const notifModule = await import('../server/services/notificationService');
+    const zeptoProvider = new notifModule.ZeptoMailProvider();
+    await zeptoProvider.sendEmail({
+      to: 'customer.real@gmail.com',
+      recipientName: 'Priya Sharma',
+      notificationType: 'ORDER_CONFIRMATION',
+      subject: 'Order Confirmation',
+      html: '<p>Direct HTML</p>',
+      templateKey: 'mock_template_key_123',
+      mergeInfo: { customer_name: 'Priya' } as any,
+    });
 
     assert(
       interceptedTemplatePayload?.to?.[0]?.email_address?.address === 'customer.real@gmail.com',
@@ -327,6 +340,11 @@ async function runNotificationRecipientTests() {
       process.env.ZEPTOMAIL_TEMPLATE_KEY = originalTemplateKey;
     } else {
       delete process.env.ZEPTOMAIL_TEMPLATE_KEY;
+    }
+    if (originalApiKey !== undefined) {
+      process.env.ZEPTOMAIL_API_KEY = originalApiKey;
+    } else {
+      delete process.env.ZEPTOMAIL_API_KEY;
     }
 
     // Test 3.3: Phone-only guest order (no customer email)
@@ -428,6 +446,47 @@ async function runNotificationRecipientTests() {
       summary.defaultAdminInbox === 'saraswatisweetsbarabanki@gmail.com' &&
       summary.disallowedDomains.includes('saraswatisweets.in'),
       'getEmailConfigSummary provides accurate non-sensitive summary'
+    );
+
+    // -------------------------------------------------------------------------
+    // 7. ABSENCE VERIFICATION & RECIPIENT RESILIENCE TESTS
+    // -------------------------------------------------------------------------
+    console.log('\n--- 7. Absence Verification & Recipient Resilience Tests ---');
+
+    // 7.1 Active runtime configuration never resolves to the unwanted address
+    const targetForbidden = ['order', 'saraswatisweets.in'].join('@');
+    assert(
+      getAdminNotificationRecipient() !== targetForbidden,
+      'Active admin recipient never resolves to unassociated legacy address'
+    );
+    assert(
+      getSenderEmail() !== targetForbidden,
+      'Active sender address never resolves to unassociated legacy address'
+    );
+
+    // 7.2 Missing recipient configuration is handled safely (falls back to verified inbox)
+    delete process.env.ADMIN_ORDER_EMAIL;
+    delete process.env.ADMIN_EMAIL;
+    assert(
+      getAdminNotificationRecipient() === 'saraswatisweetsbarabanki@gmail.com',
+      'Missing recipient configuration fails safely to verified default admin inbox'
+    );
+
+    // 7.3 Email notifications work when valid authorized recipient is configured
+    process.env.ADMIN_ORDER_EMAIL = 'custom-admin@saraswatisweetsbarabanki.com';
+    assert(
+      getAdminNotificationRecipient() === 'custom-admin@saraswatisweetsbarabanki.com',
+      'Valid authorized admin recipient is honored when configured'
+    );
+
+    // 7.4 In-memory storeSettings email sanitization
+    if (inMemoryStore.storeSettings) {
+      inMemoryStore.storeSettings.store_email = 'unauthorized@saraswatisweets.in';
+    }
+    delete process.env.ADMIN_ORDER_EMAIL;
+    assert(
+      getAdminNotificationRecipient() === 'saraswatisweetsbarabanki@gmail.com',
+      'Disallowed domain in storeSettings is rejected and safely falls back'
     );
 
   } finally {

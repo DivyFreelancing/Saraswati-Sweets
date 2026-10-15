@@ -4,7 +4,7 @@ import path from 'path';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 dotenv.config();
-import { getAdminRecipientEmail } from './config/emailConfig';
+import { getAdminRecipientEmail, sanitizeEmail } from './config/emailConfig';
 import { BUSINESS_INFO } from './config/businessInfo';
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -2789,7 +2789,7 @@ export async function loadStoreState(): Promise<void> {
         tagline: row.tagline || inMemoryStore.storeSettings.tagline,
         store_phone: row.store_phone || row.phone || inMemoryStore.storeSettings.store_phone,
         whatsapp: row.whatsapp || inMemoryStore.storeSettings.whatsapp,
-        store_email: row.store_email || row.email || inMemoryStore.storeSettings.store_email,
+        store_email: sanitizeEmail(row.store_email || row.email, 'store_settings.store_email') || inMemoryStore.storeSettings.store_email || getAdminRecipientEmail(),
         address_text: row.address_text || row.address || inMemoryStore.storeSettings.address_text,
         serviceable_pincodes: row.serviceable_pincodes || row.allowed_pincodes || inMemoryStore.storeSettings.serviceable_pincodes,
         delivery_charge_flat: typeof row.delivery_charge_flat === 'number' ? row.delivery_charge_flat : (typeof row.delivery_charge === 'number' ? row.delivery_charge : 50),
