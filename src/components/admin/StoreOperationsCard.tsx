@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Truck, Store, AlertCircle, CheckCircle2, Clock, RefreshCw, Power } from 'lucide-react';
+import { Truck, Store, AlertCircle, CheckCircle2, RefreshCw, Power } from 'lucide-react';
 
 export interface StoreOperationsCardProps {
   storeSettings: any;
@@ -32,7 +32,7 @@ export const StoreOperationsCard: React.FC<StoreOperationsCardProps> = ({
 
   // Handle direct 1-click toggle with instant save
   const handleToggle = async (type: 'DELIVERY' | 'TAKEAWAY', nextVal: boolean) => {
-    if (!canEdit) return;
+    if (!canEdit || isSaving) return;
 
     const newDelivery = type === 'DELIVERY' ? nextVal : deliveryEnabled;
     const newTakeaway = type === 'TAKEAWAY' ? nextVal : takeawayEnabled;
@@ -57,7 +57,7 @@ export const StoreOperationsCard: React.FC<StoreOperationsCardProps> = ({
     if (ok) {
       setFeedback({
         type: 'success',
-        message: `${type === 'DELIVERY' ? 'Home Delivery' : 'Store Pickup / Takeaway'} is now ${nextVal ? 'ON (Active)' : 'OFF (Paused)'}. Saved to database.`,
+        message: `${type === 'DELIVERY' ? 'Home Delivery' : 'Store Pickup (Takeaway)'} is now ${nextVal ? 'ON (Active)' : 'OFF (Paused)'}.`,
         timestamp: new Date(),
       });
     } else {
@@ -73,9 +73,9 @@ export const StoreOperationsCard: React.FC<StoreOperationsCardProps> = ({
   };
 
   // Handle explicit form save (notice message, timer, toggles)
-  const handleExplicitSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!canEdit) return;
+  const handleExplicitSave = async (e?: React.FormEvent | React.SyntheticEvent) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!canEdit || isSaving) return;
 
     setIsSaving(true);
     setFeedback(null);
@@ -94,7 +94,7 @@ export const StoreOperationsCard: React.FC<StoreOperationsCardProps> = ({
     if (ok) {
       setFeedback({
         type: 'success',
-        message: 'Store operations settings & customer notice updated successfully!',
+        message: 'Store operations settings & notice updated successfully!',
         timestamp: new Date(),
       });
     } else {
@@ -115,302 +115,280 @@ export const StoreOperationsCard: React.FC<StoreOperationsCardProps> = ({
     }
   };
 
-  const isStoreFullyClosed = !deliveryEnabled && !takeawayEnabled;
-
   return (
-    <div className="bg-white rounded-2xl border-2 border-[#E8DFD2] p-5 sm:p-6 shadow-sm space-y-5">
-      {/* 1. Header with Live Status Badges */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E8DFD2] pb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-[#8A1538] text-white flex items-center justify-center shadow-xs">
-              <Power className="w-4 h-4 text-[#F6E08B]" />
-            </div>
-            <div>
-              <h3 className="font-display font-bold text-lg text-[#1F1B16] flex items-center gap-2">
-                Store Operations • Delivery & Takeaway Availability
-              </h3>
-              <p className="text-xs text-[#6B6258] mt-0.5">
-                Temporarily pause doorstep delivery or counter takeaway during festival rushes without redeploying code.
-              </p>
-            </div>
-          </div>
+    <div className="bg-white rounded-[14px] border border-[#E9E2D8] p-5 shadow-2xs space-y-4">
+      {/* 1. Header with Title & Operational Summary */}
+      <div className="flex items-center justify-between gap-3 border-b border-[#E9E2D8] pb-3.5">
+        <div className="flex items-center gap-2">
+          <Power className="w-4 h-4 text-[#7A1129]" strokeWidth={1.8} aria-hidden="true" />
+          <h2 className="text-[16px] font-extrabold text-[#241C17] tracking-tight">
+            Store operations
+          </h2>
         </div>
 
-        {/* Global Operational Status Pill */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {isStoreFullyClosed ? (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300">
-              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-              Store Paused (All Services OFF)
-            </span>
-          ) : (
-            <div className="flex items-center gap-2">
-              <span
-                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
-                  deliveryEnabled
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                    : 'bg-rose-50 text-rose-800 border-rose-300'
-                }`}
-              >
-                <span
-                  className={`w-2 h-2 rounded-full ${
-                    deliveryEnabled ? 'bg-emerald-500' : 'bg-rose-500'
-                  }`}
-                />
-                Delivery: {deliveryEnabled ? 'ON' : 'OFF'}
-              </span>
-
-              <span
-                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
-                  takeawayEnabled
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                    : 'bg-rose-50 text-rose-800 border-rose-300'
-                }`}
-              >
-                <span
-                  className={`w-2 h-2 rounded-full ${
-                    takeawayEnabled ? 'bg-emerald-500' : 'bg-rose-500'
-                  }`}
-                />
-                Takeaway: {takeawayEnabled ? 'ON' : 'OFF'}
-              </span>
-            </div>
-          )}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span
+            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold ${
+              deliveryEnabled
+                ? 'bg-[#E3F4EA] text-[#17663E]'
+                : 'bg-[#FDEFD0] text-[#8A4B00]'
+            }`}
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                deliveryEnabled ? 'bg-[#17663E]' : 'bg-[#8A4B00]'
+              }`}
+            />
+            Delivery {deliveryEnabled ? 'ON' : 'OFF'}
+          </span>
+          <span
+            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold ${
+              takeawayEnabled
+                ? 'bg-[#E3F4EA] text-[#17663E]'
+                : 'bg-[#FDEFD0] text-[#8A4B00]'
+            }`}
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                takeawayEnabled ? 'bg-[#17663E]' : 'bg-[#8A4B00]'
+              }`}
+            />
+            Pickup {takeawayEnabled ? 'ON' : 'OFF'}
+          </span>
         </div>
       </div>
 
-      {/* 2. Interactive Toggles Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* HOME DELIVERY TOGGLE CARD */}
-        <div
-          className={`p-4 rounded-xl border-2 transition-all ${
-            deliveryEnabled
-              ? 'bg-emerald-50/40 border-emerald-300/80'
-              : 'bg-stone-50 border-stone-300'
-          }`}
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <div
-                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                  deliveryEnabled
-                    ? 'bg-[#8A1538] text-white shadow-xs'
-                    : 'bg-stone-200 text-stone-500'
-                }`}
-              >
-                <Truck className="w-5 h-5" />
+      {/* 2. Interactive Two Switch Rows */}
+      <div className="space-y-3">
+        {/* ROW 1: HOME DELIVERY */}
+        <div className="p-3.5 rounded-[12px] border border-[#E9E2D8] bg-[#F7F4EF] flex items-center justify-between gap-3">
+          <div className="flex items-start gap-3 min-w-0">
+            <span className="w-8 h-8 rounded-[8px] bg-white border border-[#E9E2D8] flex items-center justify-center text-[#7A1129] shrink-0 mt-0.5" aria-hidden="true">
+              <Truck className="w-4 h-4" strokeWidth={1.8} />
+            </span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-xs text-[#241C17]">Home delivery</span>
+                <span
+                  className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                    deliveryEnabled
+                      ? 'bg-[#E3F4EA] text-[#17663E]'
+                      : 'bg-[#FDEFD0] text-[#8A4B00]'
+                  }`}
+                >
+                  {deliveryEnabled ? 'ACTIVE' : 'PAUSED'}
+                </span>
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-sm text-[#1F1B16]">Home Delivery</span>
-                  <span
-                    className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
-                      deliveryEnabled
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-rose-100 text-rose-800'
-                    }`}
-                  >
-                    {deliveryEnabled ? 'ACCEPTING ORDERS' : 'PAUSED'}
-                  </span>
-                </div>
-                <p className="text-xs text-[#6B6258] mt-1 leading-relaxed">
-                  {deliveryEnabled
-                    ? 'Customers can order for doorstep delivery across Barabanki (Flat ₹50 delivery fee).'
-                    : 'Doorstep delivery is temporarily blocked at checkout. Customers are guided to counter pickup.'}
-                </p>
-              </div>
+              <p className="text-[11px] text-[#6B5F55] mt-0.5 leading-snug">
+                {deliveryEnabled
+                  ? 'Doorstep delivery across Barabanki (Flat ₹50 delivery fee).'
+                  : 'Doorstep delivery blocked at checkout. Customers guided to pickup.'}
+              </p>
             </div>
-
-            {/* Toggle Switch */}
-            <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-2">
-              <input
-                type="checkbox"
-                disabled={!canEdit || isSaving}
-                checked={deliveryEnabled}
-                onChange={(e) => handleToggle('DELIVERY', e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-12 h-7 bg-stone-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[3px] after:left-[3px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5.5 after:w-5.5 after:transition-all peer-checked:bg-[#2E7D4F] peer-disabled:opacity-60"></div>
-            </label>
           </div>
+
+          {/* Switch Button with min 44px tap area */}
+          <button
+            type="button"
+            role="switch"
+            aria-checked={deliveryEnabled}
+            aria-label="Toggle Home delivery"
+            disabled={!canEdit || isSaving}
+            onClick={() => handleToggle('DELIVERY', !deliveryEnabled)}
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-full cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#7A1129] disabled:opacity-50 shrink-0"
+          >
+            <span
+              className={`w-11 h-6 flex items-center rounded-full p-0.5 transition-colors duration-200 ${
+                deliveryEnabled ? 'bg-[#1E7A4B]' : 'bg-[#D1C7BD]'
+              }`}
+            >
+              <span
+                className={`bg-white w-5 h-5 rounded-full shadow-xs transform transition-transform duration-200 ${
+                  deliveryEnabled ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </span>
+          </button>
         </div>
 
-        {/* STORE PICKUP / TAKEAWAY TOGGLE CARD */}
-        <div
-          className={`p-4 rounded-xl border-2 transition-all ${
-            takeawayEnabled
-              ? 'bg-emerald-50/40 border-emerald-300/80'
-              : 'bg-stone-50 border-stone-300'
-          }`}
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <div
-                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                  takeawayEnabled
-                    ? 'bg-[#2E7D4F] text-white shadow-xs'
-                    : 'bg-stone-200 text-stone-500'
-                }`}
-              >
-                <Store className="w-5 h-5" />
+        {/* ROW 2: STORE PICKUP */}
+        <div className="p-3.5 rounded-[12px] border border-[#E9E2D8] bg-[#F7F4EF] flex items-center justify-between gap-3">
+          <div className="flex items-start gap-3 min-w-0">
+            <span className="w-8 h-8 rounded-[8px] bg-white border border-[#E9E2D8] flex items-center justify-center text-[#7A1129] shrink-0 mt-0.5" aria-hidden="true">
+              <Store className="w-4 h-4" strokeWidth={1.8} />
+            </span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-xs text-[#241C17]">Store pickup (Takeaway)</span>
+                <span
+                  className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                    takeawayEnabled
+                      ? 'bg-[#E3F4EA] text-[#17663E]'
+                      : 'bg-[#FDEFD0] text-[#8A4B00]'
+                  }`}
+                >
+                  {takeawayEnabled ? 'ACTIVE' : 'PAUSED'}
+                </span>
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-sm text-[#1F1B16]">Store Pickup (Takeaway)</span>
-                  <span
-                    className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
-                      takeawayEnabled
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-rose-100 text-rose-800'
-                    }`}
-                  >
-                    {takeawayEnabled ? 'ACCEPTING SLOTS' : 'PAUSED'}
-                  </span>
-                </div>
-                <p className="text-xs text-[#6B6258] mt-1 leading-relaxed">
-                  {takeawayEnabled
-                    ? 'Customers can reserve pickup time slots at the Barabanki sweet shop counter (FREE / ₹0 pickup fee, Online Prepaid).'
-                    : 'Counter pickup reservations are temporarily paused.'}
-                </p>
-              </div>
+              <p className="text-[11px] text-[#6B5F55] mt-0.5 leading-snug">
+                {takeawayEnabled
+                  ? 'Counter pickup at Barabanki sweet shop (FREE / ₹0 pickup fee).'
+                  : 'Counter pickup reservations are temporarily paused.'}
+              </p>
             </div>
-
-            {/* Toggle Switch */}
-            <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-2">
-              <input
-                type="checkbox"
-                disabled={!canEdit || isSaving}
-                checked={takeawayEnabled}
-                onChange={(e) => handleToggle('TAKEAWAY', e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-12 h-7 bg-stone-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[3px] after:left-[3px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5.5 after:w-5.5 after:transition-all peer-checked:bg-[#2E7D4F] peer-disabled:opacity-60"></div>
-            </label>
           </div>
+
+          {/* Switch Button with min 44px tap area */}
+          <button
+            type="button"
+            role="switch"
+            aria-checked={takeawayEnabled}
+            aria-label="Toggle Store pickup"
+            disabled={!canEdit || isSaving}
+            onClick={() => handleToggle('TAKEAWAY', !takeawayEnabled)}
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-full cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#7A1129] disabled:opacity-50 shrink-0"
+          >
+            <span
+              className={`w-11 h-6 flex items-center rounded-full p-0.5 transition-colors duration-200 ${
+                takeawayEnabled ? 'bg-[#1E7A4B]' : 'bg-[#D1C7BD]'
+              }`}
+            >
+              <span
+                className={`bg-white w-5 h-5 rounded-full shadow-xs transform transition-transform duration-200 ${
+                  takeawayEnabled ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </span>
+          </button>
         </div>
       </div>
 
       {/* 3. Customer Announcement Message & Timer Configuration */}
-      <form onSubmit={handleExplicitSave} className="space-y-4 pt-2 border-t border-[#E8DFD2]">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Customer Closure Notice */}
-          <div className="lg:col-span-2">
-            <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
-              Customer Notice / Closure Announcement (Shown to customers when service is paused)
-            </label>
-            <input
-              type="text"
-              disabled={!canEdit || isSaving}
-              value={closureMessage}
-              placeholder="e.g. Due to festival rush, doorstep delivery is temporarily paused today. Store counter pickup is open!"
-              onChange={(e) => setClosureMessage(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
-            />
-            <p className="text-[11px] text-[#6B6258] mt-1">
-              Displayed prominently on the checkout page when doorstep delivery or store pickup is paused.
-            </p>
-          </div>
-
-          {/* Auto-Reopen Timer */}
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
-              Auto-Reopen Time (Optional)
-            </label>
-            <input
-              type="datetime-local"
-              disabled={!canEdit || isSaving}
-              value={autoReopenAt}
-              onChange={(e) => setAutoReopenAt(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
-            />
-            {/* Quick Timer presets */}
-            {canEdit && (
-              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                <span className="text-[10px] text-[#6B6258]">Quick Presets:</span>
-                <button
-                  type="button"
-                  onClick={() => handleQuickTimer(1)}
-                  className="text-[10px] font-bold px-2 py-0.5 rounded bg-stone-100 hover:bg-stone-200 text-[#1F1B16]"
-                >
-                  +1 hr
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickTimer(2)}
-                  className="text-[10px] font-bold px-2 py-0.5 rounded bg-stone-100 hover:bg-stone-200 text-[#1F1B16]"
-                >
-                  +2 hrs
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickTimer(4)}
-                  className="text-[10px] font-bold px-2 py-0.5 rounded bg-stone-100 hover:bg-stone-200 text-[#1F1B16]"
-                >
-                  +4 hrs
-                </button>
-                {autoReopenAt && (
-                  <button
-                    type="button"
-                    onClick={() => handleQuickTimer(null)}
-                    className="text-[10px] font-bold px-2 py-0.5 rounded text-rose-700 hover:underline"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+      <div className="space-y-3.5 pt-2 border-t border-[#E9E2D8]">
+        {/* Customer Notice Input */}
+        <div>
+          <label htmlFor="closure-notice-input" className="block text-xs font-bold text-[#241C17] mb-1">
+            Customer notice / announcement
+          </label>
+          <input
+            id="closure-notice-input"
+            type="text"
+            disabled={!canEdit || isSaving}
+            value={closureMessage}
+            placeholder="e.g. Due to festival rush, doorstep delivery is temporarily paused today."
+            onChange={(e) => setClosureMessage(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleExplicitSave();
+              }
+            }}
+            className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs font-medium text-[#241C17] focus:outline-hidden focus:border-[#7A1129] disabled:opacity-60"
+          />
         </div>
 
-        {/* 4. Action Button & Live Feedback */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-          <div>
-            {feedback && (
-              <div
-                className={`flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-lg border ${
-                  feedback.type === 'success'
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                    : 'bg-rose-50 text-rose-800 border-rose-200'
-                }`}
-              >
-                {feedback.type === 'success' ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                )}
-                <span>{feedback.message}</span>
-              </div>
-            )}
-          </div>
+        {/* Auto-Reopen Datetime & Quick Presets */}
+        <div>
+          <label htmlFor="auto-reopen-datetime" className="block text-xs font-bold text-[#241C17] mb-1">
+            Auto-reopen time (optional)
+          </label>
+          <input
+            id="auto-reopen-datetime"
+            type="datetime-local"
+            disabled={!canEdit || isSaving}
+            value={autoReopenAt}
+            onChange={(e) => setAutoReopenAt(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleExplicitSave();
+              }
+            }}
+            className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs font-medium text-[#241C17] focus:outline-hidden focus:border-[#7A1129] disabled:opacity-60"
+          />
 
-          <div className="flex items-center gap-2 self-end sm:self-auto">
-            {canEdit ? (
+          {/* Quick Presets */}
+          {canEdit && (
+            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+              <span className="text-[11px] text-[#6B5F55] font-semibold">Presets:</span>
               <button
-                type="submit"
-                disabled={isSaving}
-                className="min-h-[42px] px-5 py-2 rounded-xl bg-[#8A1538] hover:bg-[#701029] disabled:opacity-60 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-2"
+                type="button"
+                onClick={() => handleQuickTimer(1)}
+                className="text-[11px] font-bold px-2.5 py-1 rounded-[6px] bg-[#F3E9DC] hover:bg-[#E9E2D8] text-[#4A0A1B] cursor-pointer"
               >
-                {isSaving ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#F6E08B]" />
-                    <span>Saving to Database...</span>
-                  </>
-                ) : (
-                  <>
-                    <Power className="w-3.5 h-3.5 text-[#F6E08B]" />
-                    <span>Update Operations Settings</span>
-                  </>
-                )}
+                +1 hr
               </button>
-            ) : (
-              <p className="text-xs text-[#6B6258] italic">
-                * Store Manager or Admin credentials required to modify operations.
-              </p>
-            )}
-          </div>
+              <button
+                type="button"
+                onClick={() => handleQuickTimer(2)}
+                className="text-[11px] font-bold px-2.5 py-1 rounded-[6px] bg-[#F3E9DC] hover:bg-[#E9E2D8] text-[#4A0A1B] cursor-pointer"
+              >
+                +2 hrs
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickTimer(4)}
+                className="text-[11px] font-bold px-2.5 py-1 rounded-[6px] bg-[#F3E9DC] hover:bg-[#E9E2D8] text-[#4A0A1B] cursor-pointer"
+              >
+                +4 hrs
+              </button>
+              {autoReopenAt && (
+                <button
+                  type="button"
+                  onClick={() => handleQuickTimer(null)}
+                  className="text-[11px] font-bold px-2.5 py-1 rounded-[6px] text-[#A8261E] hover:underline cursor-pointer"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
         </div>
-      </form>
+
+        {/* Feedback Message */}
+        {feedback && (
+          <div
+            role="status"
+            className={`flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-[10px] border ${
+              feedback.type === 'success'
+                ? 'bg-[#E3F4EA] text-[#17663E] border-[#1E7A4B]/30'
+                : 'bg-[#FDEFD0] text-[#8A4B00] border-[#D9B866]'
+            }`}
+          >
+            {feedback.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-[#17663E] shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-[#8A4B00] shrink-0" />
+            )}
+            <span>{feedback.message}</span>
+          </div>
+        )}
+
+        {/* Submit Button */}
+        <div className="pt-1">
+          {canEdit ? (
+            <button
+              type="button"
+              disabled={isSaving}
+              onClick={() => handleExplicitSave()}
+              className="w-full min-h-[44px] px-5 py-2.5 rounded-[10px] bg-[#7A1129] hover:bg-[#5E0D20] disabled:opacity-60 text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
+            >
+              {isSaving ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#E8C16A]" />
+                  <span>Saving to Database...</span>
+                </>
+              ) : (
+                <span>Update settings</span>
+              )}
+            </button>
+          ) : (
+            <p className="text-xs text-[#6B5F55] italic text-center">
+              * Store Manager or Admin credentials required to modify operations.
+            </p>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

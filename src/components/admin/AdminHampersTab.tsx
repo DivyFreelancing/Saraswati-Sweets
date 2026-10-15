@@ -235,17 +235,17 @@ export const AdminHampersTab: React.FC<AdminHampersTabProps> = ({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-2xl border border-[#E8DFD2] p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white rounded-[14px] border border-[#E9E2D8] p-5 sm:p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#8A1538] uppercase tracking-wider mb-1">
-            <Gift className="w-4 h-4 text-[#C9A227]" />
+          <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#7A1129] uppercase tracking-wider mb-1">
+            <Gift className="w-4 h-4 text-[#E8C16A]" />
             <span>Curated Packaging & Line Items</span>
           </div>
-          <h2 className="font-display font-bold text-xl sm:text-2xl text-[#1F1B16]">
+          <h2 className="font-extrabold text-xl sm:text-2xl text-[#241C17]">
             Gift Hampers Composition Builder
           </h2>
-          <p className="text-xs sm:text-sm text-[#6B6258] mt-0.5 max-w-2xl">
-            Design luxury festive gift trunks and bespoke wedding boxes. Specify "What's inside" with exact sweet variants and quantities. Customer orders record hampers as dedicated cart line items (<code className="text-[#8A1538] font-mono">item_type=HAMPER</code>).
+          <p className="text-xs sm:text-sm text-[#6B5F55] mt-0.5 max-w-2xl">
+            Design luxury festive gift trunks and bespoke wedding boxes. Specify "What's inside" with exact sweet variants and quantities. Customer orders record hampers as dedicated cart line items (<code className="text-[#7A1129] font-mono">item_type=HAMPER</code>).
           </p>
         </div>
 
@@ -253,7 +253,7 @@ export const AdminHampersTab: React.FC<AdminHampersTabProps> = ({
           <button
             type="button"
             onClick={handleOpenCreate}
-            className="shrink-0 min-h-[44px] px-4 py-2 rounded-xl bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5 self-start sm:self-auto"
+            className="shrink-0 min-h-[44px] px-4 py-2 rounded-[10px] bg-[#7A1129] hover:bg-[#5E0D20] text-white text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
           >
             <Plus className="w-4 h-4 text-[#F6E08B]" />
             <span>+ Create Gift Hamper</span>
@@ -266,28 +266,28 @@ export const AdminHampersTab: React.FC<AdminHampersTabProps> = ({
         {hampers.map((hamper) => (
           <div
             key={hamper.id}
-            className="bg-white rounded-2xl border border-[#E8DFD2] overflow-hidden shadow-xs hover:shadow-md transition-shadow flex flex-col"
+            className="bg-white rounded-[14px] border border-[#E9E2D8] overflow-hidden shadow-2xs hover:shadow-xs transition-shadow flex flex-col"
           >
             {/* Image */}
-            <div className="relative aspect-[16/10] overflow-hidden bg-[#F3EBE0]">
+            <div className="relative aspect-[16/10] overflow-hidden bg-[#F7F4EF]">
               <img
                 src={hamper.image_url}
                 alt={hamper.name}
                 className="w-full h-full object-cover"
               />
               <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
-                <span className="bg-[#8A1538] text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shadow-xs">
+                <span className="bg-[#7A1129] text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shadow-xs">
                   {hamper.box_type}
                 </span>
                 {hamper.is_featured && (
-                  <span className="bg-[#C9A227] text-[#1F1B16] text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shadow-xs">
+                  <span className="bg-[#E8C16A] text-[#241C17] text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shadow-xs">
                     Featured
                   </span>
                 )}
               </div>
               <span
-                className={`absolute top-2.5 right-2.5 text-[10px] font-bold px-2 py-0.5 rounded shadow-xs ${
-                  hamper.is_active ? 'bg-emerald-600 text-white' : 'bg-stone-500 text-white'
+                className={`absolute top-2.5 right-2.5 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-xs ${
+                  hamper.is_active ? 'bg-[#E3F4EA] text-[#17663E]' : 'bg-[#FDE8E8] text-[#A8261E]'
                 }`}
               >
                 {hamper.is_active ? 'ACTIVE' : 'INACTIVE'}
@@ -297,24 +297,24 @@ export const AdminHampersTab: React.FC<AdminHampersTabProps> = ({
             {/* Content */}
             <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
               <div>
-                <h3 className="font-display font-bold text-base sm:text-lg text-[#1F1B16]">
+                <h3 className="font-extrabold text-base sm:text-lg text-[#241C17]">
                   {hamper.name}
                 </h3>
-                <p className="text-xs text-[#6B6258] mt-1 line-clamp-2">
+                <p className="text-xs text-[#6B5F55] mt-1 line-clamp-2">
                   {hamper.description}
                 </p>
 
                 {/* What's Inside Composition */}
-                <div className="mt-3 pt-3 border-t border-[#E8DFD2]">
-                  <div className="text-[11px] font-bold text-[#8A1538] uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                    <Layers className="w-3 h-3 text-[#C9A227]" />
+                <div className="mt-3 pt-3 border-t border-[#E9E2D8]">
+                  <div className="text-[11px] font-bold text-[#7A1129] uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                    <Layers className="w-3 h-3 text-[#E8C16A]" />
                     <span>What's Inside ({hamper.items_included?.length || 0} items):</span>
                   </div>
                   {hamper.items_included && hamper.items_included.length > 0 ? (
-                    <ul className="space-y-1 text-xs text-[#1F1B16]">
+                    <ul className="space-y-1 text-xs text-[#241C17]">
                       {hamper.items_included.map((item, idx) => (
                         <li key={idx} className="flex items-start gap-1.5">
-                          <Check className="w-3.5 h-3.5 text-[#2E7D4F] shrink-0 mt-0.5" />
+                          <Check className="w-3.5 h-3.5 text-[#17663E] shrink-0 mt-0.5" />
                           <span>
                             <strong>{item.product_name}</strong> ({item.variant_label}) × {item.quantity}
                           </span>
@@ -322,38 +322,38 @@ export const AdminHampersTab: React.FC<AdminHampersTabProps> = ({
                       ))}
                     </ul>
                   ) : (
-                    <span className="text-xs text-stone-400 italic">No sweets composed yet</span>
+                    <span className="text-xs text-[#6B5F55] italic">No sweets composed yet</span>
                   )}
                 </div>
               </div>
 
               {/* Bottom Price & Controls */}
-              <div className="pt-3 border-t border-[#E8DFD2] flex items-center justify-between">
+              <div className="pt-3 border-t border-[#E9E2D8] flex items-center justify-between">
                 <div>
-                  <span className="font-display font-bold text-lg text-[#8A1538]">
+                  <span className="font-extrabold text-lg text-[#7A1129] tabular-nums">
                     {formatINR(hamper.price)}
                   </span>
                   {hamper.mrp > hamper.price && (
-                    <span className="text-xs text-[#6B6258] line-through ml-1.5">
+                    <span className="text-xs text-[#6B5F55] line-through ml-1.5 tabular-nums">
                       {formatINR(hamper.mrp)}
                     </span>
                   )}
                 </div>
 
                 {isAdmin && (
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
                     <button
                       type="button"
                       onClick={() => handleOpenEdit(hamper)}
-                      className="p-1.5 rounded-lg border border-[#E8DFD2] text-[#1F1B16] hover:bg-[#F3EBE0] transition-colors"
+                      className="p-2 rounded-[10px] border border-[#E9E2D8] text-[#241C17] hover:bg-[#F7F4EF] transition-colors cursor-pointer"
                       title="Edit Hamper & Composition"
                     >
-                      <Edit2 className="w-4 h-4 text-[#8A1538]" />
+                      <Edit2 className="w-4 h-4 text-[#7A1129]" />
                     </button>
                     <button
                       type="button"
                       onClick={() => handleDeleteHamper(hamper)}
-                      className="p-1.5 rounded-lg border border-[#E8DFD2] text-[#B3261E] hover:bg-red-50 transition-colors"
+                      className="p-2 rounded-[10px] border border-[#E9E2D8] text-[#A8261E] hover:bg-[#FDE8E8] transition-colors cursor-pointer"
                       title="Delete Hamper"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -369,16 +369,16 @@ export const AdminHampersTab: React.FC<AdminHampersTabProps> = ({
       {/* Composition Builder Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl border border-[#E8DFD2] space-y-4 my-8 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-[#E8DFD2] pb-3">
-              <h3 className="font-display font-bold text-lg text-[#1F1B16] flex items-center gap-2">
-                <Gift className="w-5 h-5 text-[#8A1538]" />
+          <div className="w-full max-w-2xl rounded-[14px] bg-white p-6 shadow-xl border border-[#E9E2D8] space-y-4 my-8 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-[#E9E2D8] pb-3">
+              <h3 className="font-extrabold text-lg text-[#241C17] flex items-center gap-2">
+                <Gift className="w-5 h-5 text-[#7A1129]" />
                 <span>{editingHamper ? 'Edit Gift Hamper' : 'Build New Gift Hamper'}</span>
               </h3>
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="p-1 rounded-lg text-stone-400 hover:text-stone-700"
+                className="p-1.5 rounded-[10px] text-[#6B5F55] hover:text-[#241C17] hover:bg-[#E9E2D8]/40 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -387,101 +387,101 @@ export const AdminHampersTab: React.FC<AdminHampersTabProps> = ({
             <form onSubmit={handleSaveHamper} className="space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-bold text-[#1F1B16] mb-1">Hamper Name *</label>
+                  <label className="block font-bold text-[#241C17] mb-1">Hamper Name *</label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. Shahi Nawabi Gifting Trunk"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] focus:outline-none focus:border-[#8A1538]"
+                    className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-[#1F1B16] mb-1">Box / Packaging Type *</label>
+                  <label className="block font-bold text-[#241C17] mb-1">Box / Packaging Type *</label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. Royal Velvet Trunk, Gold Embossed Box"
                     value={boxType}
                     onChange={(e) => setBoxType(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] focus:outline-none focus:border-[#8A1538]"
+                    className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-[#1F1B16] mb-1">Selling Price (₹) *</label>
+                  <label className="block font-bold text-[#241C17] mb-1">Selling Price (₹) *</label>
                   <input
                     type="number"
                     required
                     min={1}
                     value={price}
                     onChange={(e) => setPrice(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] focus:outline-none focus:border-[#8A1538]"
+                    className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-[#1F1B16] mb-1">MRP (₹) *</label>
+                  <label className="block font-bold text-[#241C17] mb-1">MRP (₹) *</label>
                   <input
                     type="number"
                     required
                     min={1}
                     value={mrp}
                     onChange={(e) => setMrp(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] focus:outline-none focus:border-[#8A1538]"
+                    className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-bold text-[#1F1B16] mb-1">Primary Image URL *</label>
+                <label className="block font-bold text-[#241C17] mb-1">Primary Image URL *</label>
                 <input
                   type="url"
                   required
                   placeholder="https://..."
                   value={imageUrl}
                   onChange={(e) => setImageUrl(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] focus:outline-none focus:border-[#8A1538]"
+                  className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-[#1F1B16] mb-1">Description</label>
+                <label className="block font-bold text-[#241C17] mb-1">Description</label>
                 <textarea
                   rows={2}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Artisanal Awadhi festive assortment..."
-                  className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] focus:outline-none focus:border-[#8A1538] resize-none"
+                  className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129] resize-none"
                 />
               </div>
 
               {/* COMPOSITION BUILDER SECTION */}
-              <div className="p-4 rounded-xl bg-[#FAF4DE]/50 border border-[#C9A227]/40 space-y-3">
+              <div className="p-4 rounded-[12px] bg-[#F7F4EF] border border-[#E9E2D8] space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="font-bold text-sm text-[#1F1B16] flex items-center gap-1.5">
-                      <Sparkles className="w-4 h-4 text-[#8A1538]" />
+                    <h4 className="font-bold text-sm text-[#241C17] flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-[#7A1129]" />
                       <span>"What's Inside" Sweet Composition</span>
                     </h4>
-                    <p className="text-[11px] text-[#6B6258]">
+                    <p className="text-[11px] text-[#6B5F55]">
                       Select the specific sweets, pack weights, and quantities packed inside this hamper.
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={handleAddCompositionItem}
-                    className="px-2.5 py-1 rounded-lg bg-[#8A1538] text-white text-[11px] font-bold hover:bg-[#701029] transition-colors flex items-center gap-1"
+                    className="min-h-[36px] px-3 py-1.5 rounded-[8px] bg-[#7A1129] text-white text-[11px] font-bold hover:bg-[#5E0D20] transition-colors flex items-center gap-1 cursor-pointer"
                   >
-                    <Plus className="w-3 h-3" />
+                    <Plus className="w-3.5 h-3.5 text-[#F6E08B]" />
                     <span>+ Add Sweet</span>
                   </button>
                 </div>
 
                 {compositionItems.length === 0 ? (
-                  <p className="text-xs text-stone-500 italic py-2 text-center">
+                  <p className="text-xs text-[#6B5F55] italic py-2 text-center">
                     No sweets added to this hamper. Click "+ Add Sweet" above.
                   </p>
                 ) : (
@@ -489,11 +489,11 @@ export const AdminHampersTab: React.FC<AdminHampersTabProps> = ({
                     {compositionItems.map((item, idx) => (
                       <div
                         key={idx}
-                        className="flex flex-col sm:flex-row items-start sm:items-center gap-2 p-2.5 rounded-lg bg-white border border-[#E8DFD2]"
+                        className="flex flex-col sm:flex-row items-start sm:items-center gap-2 p-2.5 rounded-[10px] bg-white border border-[#E9E2D8]"
                       >
                         {/* Product Selector */}
                         <div className="flex-1 w-full sm:w-auto">
-                          <label className="block text-[10px] text-[#6B6258] font-semibold mb-0.5">
+                          <label className="block text-[10px] text-[#6B5F55] font-semibold mb-0.5">
                             Sweet Product
                           </label>
                           <select
@@ -501,7 +501,7 @@ export const AdminHampersTab: React.FC<AdminHampersTabProps> = ({
                             onChange={(e) =>
                               handleUpdateCompositionItem(idx, 'product_id', e.target.value)
                             }
-                            className="w-full p-1.5 rounded border border-[#E8DFD2] text-xs bg-white"
+                            className="w-full p-1.5 rounded-[8px] border border-[#E9E2D8] text-xs bg-white text-[#241C17]"
                           >
                             {products.map((p) => (
                               <option key={p.id} value={p.id}>
@@ -513,7 +513,7 @@ export const AdminHampersTab: React.FC<AdminHampersTabProps> = ({
 
                         {/* Variant / Pack Size */}
                         <div className="w-full sm:w-28">
-                          <label className="block text-[10px] text-[#6B6258] font-semibold mb-0.5">
+                          <label className="block text-[10px] text-[#6B5F55] font-semibold mb-0.5">
                             Pack / Weight
                           </label>
                           <input
@@ -523,13 +523,13 @@ export const AdminHampersTab: React.FC<AdminHampersTabProps> = ({
                             onChange={(e) =>
                               handleUpdateCompositionItem(idx, 'variant_label', e.target.value)
                             }
-                            className="w-full p-1.5 rounded border border-[#E8DFD2] text-xs"
+                            className="w-full p-1.5 rounded-[8px] border border-[#E9E2D8] text-xs bg-[#F7F4EF] text-[#241C17]"
                           />
                         </div>
 
                         {/* Quantity */}
                         <div className="w-full sm:w-20">
-                          <label className="block text-[10px] text-[#6B6258] font-semibold mb-0.5">
+                          <label className="block text-[10px] text-[#6B5F55] font-semibold mb-0.5">
                             Qty
                           </label>
                           <input
@@ -540,7 +540,7 @@ export const AdminHampersTab: React.FC<AdminHampersTabProps> = ({
                             onChange={(e) =>
                               handleUpdateCompositionItem(idx, 'quantity', Number(e.target.value))
                             }
-                            className="w-full p-1.5 rounded border border-[#E8DFD2] text-xs"
+                            className="w-full p-1.5 rounded-[8px] border border-[#E9E2D8] text-xs bg-[#F7F4EF] text-[#241C17]"
                           />
                         </div>
 
@@ -549,7 +549,7 @@ export const AdminHampersTab: React.FC<AdminHampersTabProps> = ({
                           <button
                             type="button"
                             onClick={() => handleRemoveCompositionItem(idx)}
-                            className="p-1.5 text-stone-400 hover:text-red-600 rounded"
+                            className="p-1.5 text-[#6B5F55] hover:text-[#A8261E] rounded cursor-pointer"
                             title="Remove from Hamper"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -568,9 +568,9 @@ export const AdminHampersTab: React.FC<AdminHampersTabProps> = ({
                     type="checkbox"
                     checked={isActive}
                     onChange={(e) => setIsActive(e.target.checked)}
-                    className="w-4 h-4 text-[#8A1538] rounded border-stone-300"
+                    className="w-4 h-4 accent-[#7A1129] rounded border-stone-300"
                   />
-                  <span className="font-semibold text-[#1F1B16]">Active on Storefront</span>
+                  <span className="font-semibold text-[#241C17]">Active on Storefront</span>
                 </label>
 
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -578,24 +578,24 @@ export const AdminHampersTab: React.FC<AdminHampersTabProps> = ({
                     type="checkbox"
                     checked={isFeatured}
                     onChange={(e) => setIsFeatured(e.target.checked)}
-                    className="w-4 h-4 text-[#8A1538] rounded border-stone-300"
+                    className="w-4 h-4 accent-[#7A1129] rounded border-stone-300"
                   />
-                  <span className="font-semibold text-[#1F1B16]">Feature on Homepage</span>
+                  <span className="font-semibold text-[#241C17]">Feature on Homepage</span>
                 </label>
               </div>
 
               {/* Actions */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#E8DFD2]">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#E9E2D8]">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-stone-600 hover:bg-stone-100"
+                  className="min-h-[44px] px-4 py-2 rounded-[10px] text-[#6B5F55] hover:bg-[#E9E2D8]/40 font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#8A1538] text-white font-bold hover:bg-[#701029] shadow-xs"
+                  className="min-h-[44px] px-5 py-2 rounded-[10px] bg-[#7A1129] text-white font-bold hover:bg-[#5E0D20] shadow-xs cursor-pointer"
                 >
                   {editingHamper ? 'Save Changes' : 'Create Hamper'}
                 </button>

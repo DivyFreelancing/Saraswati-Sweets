@@ -236,6 +236,19 @@ function AppContent() {
     }
   };
 
+  // Full-screen admin console layout (free of storefront header, footer and bottom nav)
+  if (currentPath.startsWith('/admin')) {
+    return (
+      <div className="min-h-screen bg-[#F7F4EF] text-[#241C17] admin-shell">
+        <React.Suspense fallback={<div className="min-h-screen flex items-center justify-center text-xs text-[#6B5F55]">Loading store console...</div>}>
+          {renderCurrentPage()}
+        </React.Suspense>
+        <ToastContainer />
+        <OfflineIndicator />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-[#FBF6EF] text-[#221A14] selection:bg-[#7A1129]/15 selection:text-[#7A1129] pb-16 lg:pb-0 overflow-x-clip w-full max-w-full">
       {/* Header */}

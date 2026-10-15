@@ -56,12 +56,12 @@ const STATUS_CONFIG: Record<
   BulkEnquiryStatus,
   { label: string; bg: string; text: string }
 > = {
-  NEW: { label: 'New Enquiry', bg: 'bg-blue-100', text: 'text-blue-800' },
-  CONTACTED: { label: 'Contacted / Sample Tasting', bg: 'bg-amber-100', text: 'text-amber-800' },
-  QUOTED: { label: 'Wholesale Quote Sent', bg: 'bg-purple-100', text: 'text-purple-800' },
-  CONFIRMED: { label: 'Order Confirmed', bg: 'bg-emerald-100', text: 'text-emerald-800' },
-  FULFILLED: { label: 'Fulfilled & Delivered', bg: 'bg-stone-200', text: 'text-stone-700' },
-  CANCELLED: { label: 'Cancelled / Declined', bg: 'bg-red-100', text: 'text-red-800' },
+  NEW: { label: 'New Enquiry', bg: 'bg-[#F3E9DC]', text: 'text-[#7A1129]' },
+  CONTACTED: { label: 'Contacted / Sample Tasting', bg: 'bg-[#FDEFD0]', text: 'text-[#8A4B00]' },
+  QUOTED: { label: 'Wholesale Quote Sent', bg: 'bg-[#F3E9DC]', text: 'text-[#7A1129]' },
+  CONFIRMED: { label: 'Order Confirmed', bg: 'bg-[#E3F4EA]', text: 'text-[#17663E]' },
+  FULFILLED: { label: 'Fulfilled & Delivered', bg: 'bg-[#F7F4EF]', text: 'text-[#241C17]' },
+  CANCELLED: { label: 'Cancelled / Declined', bg: 'bg-[#FDE8E8]', text: 'text-[#A8261E]' },
 };
 
 export const AdminEnquiriesTab: React.FC<AdminEnquiriesTabProps> = ({
@@ -151,16 +151,16 @@ export const AdminEnquiriesTab: React.FC<AdminEnquiriesTabProps> = ({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-2xl border border-[#E8DFD2] p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white rounded-[14px] border border-[#E9E2D8] p-5 sm:p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#8A1538] uppercase tracking-wider mb-1">
-            <Building2 className="w-4 h-4 text-[#C9A227]" />
+          <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#7A1129] uppercase tracking-wider mb-1">
+            <Building2 className="w-4 h-4 text-[#E8C16A]" />
             <span>Weddings • Corporate • Festive Pujas</span>
           </div>
-          <h2 className="font-display font-bold text-xl sm:text-2xl text-[#1F1B16]">
+          <h2 className="font-extrabold text-xl sm:text-2xl text-[#241C17]">
             Bulk & Wedding Sweets Enquiries
           </h2>
-          <p className="text-xs sm:text-sm text-[#6B6258] mt-0.5">
+          <p className="text-xs sm:text-sm text-[#6B5F55] mt-0.5">
             Manage inbound wholesale quotes. Track progress from initial tasting samples to quotation, confirmation, and festival fulfillment.
           </p>
         </div>
@@ -169,7 +169,7 @@ export const AdminEnquiriesTab: React.FC<AdminEnquiriesTabProps> = ({
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
-          className="px-3.5 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs font-bold text-[#1F1B16] self-start sm:self-auto focus:outline-none focus:border-[#8A1538]"
+          className="min-h-[44px] px-3.5 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs font-bold text-[#241C17] self-start sm:self-auto focus:bg-white focus:outline-hidden focus:border-[#7A1129] cursor-pointer"
         >
           <option value="ALL">All Enquiries ({enquiries.length})</option>
           <option value="NEW">New ({enquiries.filter((e) => e.status === 'NEW').length})</option>
@@ -183,7 +183,7 @@ export const AdminEnquiriesTab: React.FC<AdminEnquiriesTabProps> = ({
 
       {/* Enquiries Cards */}
       {filteredEnquiries.length === 0 ? (
-        <div className="p-8 text-center bg-white rounded-2xl border border-[#E8DFD2] text-[#6B6258] text-xs">
+        <div className="p-8 text-center bg-white rounded-[14px] border border-[#E9E2D8] text-[#6B5F55] text-xs">
           No bulk enquiries found for this filter.
         </div>
       ) : (
@@ -195,37 +195,37 @@ export const AdminEnquiriesTab: React.FC<AdminEnquiriesTabProps> = ({
             return (
               <div
                 key={enq.id}
-                className="bg-white rounded-2xl border border-[#E8DFD2] p-5 sm:p-6 shadow-xs space-y-4"
+                className="bg-white rounded-[14px] border border-[#E9E2D8] p-5 sm:p-6 shadow-2xs space-y-4"
               >
                 {/* Header row */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E8DFD2] pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E9E2D8] pb-3">
                   <div className="flex items-center gap-2.5 flex-wrap">
-                    <span className="font-mono font-bold text-sm bg-[#8A1538] text-white px-2.5 py-0.5 rounded shadow-xs">
+                    <span className="font-mono font-bold text-xs bg-[#7A1129] text-white px-2.5 py-0.5 rounded-full shadow-xs">
                       {enq.enquiry_number}
                     </span>
-                    <span className="font-bold text-sm text-[#1F1B16]">
+                    <span className="font-bold text-sm text-[#241C17]">
                       {enq.contact_name}
                     </span>
                     {enq.organization_name && (
-                      <span className="text-xs text-[#6B6258] font-medium">
+                      <span className="text-xs text-[#6B5F55] font-medium">
                         ({enq.organization_name})
                       </span>
                     )}
-                    <span className="text-stone-300">•</span>
-                    <span className="text-xs font-semibold text-[#8A1538] uppercase tracking-wider">
+                    <span className="text-[#E9E2D8]">•</span>
+                    <span className="text-xs font-semibold text-[#7A1129] uppercase tracking-wider">
                       {enq.event_type}
                     </span>
                   </div>
 
                   {/* Status Dropdown */}
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-[#6B6258]">Status:</span>
+                    <span className="text-xs font-medium text-[#6B5F55]">Status:</span>
                     <select
                       value={enq.status}
                       onChange={(e) =>
                         handleUpdateStatus(enq.id, e.target.value as BulkEnquiryStatus)
                       }
-                      className={`text-xs font-bold px-2.5 py-1 rounded-lg border ${statusStyle.bg} ${statusStyle.text} border-transparent focus:outline-none`}
+                      className={`text-xs font-bold px-2.5 py-1.5 rounded-[8px] border ${statusStyle.bg} ${statusStyle.text} border-transparent focus:outline-hidden cursor-pointer`}
                     >
                       <option value="NEW">NEW</option>
                       <option value="CONTACTED">CONTACTED</option>
@@ -239,7 +239,7 @@ export const AdminEnquiriesTab: React.FC<AdminEnquiriesTabProps> = ({
                       <button
                         type="button"
                         onClick={() => handleDeleteEnquiry(enq)}
-                        className="p-1.5 rounded-lg border border-[#E8DFD2] text-[#B3261E] hover:bg-red-50 ml-1"
+                        className="p-2 rounded-[8px] border border-[#E9E2D8] text-[#A8261E] hover:bg-[#FDE8E8] transition-colors ml-1 cursor-pointer"
                         title="Delete Enquiry"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -252,28 +252,28 @@ export const AdminEnquiriesTab: React.FC<AdminEnquiriesTabProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
                   {/* Event & Target Date */}
                   <div className="space-y-1">
-                    <span className="text-[#6B6258] block font-medium flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5 text-[#8A1538]" /> Target Event Date
+                    <span className="text-[#6B5F55] block font-medium flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-[#7A1129]" /> Target Event Date
                     </span>
-                    <span className="font-bold text-[#1F1B16] text-sm">
+                    <span className="font-bold text-[#241C17] text-sm">
                       {enq.event_date}
                     </span>
-                    <span className="text-[11px] text-[#6B6258] block">
+                    <span className="text-[11px] text-[#6B5F55] block">
                       Submitted: {new Date(enq.created_at).toLocaleDateString('en-IN')}
                     </span>
                   </div>
 
                   {/* Quantity & Guests */}
                   <div className="space-y-1">
-                    <span className="text-[#6B6258] block font-medium flex items-center gap-1">
-                      <Users className="w-3.5 h-3.5 text-[#8A1538]" /> Estimated Volume
+                    <span className="text-[#6B5F55] block font-medium flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5 text-[#7A1129]" /> Estimated Volume
                     </span>
-                    <div className="font-bold text-[#1F1B16]">
+                    <div className="font-bold text-[#241C17]">
                       {enq.estimated_quantity_kg ? `${enq.estimated_quantity_kg} kg sweets` : 'Custom quantity'}
                       {enq.estimated_guests && ` • ${enq.estimated_guests} guests`}
                     </div>
                     {enq.budget_range && (
-                      <span className="text-[11px] text-[#2E7D4F] font-semibold block">
+                      <span className="text-[11px] text-[#17663E] font-semibold block">
                         Budget: {enq.budget_range}
                       </span>
                     )}
@@ -281,19 +281,19 @@ export const AdminEnquiriesTab: React.FC<AdminEnquiriesTabProps> = ({
 
                   {/* Customer Phone & One-Tap Call */}
                   <div className="space-y-1">
-                    <span className="text-[#6B6258] block font-medium flex items-center gap-1">
-                      <Phone className="w-3.5 h-3.5 text-[#8A1538]" /> Customer Contact
+                    <span className="text-[#6B5F55] block font-medium flex items-center gap-1">
+                      <Phone className="w-3.5 h-3.5 text-[#7A1129]" /> Customer Contact
                     </span>
                     <div className="flex items-center gap-2">
                       <a
                         href={`tel:${enq.phone}`}
-                        className="font-bold text-sm text-[#8A1538] hover:underline flex items-center gap-1"
+                        className="font-bold text-sm text-[#7A1129] hover:underline flex items-center gap-1"
                       >
                         <span>{enq.phone}</span>
                       </a>
                     </div>
                     {enq.email && (
-                      <span className="text-[11px] text-[#6B6258] truncate block">
+                      <span className="text-[11px] text-[#6B5F55] truncate block">
                         {enq.email}
                       </span>
                     )}
@@ -301,10 +301,10 @@ export const AdminEnquiriesTab: React.FC<AdminEnquiriesTabProps> = ({
 
                   {/* Delivery Location */}
                   <div className="space-y-1">
-                    <span className="text-[#6B6258] block font-medium flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5 text-[#8A1538]" /> Delivery Location
+                    <span className="text-[#6B5F55] block font-medium flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-[#7A1129]" /> Delivery Location
                     </span>
-                    <p className="text-xs text-[#1F1B16] line-clamp-2">
+                    <p className="text-xs text-[#241C17] line-clamp-2">
                       {enq.delivery_address || 'Barabanki local area'}
                     </p>
                   </div>
@@ -312,34 +312,34 @@ export const AdminEnquiriesTab: React.FC<AdminEnquiriesTabProps> = ({
 
                 {/* Requested Sweets & Customer Notes */}
                 {(enq.requested_sweets || enq.notes) && (
-                  <div className="p-3 rounded-xl bg-[#FBF7F1] border border-[#E8DFD2] space-y-1.5 text-xs">
+                  <div className="p-3.5 rounded-[10px] bg-[#F7F4EF] border border-[#E9E2D8] space-y-1.5 text-xs">
                     {enq.requested_sweets && (
                       <div>
-                        <strong className="text-[#8A1538]">Requested Sweets:</strong>{' '}
-                        <span className="text-[#1F1B16]">{enq.requested_sweets}</span>
+                        <strong className="text-[#7A1129]">Requested Sweets:</strong>{' '}
+                        <span className="text-[#241C17]">{enq.requested_sweets}</span>
                       </div>
                     )}
                     {enq.notes && (
                       <div>
-                        <strong className="text-[#6B6258]">Customer Special Instructions:</strong>{' '}
-                        <span className="text-[#1F1B16] italic">"{enq.notes}"</span>
+                        <strong className="text-[#6B5F55]">Customer Special Instructions:</strong>{' '}
+                        <span className="text-[#241C17] italic">"{enq.notes}"</span>
                       </div>
                     )}
                   </div>
                 )}
 
                 {/* Store Admin Internal Notes */}
-                <div className="pt-2 border-t border-[#E8DFD2]">
+                <div className="pt-2 border-t border-[#E9E2D8]">
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-bold text-[#1F1B16] flex items-center gap-1">
-                      <MessageSquare className="w-3.5 h-3.5 text-[#8A1538]" />
+                    <span className="text-xs font-bold text-[#241C17] flex items-center gap-1">
+                      <MessageSquare className="w-3.5 h-3.5 text-[#7A1129]" />
                       <span>Internal Notes & Follow-up Log:</span>
                     </span>
                     {!isEditingThisNotes && (
                       <button
                         type="button"
                         onClick={() => handleOpenEditNotes(enq)}
-                        className="text-xs font-semibold text-[#8A1538] hover:underline flex items-center gap-1"
+                        className="text-xs font-semibold text-[#7A1129] hover:underline flex items-center gap-1 cursor-pointer"
                       >
                         <Edit2 className="w-3 h-3" />
                         <span>{enq.admin_notes ? 'Edit Notes' : '+ Add Note'}</span>
@@ -354,13 +354,13 @@ export const AdminEnquiriesTab: React.FC<AdminEnquiriesTabProps> = ({
                         value={draftNotes}
                         onChange={(e) => setDraftNotes(e.target.value)}
                         placeholder="Log tasting feedback, wholesale rates quoted, delivery partner assignment notes..."
-                        className="w-full text-xs p-2.5 rounded-xl border border-[#E8DFD2] bg-white focus:outline-none focus:border-[#8A1538] resize-none"
+                        className="w-full text-xs p-2.5 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129] resize-none"
                       />
                       <div className="flex items-center justify-end gap-2">
                         <button
                           type="button"
                           onClick={() => setActiveNotesEnquiryId(null)}
-                          className="px-3 py-1 rounded-lg text-xs text-[#6B6258] hover:underline"
+                          className="min-h-[36px] px-3 py-1 rounded-[8px] text-xs text-[#6B5F55] hover:bg-[#E9E2D8]/40 font-semibold cursor-pointer"
                         >
                           Cancel
                         </button>
@@ -368,7 +368,7 @@ export const AdminEnquiriesTab: React.FC<AdminEnquiriesTabProps> = ({
                           type="button"
                           disabled={savingNotes}
                           onClick={() => handleSaveNotes(enq.id)}
-                          className="px-3.5 py-1 rounded-lg bg-[#8A1538] text-white text-xs font-semibold hover:bg-[#701029] transition-colors flex items-center gap-1"
+                          className="min-h-[36px] px-3.5 py-1 rounded-[8px] bg-[#7A1129] text-white text-xs font-bold hover:bg-[#5E0D20] transition-colors flex items-center gap-1 cursor-pointer"
                         >
                           <Save className="w-3.5 h-3.5" />
                           <span>{savingNotes ? 'Saving...' : 'Save Note'}</span>
@@ -376,7 +376,7 @@ export const AdminEnquiriesTab: React.FC<AdminEnquiriesTabProps> = ({
                       </div>
                     </div>
                   ) : (
-                    <p className="text-xs text-[#6B6258] bg-[#F3EBE0]/60 p-2 rounded-lg italic">
+                    <p className="text-xs text-[#6B5F55] bg-[#F7F4EF] p-2.5 rounded-[8px] border border-[#E9E2D8]/60 italic">
                       {enq.admin_notes || 'No internal notes recorded yet.'}
                     </p>
                   )}

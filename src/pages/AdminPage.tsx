@@ -65,6 +65,11 @@ import {
   AdminOrderNotificationBanner,
   NewOrderAlertItem,
 } from '../components/admin/AdminOrderNotificationBanner';
+import { AdminSidebar } from '../components/admin/AdminSidebar';
+import { AdminDashboardHeader } from '../components/admin/AdminDashboardHeader';
+import { AdminKpiGrid } from '../components/admin/AdminKpiGrid';
+import { AdminSalesChartCard } from '../components/admin/AdminSalesChartCard';
+import { AdminPendingOrdersCard } from '../components/admin/AdminPendingOrdersCard';
 
 interface AdminPageProps {
   onBackToStore: () => void;
@@ -87,6 +92,23 @@ type AdminTab =
   | 'settings'
   | 'coupons'
   | 'audit';
+
+const tabTitles: Record<AdminTab, string> = {
+  overview: 'Dashboard',
+  orders: 'Orders',
+  products: 'Sweets & Stock',
+  categories: 'Categories',
+  customers: 'Customers',
+  delivery: 'Delivery & Fleet',
+  hampers: 'Gift Hampers',
+  marketing: 'Offers & Banners',
+  reviews: 'Reviews',
+  enquiries: 'Bulk Enquiries',
+  notifications: 'Notifications',
+  settings: 'Store Settings',
+  coupons: 'Coupons',
+  audit: 'Audit Trail',
+};
 
 export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin, initialTab }) => {
   const { user, token, isAuthenticated, isStaff, isAdmin, signOut, getAuthHeaders } = useAuth();
@@ -1277,352 +1299,125 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
   });
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 space-y-6">
-      {/* 1. TOP HEADER & BARABANKI BRAND STRIP */}
-      <div className="rounded-2xl bg-[#8A1538] text-white p-5 sm:p-6 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-            <span
-              className={`px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider ${
-                isAdmin ? 'bg-[#C9A227] text-[#1F1B16]' : 'bg-white/20 text-white'
-              }`}
-            >
-              Role: {user?.role}
-            </span>
-            <span className="text-white/70 text-xs">•</span>
-            <span className="text-white/90 text-xs font-medium flex items-center gap-1">
-              <span className={`w-2 h-2 rounded-full ${streamConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-              {streamConnected ? 'Real-Time Order Stream' : 'Live Store Sync'}
-            </span>
-          </div>
+    <div className="min-h-screen bg-[#F7F4EF] text-[#241C17]">
+      {/* Fixed Left Sidebar (>= 900px) & Horizontal Nav Strip (< 900px) */}
+      <AdminSidebar
+        activeTab={activeTab}
+        onSelectTab={(tab) => setActiveTab(tab)}
+        isAdmin={isAdmin}
+        userRole={user?.role}
+        userName={user?.full_name}
+        userEmail={user?.email || user?.phone || ''}
+        onSignOut={signOut}
+        counts={{
+          orders: orders.length,
+          products: products.length,
+          categories: categories.length,
+          hampers: hampers.length,
+          marketing: offers.length + banners.length,
+          reviews: reviews.filter((r) => !r.is_approved).length > 0 ? `${reviews.filter((r) => !r.is_approved).length} new` : reviews.length,
+          enquiries: enquiries.filter((e) => e.status === 'NEW').length > 0 ? `${enquiries.filter((e) => e.status === 'NEW').length} new` : enquiries.length,
+          notifications: notifications.filter((n) => !n.is_read).length > 0 ? `${notifications.filter((n) => !n.is_read).length} unread` : notifications.length,
+          customers: customers.length,
+          delivery: deliveryPartners.length,
+          coupons: coupons.length,
+          audit: auditLogs.length,
+        }}
+      />
 
-          <h1 className="font-display font-bold text-2xl sm:text-3xl text-white">
-            Saraswati Sweets • Store Console
-          </h1>
-          <p className="text-white/80 text-xs sm:text-sm mt-0.5">
-            Logged in: <strong>{user?.full_name}</strong> ({user?.email || user?.phone})
-          </p>
-        </div>
+      {/* Main Console Area (offset by 232px on desktop, max-width 1180px, padding 28px 32px) */}
+      <main className="admin-main-area bg-[#F7F4EF] min-h-screen">
+        <div className="max-w-[1180px] mx-auto w-full space-y-6">
+          {/* Dashboard Header Bar */}
+          <AdminDashboardHeader
+            title={tabTitles[activeTab] || 'Dashboard'}
+            streamConnected={streamConnected}
+            isRefreshing={isRefreshing}
+            onRefresh={handleManualRefresh}
+            isMuted={isMuted}
+            onToggleSound={handleToggleSound}
+            isAudioSuspended={isAudioSuspended}
+            onEnableAudio={handleEnableAudio}
+            onBackToStore={onBackToStore}
+          />
 
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Live Store Operations Quick Indicator */}
-          {storeSettings && (
-            <div
-              onClick={() => setActiveTab('overview')}
-              className="hidden md:flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-black/25 border border-white/10 text-xs text-white cursor-pointer hover:bg-black/35 transition-colors shadow-xs"
-              title="Click to view/manage store operations on Dashboard"
-            >
-              <span className="text-white/70 font-medium">Store Operations:</span>
-              <span className={`inline-flex items-center gap-1 font-bold ${storeSettings.delivery_enabled ?? true ? 'text-emerald-300' : 'text-rose-300'}`}>
-                <span className={`w-2 h-2 rounded-full ${storeSettings.delivery_enabled ?? true ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`} />
-                Delivery {storeSettings.delivery_enabled ?? true ? 'ON' : 'OFF'}
-              </span>
-              <span className="text-white/30">•</span>
-              <span className={`inline-flex items-center gap-1 font-bold ${storeSettings.takeaway_enabled ?? true ? 'text-emerald-300' : 'text-rose-300'}`}>
-                <span className={`w-2 h-2 rounded-full ${storeSettings.takeaway_enabled ?? true ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`} />
-                Pickup {storeSettings.takeaway_enabled ?? true ? 'ON' : 'OFF'}
-              </span>
+          {serverError && (
+            <div className="p-4 rounded-xl bg-[#FAF4DE] border border-[#B3261E]/40 text-sm text-[#8A1538] font-medium flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 shrink-0 text-[#B3261E]" />
+              <span>{serverError}</span>
             </div>
           )}
 
-          {/* Autoplay blocked banner button */}
-          {isAudioSuspended && (
-            <button
-              type="button"
-              onClick={handleEnableAudio}
-              className="min-h-[40px] px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm animate-pulse"
-              title="Click to enable sound alerts for new incoming orders"
-            >
-              <Volume2 className="w-3.5 h-3.5" />
-              <span>Enable Sound</span>
-            </button>
-          )}
-
-          {/* Sound Mute/Unmute Toggle */}
-          <button
-            type="button"
-            onClick={handleToggleSound}
-            className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-              isMuted
-                ? 'bg-rose-950/70 text-rose-200 hover:bg-rose-900 border border-rose-400/40'
-                : 'bg-white/15 hover:bg-white/25 text-white'
-            }`}
-            title={isMuted ? 'Order notification chime is muted. Click to unmute.' : 'Order notification chime is active. Click to mute.'}
-          >
-            {isMuted ? (
-              <>
-                <VolumeX className="w-3.5 h-3.5 text-rose-300" />
-                <span>Muted</span>
-              </>
-            ) : (
-              <>
-                <Volume2 className="w-3.5 h-3.5 text-emerald-300" />
-                <span>Sound On</span>
-              </>
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleManualRefresh}
-            className="min-h-[40px] px-3.5 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={onBackToStore}
-            className="min-h-[40px] px-3.5 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-semibold transition-colors"
-          >
-            Storefront
-          </button>
-
-          <button
-            type="button"
-            onClick={signOut}
-            className="min-h-[40px] px-4 py-1.5 rounded-xl bg-white text-[#8A1538] text-xs font-semibold hover:bg-[#FAF4DE] transition-colors flex items-center gap-1.5 shadow-xs"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Sign Out</span>
-          </button>
-        </div>
-      </div>
-
-      {serverError && (
-        <div className="p-4 rounded-xl bg-[#FAF4DE] border border-[#B3261E]/40 text-sm text-[#8A1538] font-medium flex items-center gap-2">
-          <AlertCircle className="w-5 h-5 shrink-0 text-[#B3261E]" />
-          <span>{serverError}</span>
-        </div>
-      )}
-
-      {/* 2. PHONE-FRIENDLY SCROLLABLE NAVIGATION TABS */}
-      <div className="flex gap-2 overflow-x-auto pb-3 pt-1 border-b border-[#E8DFD2]">
-        {[
-          { key: 'overview', label: 'Dashboard', icon: BarChart3 },
-          { key: 'orders', label: `Orders (${orders.length})`, icon: ShoppingCart },
-          { key: 'products', label: `Sweets & Stock (${products.length})`, icon: Package },
-          { key: 'categories', label: `Categories (${categories.length})`, icon: FolderTree },
-          { key: 'hampers', label: `Gift Hampers (${hampers.length})`, icon: Gift },
-          { key: 'marketing', label: `Offers & Banners (${offers.length + banners.length})`, icon: Tag },
-          { key: 'reviews', label: `Reviews (${reviews.filter((r) => !r.is_approved).length > 0 ? `${reviews.filter((r) => !r.is_approved).length} new` : reviews.length})`, icon: Star },
-          { key: 'enquiries', label: `Bulk Enquiries (${enquiries.filter((e) => e.status === 'NEW').length > 0 ? `${enquiries.filter((e) => e.status === 'NEW').length} new` : enquiries.length})`, icon: Building2 },
-          { key: 'notifications', label: `Notifications (${notifications.filter((n) => !n.is_read).length > 0 ? `${notifications.filter((n) => !n.is_read).length} unread` : notifications.length})`, icon: Bell },
-          { key: 'customers', label: `Customers (${customers.length})`, icon: Users, adminOnly: true },
-          { key: 'delivery', label: `Delivery & Fleet (${deliveryPartners.length})`, icon: Bike },
-          { key: 'coupons', label: `Coupons (${coupons.length})`, icon: Tag, adminOnly: true },
-          { key: 'settings', label: 'Store Settings', icon: Settings },
-          { key: 'audit', label: `Audit Trail (${auditLogs.length})`, icon: ShieldCheck, adminOnly: true },
-        ]
-          .filter((t) => !t.adminOnly || isAdmin)
-          .map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.key;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setActiveTab(tab.key as AdminTab)}
-                className={`min-h-[44px] px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 ${
-                  isActive
-                    ? 'bg-[#8A1538] text-white shadow-xs'
-                    : 'bg-white text-[#1F1B16] border border-[#E8DFD2] hover:bg-[#F3EBE0]'
-                }`}
-              >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-[#F6E08B]' : 'text-[#8A1538]'}`} />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-      </div>
-
-      {/* 3. TAB PANELS */}
+          {/* 3. TAB PANELS */}
 
       {/* ==================================================== */}
       {/* TAB A: OVERVIEW / DASHBOARD                          */}
       {/* ==================================================== */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          {/* Store Operations / Delivery & Takeaway Live Controls */}
-          {storeSettings && (
-            <StoreOperationsCard
-              storeSettings={storeSettings}
-              onUpdateSettings={handleUpdateOperationsSettings}
-              canEdit={isStaff || isAdmin}
+          {/* 1. KPI row (AdminKpiGrid) */}
+          {metrics && (
+            <AdminKpiGrid
+              metrics={metrics}
+              outForDeliveryCount={
+                orders.filter((o: any) => o.status === 'OUT_FOR_DELIVERY').length ||
+                metrics.outForDeliveryOrders ||
+                0
+              }
             />
           )}
 
-          {/* Metrics 4-Cards Row */}
-          {metrics && (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white p-5 rounded-2xl border border-[#E8DFD2] shadow-xs">
-                <span className="text-xs text-[#6B6258] font-medium flex items-center gap-1">
-                  <IndianRupee className="w-3.5 h-3.5 text-[#8A1538]" /> Today's Sales
-                </span>
-                <div className="text-2xl font-bold font-display text-[#1F1B16] tabular-nums mt-1">
-                  {formatINR(metrics.todayRevenue)}
-                </div>
-                <span className="text-[11px] text-[#2E7D4F] font-semibold mt-1 block">
-                  {metrics.todayOrders} orders placed today
-                </span>
+          {/* 2. Second row, two columns (2fr / 1fr, gap 16px) */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {metrics && (
+              <div className="lg:col-span-2">
+                <AdminSalesChartCard
+                  trendView={trendView}
+                  onSetTrendView={setTrendView}
+                  trend7Days={metrics.trend7Days}
+                  trend30Days={metrics.trend30Days}
+                />
               </div>
+            )}
 
-              <div className="bg-white p-5 rounded-2xl border border-[#E8DFD2] shadow-xs">
-                <span className="text-xs text-[#6B6258] font-medium flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-[#B8781E]" /> Orders Pending
-                </span>
-                <div className="text-2xl font-bold font-display text-[#8A1538] tabular-nums mt-1">
-                  {metrics.pendingOrders}
-                </div>
-                <span className="text-[11px] text-[#6B6258] mt-1 block">
-                  Awaiting dispatch
-                </span>
+            {storeSettings && (
+              <div className="lg:col-span-1">
+                <StoreOperationsCard
+                  storeSettings={storeSettings}
+                  onUpdateSettings={handleUpdateOperationsSettings}
+                  canEdit={isStaff || isAdmin}
+                />
               </div>
+            )}
+          </div>
 
-              <div className="bg-white p-5 rounded-2xl border border-[#E8DFD2] shadow-xs">
-                <span className="text-xs text-[#6B6258] font-medium flex items-center gap-1">
-                  <Bike className="w-3.5 h-3.5 text-[#C9A227]" /> Out for Delivery
-                </span>
-                <div className="text-2xl font-bold font-display text-[#C9A227] tabular-nums mt-1">
-                  {orders.filter((o: any) => o.status === 'OUT_FOR_DELIVERY').length || metrics.outForDeliveryOrders || 0}
-                </div>
-                <span className="text-[11px] text-[#6B6258] mt-1 block">
-                  En route to customer
-                </span>
-              </div>
+          {/* 3. Third row: AdminPendingOrdersCard */}
+          <AdminPendingOrdersCard
+            orders={orders}
+            onOpenOrder={(order) => setSelectedOrderForDetails(order)}
+            onViewAllOrders={() => setActiveTab('orders')}
+          />
 
-              <div className="bg-white p-5 rounded-2xl border border-[#E8DFD2] shadow-xs">
-                <span className="text-xs text-[#6B6258] font-medium flex items-center gap-1">
-                  <AlertCircle className="w-3.5 h-3.5 text-[#B3261E]" /> Low Stock Alerts
-                </span>
-                <div className="text-2xl font-bold font-display text-[#B3261E] tabular-nums mt-1">
-                  {metrics.lowStockItems}
-                </div>
-                <span className="text-[11px] text-[#6B6258] mt-1 block">
-                  Sweets below 10 units
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* 7-Day & 30-Day Trend Visualizer */}
-          {metrics && (
-            <div className="bg-white rounded-2xl border border-[#E8DFD2] p-6 shadow-xs space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E8DFD2] pb-3">
-                <div>
-                  <h3 className="font-display font-bold text-lg text-[#1F1B16] flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-[#8A1538]" />
-                    <span>Sales & Orders Trajectory</span>
-                  </h3>
-                  <p className="text-xs text-[#6B6258]">
-                    Daily Barabanki local delivery volume and sales trajectory.
-                  </p>
-                </div>
-                
-                {/* 7-Day / 30-Day Segmented Switch */}
-                <div className="flex items-center gap-1 bg-[#F3EBE0] p-1 rounded-xl self-start sm:self-auto">
-                  <button
-                    type="button"
-                    onClick={() => setTrendView('7days')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                      trendView === '7days' ? 'bg-[#8A1538] text-white shadow-xs' : 'text-[#6B6258] hover:text-[#1F1B16]'
-                    }`}
-                  >
-                    7-Day Daily Trend
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTrendView('30days')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                      trendView === '30days' ? 'bg-[#8A1538] text-white shadow-xs' : 'text-[#6B6258] hover:text-[#1F1B16]'
-                    }`}
-                  >
-                    30-Day Summary
-                  </button>
-                </div>
-              </div>
-
-              {trendView === '7days' ? (
-                /* 7-Day Bar chart representation */
-                <div className="grid grid-cols-7 gap-2 sm:gap-4 items-end pt-4 pb-2">
-                  {metrics.trend7Days?.map((d: any) => {
-                    const maxRev = Math.max(...metrics.trend7Days.map((x: any) => x.revenue), 1000);
-                    const heightPercent = Math.max(15, Math.round((d.revenue / maxRev) * 100));
-
-                    return (
-                      <div key={d.date} className="flex flex-col items-center gap-2 text-center">
-                        <span className="text-[10px] font-bold text-[#1F1B16] tabular-nums">
-                          {formatINR(d.revenue)}
-                        </span>
-                        <div className="w-full bg-[#F3EBE0] rounded-t-lg h-32 flex items-end justify-center p-1">
-                          <div
-                            style={{ height: `${heightPercent}%` }}
-                            className="w-full bg-[#8A1538] hover:bg-[#701029] rounded-t-md transition-all shadow-xs"
-                            title={`${d.label}: ${formatINR(d.revenue)} (${d.orders} orders)`}
-                          />
-                        </div>
-                        <span className="text-[11px] text-[#6B6258] font-medium truncate max-w-[50px] sm:max-w-none">
-                          {d.label.split(',')[0]}
-                        </span>
-                        <span className="text-[10px] text-[#2E7D4F] font-bold">
-                          {d.orders} ord
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                /* 30-Day Aggregated Trend Grid */
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-                  <div className="p-4 rounded-xl bg-[#FBF7F1] border border-[#E8DFD2] space-y-1">
-                    <span className="text-xs text-[#6B6258] font-medium">30-Day Revenue</span>
-                    <div className="text-2xl font-bold font-display text-[#8A1538] tabular-nums">
-                      {formatINR(metrics.trend30Days?.totalRevenue || 0)}
-                    </div>
-                    <span className="text-[11px] text-[#2E7D4F] font-semibold">Storewide gross intake</span>
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-[#FBF7F1] border border-[#E8DFD2] space-y-1">
-                    <span className="text-xs text-[#6B6258] font-medium">30-Day Completed Orders</span>
-                    <div className="text-2xl font-bold font-display text-[#1F1B16] tabular-nums">
-                      {metrics.trend30Days?.totalOrders || 0}
-                    </div>
-                    <span className="text-[11px] text-[#6B6258]">Delivered to Barabanki addresses</span>
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-[#FBF7F1] border border-[#E8DFD2] space-y-1">
-                    <span className="text-xs text-[#6B6258] font-medium">Average Order Value (AOV)</span>
-                    <div className="text-2xl font-bold font-display text-[#C9A227] tabular-nums">
-                      {metrics.trend30Days?.totalOrders
-                        ? formatINR(Math.round(metrics.trend30Days.totalRevenue / metrics.trend30Days.totalOrders))
-                        : '₹937'}
-                    </div>
-                    <span className="text-[11px] text-[#6B6258]">Per customer basket size</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Quick Low-Stock Inventory Triage */}
+          {/* 4. Quick Low-Stock Inventory Triage */}
           {products.some((p) => p.variants?.some((v: any) => v.stockStatus !== 'IN_STOCK' || v.stockQuantity < 15)) && (
-            <div className="bg-white rounded-2xl border border-red-200 p-5 shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="font-display font-bold text-sm text-[#B3261E] flex items-center gap-1.5">
-                  <AlertCircle className="w-4 h-4 text-[#B3261E]" />
-                  <span>Kitchen Inventory Alert • Low / Out of Stock Items</span>
-                </h4>
+            <div className="bg-white rounded-[14px] border border-[#E9E2D8] p-5 shadow-2xs space-y-3.5">
+              <div className="flex items-center justify-between border-b border-[#E9E2D8] pb-3">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-[#A8261E]" strokeWidth={1.8} aria-hidden="true" />
+                  <h3 className="text-[16px] font-extrabold text-[#241C17] tracking-tight">
+                    Kitchen Inventory Alert • Low / Out of Stock Items
+                  </h3>
+                </div>
                 <button
                   type="button"
                   onClick={() => setActiveTab('products')}
-                  className="text-xs font-semibold text-[#8A1538] hover:underline"
+                  className="text-xs font-bold text-[#7A1129] hover:underline cursor-pointer"
                 >
-                  Manage All
+                  Manage all stock
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {products
                   .flatMap((p) =>
                     p.variants
@@ -1633,21 +1428,21 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   .map((v: any) => (
                     <div
                       key={v.id}
-                      className="p-3 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] flex items-center justify-between gap-2"
+                      className="p-3.5 rounded-[12px] border border-[#E9E2D8] bg-[#F7F4EF] flex items-center justify-between gap-3"
                     >
                       <div className="min-w-0">
-                        <div className="font-bold text-xs text-[#1F1B16] truncate">{v.productName}</div>
-                        <div className="text-[11px] text-[#6B6258]">
-                          {v.label} • {v.stockQuantity} units left
+                        <div className="font-bold text-xs text-[#241C17] truncate">{v.productName}</div>
+                        <div className="text-[11px] text-[#6B5F55] mt-0.5">
+                          {v.label} • <span className="font-bold tabular-nums text-[#8A4B00]">{v.stockQuantity}</span> units left
                         </div>
                       </div>
                       <button
                         type="button"
                         onClick={() => handleToggleStock(v.id, v.stockStatus)}
-                        className={`text-[10px] font-bold px-2 py-1 rounded transition-colors whitespace-nowrap ${
+                        className={`text-[11px] font-bold px-3 py-1.5 rounded-[8px] transition-colors whitespace-nowrap cursor-pointer active:scale-95 ${
                           v.stockStatus === 'IN_STOCK'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-emerald-100 text-[#2E7D4F]'
+                            ? 'bg-[#FDEFD0] text-[#8A4B00] hover:bg-[#fad899]'
+                            : 'bg-[#E3F4EA] text-[#17663E] hover:bg-[#c9ebd6]'
                         }`}
                       >
                         {v.stockStatus === 'IN_STOCK' ? 'Set Out of Stock' : 'Mark In Stock'}
@@ -1658,18 +1453,20 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
             </div>
           )}
 
-          {/* Quick Action Shortcuts */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* 5. Quick Action Shortcuts */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <button
               type="button"
               onClick={() => setActiveTab('orders')}
-              className="p-4 rounded-xl bg-white border border-[#E8DFD2] hover:border-[#8A1538] hover:bg-[#FBF7F1] text-left transition-all shadow-xs flex items-center justify-between"
+              className="p-4 rounded-[14px] bg-white border border-[#E9E2D8] hover:border-[#7A1129] hover:bg-[#F3E9DC]/40 text-left transition-all shadow-2xs flex items-center justify-between cursor-pointer group"
             >
               <div>
-                <div className="font-bold text-sm text-[#1F1B16]">Manage Live Orders</div>
+                <div className="font-bold text-sm text-[#241C17] group-hover:text-[#7A1129] transition-colors">
+                  Manage Live Orders
+                </div>
                 <div className="text-xs text-[#6B6258] mt-0.5">Order confirmation, dispatch, and delivery</div>
               </div>
-              <ArrowRight className="w-4 h-4 text-[#8A1538]" />
+              <ArrowRight className="w-4 h-4 text-[#7A1129] group-hover:translate-x-0.5 transition-transform" strokeWidth={1.8} />
             </button>
 
             <button
@@ -1678,13 +1475,15 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                 setActiveTab('products');
                 setIsProductModalOpen(true);
               }}
-              className="p-4 rounded-xl bg-white border border-[#E8DFD2] hover:border-[#8A1538] hover:bg-[#FBF7F1] text-left transition-all shadow-xs flex items-center justify-between"
+              className="p-4 rounded-[14px] bg-white border border-[#E9E2D8] hover:border-[#7A1129] hover:bg-[#F3E9DC]/40 text-left transition-all shadow-2xs flex items-center justify-between cursor-pointer group"
             >
               <div>
-                <div className="font-bold text-sm text-[#1F1B16]">+ Add New Sweet / Mithai</div>
+                <div className="font-bold text-sm text-[#241C17] group-hover:text-[#7A1129] transition-colors">
+                  + Add New Sweet / Mithai
+                </div>
                 <div className="text-xs text-[#6B6258] mt-0.5">Upload photo & set prices</div>
               </div>
-              <Plus className="w-4 h-4 text-[#8A1538]" />
+              <Plus className="w-4 h-4 text-[#7A1129] group-hover:scale-110 transition-transform" strokeWidth={1.8} />
             </button>
           </div>
         </div>
@@ -1694,19 +1493,19 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       {/* TAB B: ORDERS MANAGEMENT                             */}
       {/* ==================================================== */}
       {activeTab === 'orders' && (
-        <div className="bg-white rounded-2xl border border-[#E8DFD2] p-5 sm:p-6 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E8DFD2] pb-4">
+        <div className="bg-white rounded-[14px] border border-[#E9E2D8] p-5 sm:p-6 shadow-2xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E9E2D8] pb-4">
             <div>
-              <h3 className="font-display font-bold text-lg text-[#1F1B16] flex items-center gap-2">
-                <ShoppingCart className="w-5 h-5 text-[#8A1538]" />
+              <h3 className="font-extrabold text-[18px] text-[#241C17] flex items-center gap-2">
+                <ShoppingCart className="w-5 h-5 text-[#7A1129]" />
                 <span>Orders Dashboard (Live Polling every 20s)</span>
               </h3>
-              <p className="text-xs text-[#6B6258]">
+              <p className="text-xs text-[#6B5F55]">
                 Enforce state transitions, assign delivery riders, and process Cashfree refunds.
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-[#6B6258] flex items-center gap-1.5">
+              <span className="text-xs text-[#6B5F55] flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 Auto-syncing
               </span>
@@ -1717,27 +1516,27 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
           <div className="space-y-3">
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="relative flex-1">
-                <Search className="w-4 h-4 text-[#6B6258] absolute left-3.5 top-3" />
+                <Search className="w-4 h-4 text-[#6B5F55] absolute left-3.5 top-3" />
                 <input
                   type="text"
                   placeholder="Search order #, patron name, or phone..."
                   value={orderSearchQuery}
                   onChange={(e) => setOrderSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs focus:outline-none focus:border-[#8A1538]"
+                  className="w-full pl-10 pr-4 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                 />
               </div>
 
               {/* Fulfilment Filter Buttons */}
-              <div className="flex items-center gap-1.5 shrink-0 bg-[#FBF7F1] p-1 rounded-xl border border-[#E8DFD2]">
+              <div className="flex items-center gap-1.5 shrink-0 bg-[#F7F4EF] p-1 rounded-[10px] border border-[#E9E2D8]">
                 {(['ALL', 'DELIVERY', 'TAKEAWAY'] as const).map((ft) => (
                   <button
                     key={ft}
                     type="button"
                     onClick={() => setOrderFulfilmentFilter(ft)}
-                    className={`min-h-[34px] px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                    className={`min-h-[34px] px-3 py-1 rounded-[8px] text-xs font-bold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
                       orderFulfilmentFilter === ft
-                        ? 'bg-[#8A1538] text-white shadow-xs'
-                        : 'text-[#6B6258] hover:text-[#1F1B16] hover:bg-white/60'
+                        ? 'bg-[#7A1129] text-white shadow-2xs'
+                        : 'text-[#6B5F55] hover:text-[#241C17] hover:bg-white'
                     }`}
                   >
                     {ft === 'ALL' ? (
@@ -1774,10 +1573,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   key={st}
                   type="button"
                   onClick={() => setOrderStatusFilter(st)}
-                  className={`min-h-[32px] px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+                  className={`min-h-[32px] px-3 py-1 rounded-[8px] text-xs font-bold whitespace-nowrap transition-colors ${
                     orderStatusFilter === st
-                      ? 'bg-[#8A1538] text-white shadow-xs'
-                      : 'bg-stone-100 text-[#6B6258] hover:text-[#1F1B16]'
+                      ? 'bg-[#7A1129] text-white shadow-2xs'
+                      : 'bg-[#F7F4EF] text-[#6B5F55] border border-[#E9E2D8] hover:text-[#241C17] hover:bg-white'
                   }`}
                 >
                   {st === 'ALL' ? 'All Statuses' : st}
@@ -1788,11 +1587,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
 
           {/* Orders List */}
           {filteredOrders.length === 0 ? (
-            <div className="p-8 text-center text-xs text-[#6B6258]">
+            <div className="p-8 text-center text-xs text-[#6B5F55]">
               No orders found matching the selected filter or search query.
             </div>
           ) : (
-            <div className="divide-y divide-[#E8DFD2]">
+            <div className="divide-y divide-[#E9E2D8]">
               {filteredOrders.map((order) => {
                 const status = order.status;
                 const isTakeaway = order.fulfilment_type === 'TAKEAWAY';
@@ -1813,16 +1612,16 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   <div key={order.id} className="py-4 space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono font-bold text-sm text-[#8A1538]">
+                        <span className="font-mono font-bold text-sm text-[#7A1129]">
                           #{order.order_number}
                         </span>
 
                         {/* Fulfilment Type Badge */}
                         <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1 border ${
+                          className={`text-[11px] font-bold px-2 py-0.5 rounded-[6px] flex items-center gap-1 border ${
                             isTakeaway
-                              ? 'bg-emerald-50 text-[#2E7D4F] border-emerald-300'
-                              : 'bg-blue-50 text-blue-800 border-blue-200'
+                              ? 'bg-[#E3F4EA] text-[#17663E] border-[#17663E]/20'
+                              : 'bg-[#F3E9DC] text-[#7A1129] border-[#7A1129]/20'
                           }`}
                         >
                           {isTakeaway ? (
@@ -1839,32 +1638,32 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                         </span>
 
                         <span
-                          className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                          className={`text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-[6px] ${
                             status === 'DELIVERED'
-                              ? 'bg-emerald-100 text-[#2E7D4F]'
+                              ? 'bg-[#E3F4EA] text-[#17663E]'
                               : status === 'CANCELLED'
-                              ? 'bg-red-100 text-[#B3261E]'
+                              ? 'bg-[#FDE8E8] text-[#A8261E]'
                               : status === 'REFUNDED'
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-[#F7E9EE] text-[#8A1538]'
+                              ? 'bg-[#FDEFD0] text-[#8A4B00]'
+                              : 'bg-[#F3E9DC] text-[#7A1129]'
                           }`}
                         >
                           {status}
                         </span>
 
                         <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                          className={`text-[11px] font-bold px-2 py-0.5 rounded-[6px] ${
                             order.payment_method === 'ONLINE'
                               ? order.payment_status === 'CAPTURED'
-                                ? 'bg-emerald-100 text-[#2E7D4F]'
-                                : 'bg-purple-100 text-purple-800'
-                              : 'bg-stone-100 text-stone-700'
+                                ? 'bg-[#E3F4EA] text-[#17663E]'
+                                : 'bg-[#F3E9DC] text-[#7A1129]'
+                              : 'bg-stone-100 text-[#6B5F55]'
                           }`}
                         >
                           {order.payment_method === 'ONLINE' ? 'Online (Cashfree)' : 'Cash on Delivery'} • {order.payment_status === 'CAPTURED' ? 'Paid' : (order.payment_status || 'Pending')}
                         </span>
 
-                        <span className="text-xs text-[#6B6258]">
+                        <span className="text-xs text-[#6B5F55] tabular-nums">
                           {new Date(order.created_at).toLocaleTimeString('en-IN', {
                             hour: '2-digit',
                             minute: '2-digit',
@@ -1873,10 +1672,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                       </div>
 
                       <div className="text-right sm:text-right">
-                        <div className="text-sm font-bold text-[#1F1B16]">
+                        <div className="text-sm font-extrabold text-[#241C17] tabular-nums">
                           {formatINR(finalOrderTotal)}
                         </div>
-                        <div className="text-[10px] text-[#6B6258] font-medium">
+                        <div className="text-[11px] text-[#6B5F55] font-medium">
                           Final Payable Total
                         </div>
                       </div>
@@ -1884,11 +1683,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
 
                     {/* Scheduled Counter Slot for Takeaway */}
                     {isTakeaway && (
-                      <div className="text-xs text-[#8A1538] font-semibold flex items-center gap-1.5 bg-[#FAF4DE] px-3 py-1.5 rounded-lg border border-[#C79A3D]/40">
-                        <Clock className="w-3.5 h-3.5 text-[#8A1538] shrink-0" />
+                      <div className="text-xs text-[#8A4B00] font-semibold flex items-center gap-1.5 bg-[#FDEFD0] px-3 py-1.5 rounded-[10px] border border-[#C79A3D]/40">
+                        <Clock className="w-3.5 h-3.5 text-[#8A4B00] shrink-0" />
                         <span>
                           Scheduled Counter Pickup:{' '}
-                          <strong className="text-[#1F1B16]">
+                          <strong className="text-[#241C17]">
                             {order.slot_snapshot?.slot_time_formatted || 'Standard Slot'}
                             {order.slot_snapshot?.slot_date ? ` (${order.slot_snapshot.slot_date})` : ''}
                           </strong>
@@ -1896,63 +1695,63 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                       </div>
                     )}
 
-                    <div className="text-xs text-[#6B6258] leading-relaxed">
-                      Customer: <strong className="text-[#1F1B16]">{order.address_snapshot?.recipient_name}</strong> (
+                    <div className="text-xs text-[#6B5F55] leading-relaxed">
+                      Customer: <strong className="text-[#241C17]">{order.address_snapshot?.recipient_name}</strong> (
                       {order.address_snapshot?.recipient_phone}) •{' '}
                       {isTakeaway ? (
-                        <span className="text-[#2E7D4F] font-semibold">Store Counter Pickup (Barabanki)</span>
+                        <span className="text-[#17663E] font-semibold">Store Counter Pickup (Barabanki)</span>
                       ) : (
                         <span>Destination: {order.address_snapshot?.street_address}, {order.address_snapshot?.pincode}</span>
                       )}
                     </div>
 
-                    <div className="text-xs text-[#1F1B16] font-medium">
+                    <div className="text-xs text-[#241C17] font-medium">
                       Items:{' '}
                       {order.items?.map((it: any) => `${it.product_name} (${it.variant_label}) × ${it.quantity}`).join(' • ')}
                     </div>
 
                     {!isTakeaway && order.delivery_partner_name && (
-                      <div className="text-xs text-[#2E7D4F] flex items-center gap-1 font-semibold">
+                      <div className="text-xs text-[#17663E] flex items-center gap-1 font-semibold">
                         <Bike className="w-3.5 h-3.5" />
                         <span>Rider Assigned: {order.delivery_partner_name} ({order.delivery_partner_phone})</span>
                       </div>
                     )}
 
                     {/* Financial Summary & Breakdown Bar */}
-                    <div className="p-3 bg-[#FBF7F1] rounded-xl border border-[#E8DFD2] flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs">
+                    <div className="p-3.5 bg-[#F7F4EF] rounded-[12px] border border-[#E9E2D8] flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs">
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4 text-xs flex-1">
                         <div>
-                          <span className="block text-[10px] uppercase font-bold tracking-wider text-[#6B6258]">Items Subtotal</span>
-                          <span className="font-semibold text-[#1F1B16] tabular-nums">{formatINR(itemsSubtotal)}</span>
+                          <span className="block text-[10px] uppercase font-bold tracking-wider text-[#6B5F55]">Items Subtotal</span>
+                          <span className="font-semibold text-[#241C17] tabular-nums">{formatINR(itemsSubtotal)}</span>
                         </div>
                         <div>
-                          <span className="block text-[10px] uppercase font-bold tracking-wider text-[#6B6258]">Product Discount</span>
-                          <span className={`font-semibold tabular-nums ${productDiscount > 0 ? 'text-[#2E7D4F]' : 'text-[#6B6258]'}`}>
+                          <span className="block text-[10px] uppercase font-bold tracking-wider text-[#6B5F55]">Product Discount</span>
+                          <span className={`font-semibold tabular-nums ${productDiscount > 0 ? 'text-[#17663E]' : 'text-[#6B5F55]'}`}>
                             {productDiscount > 0 ? `−${formatINR(productDiscount)}` : '₹0'}
                             {order.coupon_code && (
-                              <span className="ml-1 text-[10px] bg-emerald-100 text-emerald-800 px-1 py-0.5 rounded font-mono font-bold">
+                              <span className="ml-1 text-[10px] bg-[#E3F4EA] text-[#17663E] px-1 py-0.5 rounded font-mono font-bold">
                                 {order.coupon_code}
                               </span>
                             )}
                           </span>
                         </div>
                         <div>
-                          <span className="block text-[10px] uppercase font-bold tracking-wider text-[#6B6258]">
+                          <span className="block text-[10px] uppercase font-bold tracking-wider text-[#6B5F55]">
                             {isTakeaway ? 'Pickup Fee' : 'Delivery Fee'}
                           </span>
-                          <span className="font-semibold text-[#1F1B16] tabular-nums">
+                          <span className="font-semibold text-[#241C17] tabular-nums">
                             {deliveryFee === 0 ? (
-                              <span className="text-[#2E7D4F] font-bold">FREE (₹0)</span>
+                              <span className="text-[#17663E] font-bold">FREE (₹0)</span>
                             ) : (
                               formatINR(deliveryFee)
                             )}
                           </span>
                         </div>
                         <div>
-                          <span className="block text-[10px] uppercase font-bold tracking-wider text-[#8A1538]">Final Order Total</span>
-                          <span className="font-bold text-[#8A1538] text-sm tabular-nums">{formatINR(finalOrderTotal)}</span>
+                          <span className="block text-[10px] uppercase font-bold tracking-wider text-[#7A1129]">Final Order Total</span>
+                          <span className="font-extrabold text-[#7A1129] text-sm tabular-nums">{formatINR(finalOrderTotal)}</span>
                           {applicableTaxes > 0 ? (
-                            <span className="block text-[10px] text-[#6B6258]">incl. ₹{applicableTaxes} tax</span>
+                            <span className="block text-[10px] text-[#6B5F55]">incl. ₹{applicableTaxes} tax</span>
                           ) : (
                             <span className="block text-[10px] text-stone-400">tax incl. in MRP</span>
                           )}
@@ -1961,20 +1760,20 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                       <button
                         type="button"
                         onClick={() => setSelectedOrderForDetails(order)}
-                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-[#F3EBE0] border border-[#E8DFD2] text-xs font-semibold text-[#1F1B16] transition-colors shrink-0 shadow-2xs"
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-[10px] bg-white hover:bg-[#F3E9DC] border border-[#E9E2D8] text-xs font-bold text-[#241C17] transition-colors shrink-0 shadow-2xs min-h-[36px]"
                       >
-                        <Receipt className="w-3.5 h-3.5 text-[#8A1538]" />
+                        <Receipt className="w-3.5 h-3.5 text-[#7A1129]" />
                         <span>View Price Breakdown</span>
                       </button>
                     </div>
 
                     {/* State Machine Transition Action Buttons & Actions */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-black/5">
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#E9E2D8]">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[11px] font-semibold text-[#6B6258]">Next Status:</span>
+                        <span className="text-[11px] font-bold text-[#6B5F55]">Next Status:</span>
 
                         {status === 'PENDING_PAYMENT' && (
-                          <span className="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-semibold">
+                          <span className="text-[11px] text-[#8A4B00] bg-[#FDEFD0] px-2.5 py-1 rounded-[6px] border border-[#C79A3D]/40 font-bold">
                             Awaiting Cashfree Payment (15m expiry)
                           </span>
                         )}
@@ -1984,14 +1783,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                             <button
                               type="button"
                               onClick={() => handleOrderStatusTransition(order.id, 'CONFIRMED')}
-                              className="px-3 py-1 rounded-lg bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-semibold shadow-xs"
+                              className="px-3.5 py-1.5 min-h-[36px] rounded-[10px] bg-[#7A1129] hover:bg-[#5E0D20] text-white text-xs font-bold shadow-2xs transition-colors"
                             >
                               Confirm Order
                             </button>
                             <button
                               type="button"
                               onClick={() => handlePromptOrderCancellation(order)}
-                              className="px-3 py-1 rounded-lg border border-[#B3261E] text-[#B3261E] hover:bg-red-50 text-xs font-semibold"
+                              className="px-3.5 py-1.5 min-h-[36px] rounded-[10px] border border-[#A8261E] text-[#A8261E] hover:bg-[#FDE8E8] text-xs font-bold transition-colors"
                             >
                               Cancel
                             </button>
@@ -2003,14 +1802,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                             <button
                               type="button"
                               onClick={() => handleOrderStatusTransition(order.id, 'OUT_FOR_DELIVERY')}
-                              className="px-3 py-1 rounded-lg bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-semibold shadow-xs"
+                              className="px-3.5 py-1.5 min-h-[36px] rounded-[10px] bg-[#7A1129] hover:bg-[#5E0D20] text-white text-xs font-bold shadow-2xs transition-colors"
                             >
                               Send Out for Delivery
                             </button>
                             <button
                               type="button"
                               onClick={() => handlePromptOrderCancellation(order)}
-                              className="px-3 py-1 rounded-lg border border-[#B3261E] text-[#B3261E] hover:bg-red-50 text-xs font-semibold"
+                              className="px-3.5 py-1.5 min-h-[36px] rounded-[10px] border border-[#A8261E] text-[#A8261E] hover:bg-[#FDE8E8] text-xs font-bold transition-colors"
                             >
                               Cancel
                             </button>
@@ -2022,7 +1821,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                           <button
                             type="button"
                             onClick={() => handleOrderStatusTransition(order.id, 'OUT_FOR_DELIVERY')}
-                            className="px-3 py-1 rounded-lg bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-semibold shadow-xs"
+                            className="px-3.5 py-1.5 min-h-[36px] rounded-[10px] bg-[#7A1129] hover:bg-[#5E0D20] text-white text-xs font-bold shadow-2xs transition-colors"
                           >
                             Send Out for Delivery
                           </button>
@@ -2032,34 +1831,34 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                           <button
                             type="button"
                             onClick={() => handleOrderStatusTransition(order.id, 'DELIVERED')}
-                            className="px-3 py-1 rounded-lg bg-[#2E7D4F] hover:bg-[#25633e] text-white text-xs font-semibold shadow-xs"
+                            className="px-3.5 py-1.5 min-h-[36px] rounded-[10px] bg-[#1E7A4B] hover:bg-[#17663E] text-white text-xs font-bold shadow-2xs transition-colors"
                           >
                             Mark Delivered & Paid
                           </button>
                         )}
 
                         {status === 'DELIVERED' && (
-                          <span className="text-[11px] font-semibold text-[#2E7D4F] flex items-center gap-1">
+                          <span className="text-[11px] font-bold text-[#17663E] flex items-center gap-1 bg-[#E3F4EA] px-2.5 py-1 rounded-[6px]">
                             <CheckCircle2 className="w-3.5 h-3.5" /> Order Complete & Paid
                           </span>
                         )}
 
                         {status === 'CANCELLED' && (
-                          <span className="text-[11px] font-semibold text-[#B3261E]">
+                          <span className="text-[11px] font-bold text-[#A8261E] bg-[#FDE8E8] px-2.5 py-1 rounded-[6px]">
                             Order Cancelled
                           </span>
                         )}
 
                         {(status === 'REFUNDED' || order.payment_status?.includes('REFUND')) && (
                           <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                            <span className="text-[11px] font-bold text-[#8A4B00] bg-[#FDEFD0] px-2.5 py-1 rounded-[6px] border border-[#C79A3D]/40">
                               {order.payment_status === 'REFUND_PENDING' ? 'Refund Processing' : order.payment_status === 'REFUND_FAILED' ? 'Refund Failed' : 'Refunded'} 
                               ({order.provider_refund_id || 'Processed'})
                             </span>
                             <button
                               type="button"
                               onClick={() => handleSyncRefund(order.id)}
-                              className="text-[10px] bg-stone-200 hover:bg-stone-300 px-2 py-0.5 rounded text-stone-700 transition"
+                              className="text-[11px] bg-stone-100 hover:bg-stone-200 px-2.5 py-1 rounded-[6px] text-[#241C17] font-semibold transition-colors"
                             >
                               Sync Status
                             </button>
@@ -2073,9 +1872,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                           <button
                             type="button"
                             onClick={() => setAssigningOrder(order)}
-                            className="px-3 py-1 rounded-lg border border-[#E8DFD2] hover:bg-[#F3EBE0] text-xs font-semibold text-[#1F1B16] flex items-center gap-1"
+                            className="px-3 py-1.5 min-h-[36px] rounded-[10px] border border-[#E9E2D8] bg-white hover:bg-[#F3E9DC] text-xs font-semibold text-[#241C17] flex items-center gap-1.5 transition-colors"
                           >
-                            <Bike className="w-3.5 h-3.5 text-[#8A1538]" />
+                            <Bike className="w-3.5 h-3.5 text-[#7A1129]" />
                             <span>{order.delivery_partner_id ? 'Reassign Rider' : 'Assign Rider'}</span>
                           </button>
                         )}
@@ -2084,7 +1883,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                           <button
                             type="button"
                             onClick={() => setRefundOrderTarget(order)}
-                            className="px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold shadow-xs"
+                            className="px-3.5 py-1.5 min-h-[36px] rounded-[10px] bg-[#C79A3D] hover:bg-[#B3872F] text-white text-xs font-bold shadow-2xs transition-colors"
                           >
                             Refund via Cashfree
                           </button>
@@ -2103,15 +1902,15 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       {/* TAB C: PRODUCTS & VARIANTS MANAGEMENT                */}
       {/* ==================================================== */}
       {activeTab === 'products' && (
-        <div className="bg-white rounded-2xl border border-[#E8DFD2] p-5 sm:p-6 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E8DFD2] pb-4">
+        <div className="bg-white rounded-[14px] border border-[#E9E2D8] p-5 sm:p-6 shadow-2xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E9E2D8] pb-4">
             <div>
-              <h3 className="font-display font-bold text-lg text-[#1F1B16] flex items-center gap-2">
-                <Package className="w-5 h-5 text-[#8A1538]" />
+              <h3 className="font-extrabold text-[18px] text-[#241C17] flex items-center gap-2">
+                <Package className="w-5 h-5 text-[#7A1129]" />
                 <span>Sweet Catalog & Counter Inventory</span>
               </h3>
-              <p className="text-xs text-[#6B6258]">
-                Add sweets, upload primary photos (JPEG/PNG/WebP $\le$ 5MB), and toggle counter stock status.
+              <p className="text-xs text-[#6B5F55]">
+                Add sweets, upload primary photos (JPEG/PNG/WebP ≤ 5MB), and toggle counter stock status.
               </p>
             </div>
             {isAdmin && (
@@ -2135,9 +1934,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   });
                   setIsProductModalOpen(true);
                 }}
-                className="px-4 py-2 rounded-xl bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5 self-start sm:self-auto"
+                className="min-h-[44px] px-4 py-2 rounded-[10px] bg-[#7A1129] hover:bg-[#5E0D20] text-white text-xs font-bold transition-colors shadow-2xs flex items-center gap-1.5 self-start sm:self-auto"
               >
-                <Plus className="w-4 h-4 text-[#F6E08B]" />
+                <Plus className="w-4 h-4 text-[#E8C16A]" />
                 <span>+ Add New Sweet</span>
               </button>
             )}
@@ -2150,10 +1949,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                 <button
                   type="button"
                   onClick={() => setAdminProductCategory('ALL')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors whitespace-nowrap shrink-0 ${
+                  className={`px-3 py-1.5 rounded-[8px] text-xs font-bold transition-colors whitespace-nowrap shrink-0 ${
                     adminProductCategory === 'ALL'
-                      ? 'bg-[#8A1538] text-white shadow-xs'
-                      : 'bg-[#FBF7F1] border border-[#E8DFD2] text-[#6B6258] hover:text-[#1F1B16]'
+                      ? 'bg-[#7A1129] text-white shadow-2xs'
+                      : 'bg-[#F7F4EF] border border-[#E9E2D8] text-[#6B5F55] hover:text-[#241C17] hover:bg-white'
                   }`}
                 >
                   All Sweets ({products.length})
@@ -2165,10 +1964,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                       key={cat.id}
                       type="button"
                       onClick={() => setAdminProductCategory(cat.id)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors whitespace-nowrap shrink-0 ${
+                      className={`px-3 py-1.5 rounded-[8px] text-xs font-bold transition-colors whitespace-nowrap shrink-0 ${
                         adminProductCategory === cat.id
-                          ? 'bg-[#8A1538] text-white shadow-xs'
-                          : 'bg-[#FBF7F1] border border-[#E8DFD2] text-[#6B6258] hover:text-[#1F1B16]'
+                          ? 'bg-[#7A1129] text-white shadow-2xs'
+                          : 'bg-[#F7F4EF] border border-[#E9E2D8] text-[#6B5F55] hover:text-[#241C17] hover:bg-white'
                       }`}
                     >
                       {cat.name} ({count})
@@ -2178,13 +1977,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
               </div>
 
               <div className="relative min-w-[200px]">
-                <Search className="w-3.5 h-3.5 text-[#6B6258] absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="w-3.5 h-3.5 text-[#6B5F55] absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={adminProductSearch}
                   onChange={(e) => setAdminProductSearch(e.target.value)}
                   placeholder="Filter by sweet name or SKU..."
-                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] focus:bg-white focus:outline-none focus:border-[#8A1538]"
+                  className="w-full pl-8 pr-3 py-2 text-xs rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                 />
               </div>
             </div>
@@ -2203,14 +2002,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
               .map((prod) => (
               <div
                 key={prod.id}
-                className="p-4 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] flex flex-col justify-between space-y-3"
+                className="p-4 rounded-[12px] border border-[#E9E2D8] bg-[#F7F4EF] flex flex-col justify-between space-y-3"
               >
                 <div className="flex items-start gap-3">
                   {prod.image_url ? (
                     <img
                       src={prod.image_url}
                       alt={prod.name}
-                      className="w-16 h-16 rounded-xl object-cover bg-[#F3EBE0] shrink-0 border border-[#E8DFD2]"
+                      className="w-16 h-16 rounded-[10px] object-cover bg-[#F3E9DC] shrink-0 border border-[#E9E2D8]"
                     />
                   ) : (
                     <ProductImagePlaceholder
@@ -2218,12 +2017,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                       size="sm"
                       variant="admin-thumbnail"
                       productName={prod.name}
-                      className="w-16 h-16 rounded-xl shrink-0 border border-[#E8DFD2]"
+                      className="w-16 h-16 rounded-[10px] shrink-0 border border-[#E9E2D8]"
                     />
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-1">
-                      <h4 className="font-bold text-sm text-[#1F1B16] truncate">{prod.name}</h4>
+                      <h4 className="font-bold text-sm text-[#241C17] truncate">{prod.name}</h4>
                       {isAdmin && (
                         <div className="flex items-center gap-1 shrink-0">
                           <button
@@ -2246,7 +2045,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                               });
                               setIsProductModalOpen(true);
                             }}
-                            className="p-1 text-[#6B6258] hover:text-[#8A1538]"
+                            className="p-1 text-[#6B5F55] hover:text-[#7A1129] transition-colors"
                             title="Edit Product"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
@@ -2254,7 +2053,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                           <button
                             type="button"
                             onClick={() => handleDeleteProduct(prod.id, prod.name)}
-                            className="p-1 text-[#6B6258] hover:text-[#B3261E]"
+                            className="p-1 text-[#6B5F55] hover:text-[#A8261E] transition-colors"
                             title="Delete Product"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -2262,10 +2061,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                         </div>
                       )}
                     </div>
-                    <p className="text-xs text-[#6B6258] line-clamp-1 mt-0.5">{prod.description}</p>
-                    <div className="flex items-center gap-2 mt-1 text-[11px] text-[#8A1538] font-semibold flex-wrap">
+                    <p className="text-xs text-[#6B5F55] line-clamp-1 mt-0.5">{prod.description}</p>
+                    <div className="flex items-center gap-2 mt-1 text-[11px] text-[#7A1129] font-semibold flex-wrap">
                       {categories.find((c) => c.id === prod.category_id)?.name && (
-                        <span className="bg-[#FAF4DE] text-[#7A1129] px-2 py-0.5 rounded-md font-bold text-[10px] border border-[#C79A3D]/30">
+                        <span className="bg-[#FDEFD0] text-[#7A1129] px-2 py-0.5 rounded-[6px] font-bold text-[10px] border border-[#C79A3D]/30">
                           {categories.find((c) => c.id === prod.category_id)?.name}
                         </span>
                       )}
@@ -2276,9 +2075,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                 </div>
 
                 {/* Variants List & Counter Availability Switch */}
-                <div className="space-y-1.5 pt-2 border-t border-black/5">
+                <div className="space-y-1.5 pt-2 border-t border-[#E9E2D8]">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-[#6B6258] uppercase tracking-wider block">
+                    <span className="text-[11px] font-bold text-[#6B5F55] uppercase tracking-wider block">
                       Variants & Counter Stock:
                     </span>
                     {isAdmin && (
@@ -2297,7 +2096,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                           });
                           setIsVariantModalOpen(true);
                         }}
-                        className="text-[11px] font-bold text-[#8A1538] hover:underline flex items-center gap-0.5"
+                        className="text-[11px] font-bold text-[#7A1129] hover:underline flex items-center gap-0.5"
                       >
                         <Plus className="w-3 h-3" />
                         <span>Add Size</span>
@@ -2308,17 +2107,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   {prod.variants?.map((v: any) => (
                     <div
                       key={v.id}
-                      className="flex items-center justify-between text-xs bg-white px-2.5 py-1.5 rounded-lg border border-[#E8DFD2]"
+                      className="flex items-center justify-between text-xs bg-white px-2.5 py-1.5 rounded-[8px] border border-[#E9E2D8]"
                     >
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-[#1F1B16]">{v.label}</span>
-                        <span className="text-[#6B6258] tabular-nums font-semibold">{formatINR(v.price)}</span>
+                        <span className="font-bold text-[#241C17]">{v.label}</span>
+                        <span className="text-[#6B5F55] tabular-nums font-semibold">{formatINR(v.price)}</span>
                         {v.mrp > v.price && (
                           <span className="text-[10px] text-stone-400 line-through tabular-nums">
                             {formatINR(v.mrp)}
                           </span>
                         )}
-                        <span className="text-[10px] text-[#6B6258] bg-stone-100 px-1.5 py-0.5 rounded font-mono">
+                        <span className="text-[10px] text-[#6B5F55] bg-stone-100 px-1.5 py-0.5 rounded font-mono">
                           Qty: {v.stockQuantity}
                         </span>
                       </div>
@@ -2340,7 +2139,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                               });
                               setIsVariantModalOpen(true);
                             }}
-                            className="p-1 text-stone-400 hover:text-[#8A1538]"
+                            className="p-1 text-stone-400 hover:text-[#7A1129] transition-colors"
                             title="Edit Variant Details"
                           >
                             <Edit2 className="w-3 h-3" />
@@ -2350,10 +2149,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                         <button
                           type="button"
                           onClick={() => handleToggleStock(v.id, v.stockStatus)}
-                          className={`text-[11px] font-bold px-2 py-0.5 rounded transition-colors ${
+                          className={`text-[11px] font-bold px-2 py-0.5 rounded-[6px] transition-colors ${
                             v.stockStatus === 'IN_STOCK'
-                              ? 'bg-emerald-100 text-[#2E7D4F] hover:bg-red-100 hover:text-[#B3261E]'
-                              : 'bg-red-100 text-[#B3261E] hover:bg-emerald-100 hover:text-[#2E7D4F]'
+                              ? 'bg-[#E3F4EA] text-[#17663E] hover:bg-[#FDE8E8] hover:text-[#A8261E]'
+                              : 'bg-[#FDE8E8] text-[#A8261E] hover:bg-[#E3F4EA] hover:text-[#17663E]'
                           }`}
                         >
                           {v.stockStatus === 'IN_STOCK' ? '✓ In Stock' : '✕ Out of Stock'}
@@ -2372,14 +2171,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       {/* TAB D: CATEGORIES                                    */}
       {/* ==================================================== */}
       {activeTab === 'categories' && (
-        <div className="bg-white rounded-2xl border border-[#E8DFD2] p-5 sm:p-6 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E8DFD2] pb-4">
+        <div className="bg-white rounded-[14px] border border-[#E9E2D8] p-5 sm:p-6 shadow-2xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E9E2D8] pb-4">
             <div>
-              <h3 className="font-display font-bold text-lg text-[#1F1B16] flex items-center gap-2">
-                <FolderTree className="w-5 h-5 text-[#8A1538]" />
+              <h3 className="font-extrabold text-[18px] text-[#241C17] flex items-center gap-2">
+                <FolderTree className="w-5 h-5 text-[#7A1129]" />
                 <span>Categories Directory</span>
               </h3>
-              <p className="text-xs text-[#6B6258]">
+              <p className="text-xs text-[#6B5F55]">
                 Organize Barabanki sweets into storefront collection tiles.
               </p>
             </div>
@@ -2390,9 +2189,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   setCategoryForm({ name: '', description: '', image_url: '', display_order: categories.length + 1 });
                   setIsCategoryModalOpen(true);
                 }}
-                className="px-4 py-2 rounded-xl bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5 self-start sm:self-auto"
+                className="min-h-[44px] px-4 py-2 rounded-[10px] bg-[#7A1129] hover:bg-[#5E0D20] text-white text-xs font-bold transition-colors shadow-2xs flex items-center gap-1.5 self-start sm:self-auto"
               >
-                <Plus className="w-4 h-4 text-[#F6E08B]" />
+                <Plus className="w-4 h-4 text-[#E8C16A]" />
                 <span>+ Add Category</span>
               </button>
             )}
@@ -2400,15 +2199,15 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {categories.map((cat) => (
-              <div key={cat.id} className="p-4 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] flex items-start gap-3">
+              <div key={cat.id} className="p-4 rounded-[12px] border border-[#E9E2D8] bg-[#F7F4EF] flex items-start gap-3">
                 <img
                   src={cat.image_url}
                   alt={cat.name}
-                  className="w-16 h-16 rounded-xl object-cover bg-[#F3EBE0] shrink-0 border border-[#E8DFD2]"
+                  className="w-16 h-16 rounded-[10px] object-cover bg-[#F3E9DC] shrink-0 border border-[#E9E2D8]"
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-1">
-                    <h4 className="font-bold text-sm text-[#1F1B16] truncate">{cat.name}</h4>
+                    <h4 className="font-bold text-sm text-[#241C17] truncate">{cat.name}</h4>
                     {isAdmin && (
                       <div className="flex items-center gap-1 shrink-0">
                         <button
@@ -2423,7 +2222,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                             });
                             setIsCategoryModalOpen(true);
                           }}
-                          className="p-1 text-stone-400 hover:text-[#8A1538]"
+                          className="p-1 text-stone-400 hover:text-[#7A1129] transition-colors"
                           title="Edit Category"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
@@ -2431,7 +2230,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                         <button
                           type="button"
                           onClick={() => handleDeleteCategory(cat.id, cat.name)}
-                          className="p-1 text-stone-400 hover:text-[#B3261E]"
+                          className="p-1 text-stone-400 hover:text-[#A8261E] transition-colors"
                           title="Delete Category"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -2439,8 +2238,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                       </div>
                     )}
                   </div>
-                  <p className="text-xs text-[#6B6258] line-clamp-2 mt-0.5">{cat.description}</p>
-                  <div className="text-[11px] text-[#8A1538] font-semibold mt-1">
+                  <p className="text-xs text-[#6B5F55] line-clamp-2 mt-0.5">{cat.description}</p>
+                  <div className="text-[11px] text-[#7A1129] font-bold mt-1">
                     {cat.product_count || 0} Sweets Listed • Order #{cat.display_order}
                   </div>
                 </div>
@@ -2454,32 +2253,32 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       {/* TAB E: CUSTOMERS DIRECTORY (ADMIN ONLY)              */}
       {/* ==================================================== */}
       {activeTab === 'customers' && isAdmin && (
-        <div className="bg-white rounded-2xl border border-[#E8DFD2] p-5 sm:p-6 shadow-xs space-y-4">
-          <div className="border-b border-[#E8DFD2] pb-3">
-            <h3 className="font-display font-bold text-lg text-[#1F1B16] flex items-center gap-2">
-              <Users className="w-5 h-5 text-[#8A1538]" />
+        <div className="bg-white rounded-[14px] border border-[#E9E2D8] p-5 sm:p-6 shadow-2xs space-y-4">
+          <div className="border-b border-[#E9E2D8] pb-3">
+            <h3 className="font-extrabold text-[18px] text-[#241C17] flex items-center gap-2">
+              <Users className="w-5 h-5 text-[#7A1129]" />
               <span>Customer Patron Directory</span>
             </h3>
-            <p className="text-xs text-[#6B6258]">
+            <p className="text-xs text-[#6B5F55]">
               Registered buyers, mobile numbers, order histories, and lifetime value in Barabanki.
             </p>
           </div>
 
-          <div className="divide-y divide-[#E8DFD2] overflow-x-auto">
+          <div className="divide-y divide-[#E9E2D8] overflow-x-auto">
             {customers.map((cust) => (
               <div key={cust.id} className="py-3 flex items-center justify-between gap-4 min-w-[500px] text-xs">
                 <div>
-                  <div className="font-bold text-sm text-[#1F1B16]">{cust.full_name}</div>
-                  <div className="text-[#6B6258] mt-0.5">
+                  <div className="font-bold text-sm text-[#241C17]">{cust.full_name}</div>
+                  <div className="text-[#6B5F55] mt-0.5">
                     Phone: {cust.phone || 'N/A'} • Email: {cust.email || 'N/A'}
                   </div>
                 </div>
 
                 <div className="text-right">
-                  <div className="font-bold text-[#8A1538] tabular-nums">
+                  <div className="font-extrabold text-[#7A1129] tabular-nums text-sm">
                     {formatINR(cust.totalSpent || 0)}
                   </div>
-                  <div className="text-[11px] text-[#6B6258] mt-0.5">
+                  <div className="text-[11px] text-[#6B5F55] mt-0.5">
                     {cust.orderCount || 0} orders • Last: {cust.lastOrderDate ? new Date(cust.lastOrderDate).toLocaleDateString('en-IN') : 'N/A'}
                   </div>
                 </div>
@@ -2503,14 +2302,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
             />
           )}
 
-          <div className="bg-white rounded-2xl border border-[#E8DFD2] p-5 sm:p-6 shadow-xs space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E8DFD2] pb-4">
+          <div className="bg-white rounded-[14px] border border-[#E9E2D8] p-5 sm:p-6 shadow-2xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E9E2D8] pb-4">
               <div>
-                <h3 className="font-display font-bold text-lg text-[#1F1B16] flex items-center gap-2">
-                  <Bike className="w-5 h-5 text-[#8A1538]" />
+                <h3 className="font-extrabold text-[18px] text-[#241C17] flex items-center gap-2">
+                  <Bike className="w-5 h-5 text-[#7A1129]" />
                   <span>Barabanki Local Delivery Fleet</span>
                 </h3>
-                <p className="text-xs text-[#6B6258]">
+                <p className="text-xs text-[#6B5F55]">
                   Assign orders to trusted store delivery riders for doorstep drop-off.
                 </p>
               </div>
@@ -2521,9 +2320,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                     setPartnerForm({ name: '', phone: '', vehicle_number: '' });
                     setIsPartnerModalOpen(true);
                   }}
-                  className="px-4 py-2 rounded-xl bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5 self-start sm:self-auto"
+                  className="min-h-[44px] px-4 py-2 rounded-[10px] bg-[#7A1129] hover:bg-[#5E0D20] text-white text-xs font-bold transition-colors shadow-2xs flex items-center gap-1.5 self-start sm:self-auto"
                 >
-                  <Plus className="w-4 h-4 text-[#F6E08B]" />
+                  <Plus className="w-4 h-4 text-[#E8C16A]" />
                   <span>+ Add Rider</span>
                 </button>
               )}
@@ -2531,32 +2330,32 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {deliveryPartners.map((dp) => (
-                <div key={dp.id} className="p-4 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] space-y-2">
+                <div key={dp.id} className="p-4 rounded-[12px] border border-[#E9E2D8] bg-[#F7F4EF] space-y-2">
                   <div className="flex items-center justify-between">
-                    <h4 className="font-bold text-sm text-[#1F1B16]">{dp.name}</h4>
+                    <h4 className="font-bold text-sm text-[#241C17]">{dp.name}</h4>
                     <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-[6px] ${
                         dp.status === 'AVAILABLE'
-                          ? 'bg-emerald-100 text-[#2E7D4F]'
+                          ? 'bg-[#E3F4EA] text-[#17663E]'
                           : dp.status === 'ON_DELIVERY'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-stone-200 text-stone-600'
+                          ? 'bg-[#FDEFD0] text-[#8A4B00]'
+                          : 'bg-stone-200 text-[#6B5F55]'
                       }`}
                     >
                       {dp.status}
                     </span>
                   </div>
-                  <div className="text-xs text-[#6B6258]">
+                  <div className="text-xs text-[#6B5F55]">
                     Phone: <strong>{dp.phone}</strong> • Vehicle: <strong>{dp.vehicle_number}</strong>
                   </div>
-                  <div className="flex items-center justify-between text-xs pt-1 border-t border-black/5">
-                    <span className="text-[#8A1538] font-semibold">
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-[#E9E2D8]">
+                    <span className="text-[#7A1129] font-bold">
                       Assigned Orders: {dp.current_assigned_orders || 0}
                     </span>
                     <button
                       type="button"
                       onClick={() => handleTogglePartnerStatus(dp.id, dp.status)}
-                      className="text-[11px] font-bold text-[#8A1538] hover:underline"
+                      className="text-[11px] font-bold text-[#7A1129] hover:underline"
                     >
                       Toggle {dp.status === 'AVAILABLE' ? 'Off Duty' : 'Available'}
                     </button>
@@ -2572,21 +2371,21 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       {/* TAB H: STORE SETTINGS (ADMIN ONLY)                   */}
       {/* ==================================================== */}
       {activeTab === 'settings' && (
-        <div className="bg-white rounded-2xl border border-[#E8DFD2] p-5 sm:p-6 shadow-xs space-y-6">
-          <div className="flex items-center justify-between border-b border-[#E8DFD2] pb-4">
+        <div className="bg-white rounded-[14px] border border-[#E9E2D8] p-5 sm:p-6 shadow-2xs space-y-6">
+          <div className="flex items-center justify-between border-b border-[#E9E2D8] pb-4">
             <div>
-              <h3 className="font-display font-bold text-lg text-[#1F1B16] flex items-center gap-2">
-                <Settings className="w-5 h-5 text-[#8A1538]" />
+              <h3 className="font-extrabold text-[18px] text-[#241C17] flex items-center gap-2">
+                <Settings className="w-5 h-5 text-[#7A1129]" />
                 <span>Store Settings & Delivery Parameters</span>
               </h3>
-              <p className="text-xs text-[#6B6258]">
+              <p className="text-xs text-[#6B5F55]">
                 {isAdmin
                   ? 'Configure Barabanki delivery charges, COD caps, and shop operating hours.'
                   : 'View-only access for staff members.'}
               </p>
             </div>
             {!isAdmin && (
-              <span className="text-xs font-semibold px-2.5 py-1 rounded bg-amber-50 text-amber-800 border border-amber-200">
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-[6px] bg-[#FDEFD0] text-[#8A4B00] border border-[#C79A3D]/40">
                 Staff View-Only
               </span>
             )}
@@ -2595,7 +2394,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
           {storeSettings && (
             <form onSubmit={handleSaveStoreSettings} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
                   Shop Name
                 </label>
                 <input
@@ -2603,12 +2402,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   disabled={!isAdmin}
                   value={storeSettings.store_name || ''}
                   onChange={(e) => setStoreSettings({ ...storeSettings, store_name: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
+                  className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs font-medium text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129] disabled:opacity-60"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
                   Phone Number
                 </label>
                 <input
@@ -2616,12 +2415,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   disabled={!isAdmin}
                   value={storeSettings.phone || ''}
                   onChange={(e) => setStoreSettings({ ...storeSettings, phone: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
+                  className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs font-medium text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129] disabled:opacity-60"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
                   Barabanki Delivery Charge (₹)
                 </label>
                 <input
@@ -2629,12 +2428,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   disabled={!isAdmin}
                   value={storeSettings.delivery_charge || 0}
                   onChange={(e) => setStoreSettings({ ...storeSettings, delivery_charge: Number(e.target.value) })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
+                  className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs font-medium text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129] disabled:opacity-60"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
                   Free Delivery Threshold (₹)
                 </label>
                 <input
@@ -2642,12 +2441,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   disabled={!isAdmin}
                   value={storeSettings.free_delivery_threshold || 0}
                   onChange={(e) => setStoreSettings({ ...storeSettings, free_delivery_threshold: Number(e.target.value) })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
+                  className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs font-medium text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129] disabled:opacity-60"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
                   Cash on Delivery Limit (₹)
                 </label>
                 <input
@@ -2655,12 +2454,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   disabled={!isAdmin}
                   value={storeSettings.cod_max_limit || 0}
                   onChange={(e) => setStoreSettings({ ...storeSettings, cod_max_limit: Number(e.target.value) })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
+                  className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs font-medium text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129] disabled:opacity-60"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
                   Serviceable Barabanki Pincodes
                 </label>
                 <input
@@ -2673,14 +2472,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                       allowed_pincodes: e.target.value.split(',').map((s) => s.trim()),
                     })
                   }
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
+                  className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs font-medium text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129] disabled:opacity-60"
                 />
               </div>
 
               {/* ==================================================== */}
               {/* STORE OPERATIONS & PICKUP SCHEDULING CONTROLS        */}
               {/* ==================================================== */}
-              <div className="sm:col-span-2 pt-4 border-t border-[#E8DFD2] space-y-4">
+              <div className="sm:col-span-2 pt-4 border-t border-[#E9E2D8] space-y-4">
                 <StoreOperationsCard
                   storeSettings={storeSettings}
                   onUpdateSettings={handleUpdateOperationsSettings}
@@ -2688,19 +2487,19 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                 />
 
                 <div className="flex items-center gap-2 pt-2">
-                  <Store className="w-5 h-5 text-[#8A1538]" />
-                  <h4 className="font-display font-bold text-base text-[#1F1B16]">
+                  <Store className="w-5 h-5 text-[#7A1129]" />
+                  <h4 className="font-extrabold text-base text-[#241C17]">
                     Takeaway Counter Hours & Slot Capacity Scheduling
                   </h4>
                 </div>
-                <p className="text-xs text-[#6B6258]">
+                <p className="text-xs text-[#6B5F55]">
                   Configure counter operating hours and per-slot kitchen order limits for Barabanki shop pickups.
                 </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#FBF7F1] p-4 rounded-xl border border-[#E8DFD2]">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#F7F4EF] p-4 rounded-[12px] border border-[#E9E2D8]">
                   {/* Pickup Operating Hours */}
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
                       Counter Opening Time (IST)
                     </label>
                     <input
@@ -2708,12 +2507,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                       disabled={!isStaff && !isAdmin}
                       value={storeSettings.pickup_opening_time || '09:00'}
                       onChange={(e) => setStoreSettings({ ...storeSettings, pickup_opening_time: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-white text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
+                      className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-white text-xs font-medium text-[#241C17] focus:outline-hidden focus:border-[#7A1129] disabled:opacity-60"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
                       Counter Closing Time (IST)
                     </label>
                     <input
@@ -2721,13 +2520,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                       disabled={!isStaff && !isAdmin}
                       value={storeSettings.pickup_closing_time || '21:30'}
                       onChange={(e) => setStoreSettings({ ...storeSettings, pickup_closing_time: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-white text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
+                      className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-white text-xs font-medium text-[#241C17] focus:outline-hidden focus:border-[#7A1129] disabled:opacity-60"
                     />
                   </div>
 
                   {/* Slot Duration */}
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
                       Pickup Slot Window (Minutes)
                     </label>
                     <select
@@ -2739,7 +2538,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                           pickup_slot_duration_minutes: Number(e.target.value),
                         })
                       }
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-white text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
+                      className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-white text-xs font-medium text-[#241C17] focus:outline-hidden focus:border-[#7A1129] disabled:opacity-60"
                     >
                       <option value={15}>15 Minutes</option>
                       <option value={30}>30 Minutes (Recommended)</option>
@@ -2750,7 +2549,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
 
                   {/* Max Orders Per Slot */}
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
                       Max Orders Per Slot (Kitchen Capacity)
                     </label>
                     <input
@@ -2765,13 +2564,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                           pickup_max_orders_per_slot: Number(e.target.value),
                         })
                       }
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-white text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
+                      className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-white text-xs font-medium text-[#241C17] focus:outline-hidden focus:border-[#7A1129] disabled:opacity-60"
                     />
                   </div>
 
                   {/* Advance Booking Days */}
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
                       Advance Booking Window (Days)
                     </label>
                     <input
@@ -2786,13 +2585,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                           pickup_advance_days: Number(e.target.value),
                         })
                       }
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-white text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
+                      className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-white text-xs font-medium text-[#241C17] focus:outline-hidden focus:border-[#7A1129] disabled:opacity-60"
                     />
                   </div>
 
                   {/* Auto-Reopen Timestamp */}
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
                       Auto-Reopen Timestamp (Optional)
                     </label>
                     <div className="flex gap-2 items-center">
@@ -2806,19 +2605,19 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                             auto_reopen_at: e.target.value ? new Date(e.target.value).toISOString() : null,
                           })
                         }
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-white text-xs font-medium focus:outline-none focus:border-[#8A1538] disabled:opacity-60"
+                        className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-white text-xs font-medium text-[#241C17] focus:outline-hidden focus:border-[#7A1129] disabled:opacity-60"
                       />
                       {storeSettings.auto_reopen_at && (isStaff || isAdmin) && (
                         <button
                           type="button"
                           onClick={() => setStoreSettings({ ...storeSettings, auto_reopen_at: null })}
-                          className="px-2.5 py-1 text-xs text-red-600 hover:text-red-800 underline shrink-0 font-medium"
+                          className="px-2.5 py-1 text-xs text-[#A8261E] hover:underline shrink-0 font-bold"
                         >
                           Clear
                         </button>
                       )}
                     </div>
-                    <p className="text-[10px] text-[#6B6258] mt-1">
+                    <p className="text-[10px] text-[#6B5F55] mt-1">
                       Automatically turns Delivery & Takeaway back ON when time passes.
                     </p>
                   </div>
@@ -2829,12 +2628,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                 {isAdmin ? (
                   <button
                     type="submit"
-                    className="min-h-[44px] px-6 py-2.5 rounded-xl bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-bold transition-colors shadow-xs"
+                    className="min-h-[44px] px-6 py-2.5 rounded-[10px] bg-[#7A1129] hover:bg-[#5E0D20] text-white text-xs font-bold transition-colors shadow-2xs"
                   >
                     Save Store Settings
                   </button>
                 ) : (
-                  <p className="text-xs text-[#6B6258] italic">
+                  <p className="text-xs text-[#6B5F55] italic">
                     * Log in as Shop Owner (Admin) to modify store rates and settings.
                   </p>
                 )}
@@ -2849,14 +2648,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       {/* TAB J: COUPONS MANAGEMENT (ADMIN ONLY)                 */}
       {/* ==================================================== */}
       {activeTab === 'coupons' && isAdmin && (
-        <div className="bg-white rounded-2xl border border-[#E8DFD2] p-5 sm:p-6 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E8DFD2] pb-4">
+        <div className="bg-white rounded-[14px] border border-[#E9E2D8] p-5 sm:p-6 shadow-2xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E9E2D8] pb-4">
             <div>
-              <h3 className="font-display font-bold text-lg text-[#1F1B16] flex items-center gap-2">
-                <Tag className="w-5 h-5 text-[#8A1538]" />
+              <h3 className="font-extrabold text-[18px] text-[#241C17] flex items-center gap-2">
+                <Tag className="w-5 h-5 text-[#7A1129]" />
                 <span>Store Coupons & Promo Discounts</span>
               </h3>
-              <p className="text-xs text-[#6B6258] mt-1">
+              <p className="text-xs text-[#6B5F55] mt-1">
                 Manage coupon codes applicable at customer checkout.
               </p>
             </div>
@@ -2878,15 +2677,15 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                 });
                 setIsCouponModalOpen(true);
               }}
-              className="px-4 py-2 rounded-xl bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5 self-start sm:self-auto"
+              className="min-h-[44px] px-4 py-2 rounded-[10px] bg-[#7A1129] hover:bg-[#5E0D20] text-white text-xs font-bold transition-colors shadow-2xs flex items-center gap-1.5 self-start sm:self-auto"
             >
-              <Plus className="w-4 h-4 text-[#F6E08B]" />
+              <Plus className="w-4 h-4 text-[#E8C16A]" />
               <span>+ Add Coupon</span>
             </button>
           </div>
 
           {coupons.length === 0 ? (
-            <div className="p-8 text-center text-sm text-[#6B6258] bg-[#FBF7F1] rounded-xl border border-[#E8DFD2]">
+            <div className="p-8 text-center text-sm text-[#6B5F55] bg-[#F7F4EF] rounded-[12px] border border-[#E9E2D8]">
               No coupons active. Click '+ Add Coupon' to configure promo codes.
             </div>
           ) : (
@@ -2894,16 +2693,16 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
               {coupons.map((coup) => (
                 <div
                   key={coup.id}
-                  className="p-4 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] space-y-3 flex flex-col justify-between hover:shadow-md transition-shadow"
+                  className="p-4 rounded-[12px] border border-[#E9E2D8] bg-[#F7F4EF] space-y-3 flex flex-col justify-between hover:shadow-2xs transition-shadow"
                 >
-                  <div className="flex items-center justify-between border-b border-[#E8DFD2] pb-2">
+                  <div className="flex items-center justify-between border-b border-[#E9E2D8] pb-2">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-base text-[#8A1538] bg-white px-2 py-0.5 rounded border border-[#E8DFD2]">
+                      <span className="font-mono font-bold text-base text-[#7A1129] bg-white px-2 py-0.5 rounded-[6px] border border-[#E9E2D8]">
                         {coup.code}
                       </span>
                       <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                          coup.is_active ? 'bg-emerald-100 text-[#2E7D4F]' : 'bg-stone-200 text-stone-600'
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-[6px] ${
+                          coup.is_active ? 'bg-[#E3F4EA] text-[#17663E]' : 'bg-stone-200 text-[#6B5F55]'
                         }`}
                       >
                         {coup.is_active ? 'ACTIVE' : 'INACTIVE'}
@@ -2928,7 +2727,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                           });
                           setIsCouponModalOpen(true);
                         }}
-                        className="p-1 text-stone-400 hover:text-[#8A1538] transition-colors"
+                        className="p-1 text-stone-400 hover:text-[#7A1129] transition-colors"
                         title="Edit Coupon"
                       >
                         <Edit2 className="w-4 h-4" />
@@ -2936,7 +2735,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                       <button
                         type="button"
                         onClick={() => handleDeleteCoupon(coup)}
-                        className="p-1 text-stone-400 hover:text-[#B3261E] transition-colors"
+                        className="p-1 text-stone-400 hover:text-[#A8261E] transition-colors"
                         title="Delete Coupon"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -2944,11 +2743,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                     </div>
                   </div>
 
-                  <p className="text-sm text-[#1F1B16] font-medium leading-snug">{coup.description || 'No description'}</p>
+                  <p className="text-sm text-[#241C17] font-medium leading-snug">{coup.description || 'No description'}</p>
 
-                  <div className="text-xs text-[#6B6258] flex items-center justify-between bg-white p-2 rounded-lg border border-[#E8DFD2]">
+                  <div className="text-xs text-[#6B5F55] flex items-center justify-between bg-white p-2.5 rounded-[8px] border border-[#E9E2D8]">
                     <span className="flex flex-col gap-0.5">
-                      <span className="font-semibold text-[#1F1B16]">
+                      <span className="font-bold text-[#241C17]">
                         {(coup.discount_type || coup.type) === 'FLAT'
                           ? `₹${coup.discount_value ?? coup.value} OFF`
                           : `${coup.discount_value ?? coup.value}% OFF`}
@@ -2962,13 +2761,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                     <button
                       type="button"
                       onClick={() => handleToggleCoupon(coup)}
-                      className="font-bold text-[11px] text-[#8A1538] hover:underline"
+                      className="font-bold text-[11px] text-[#7A1129] hover:underline"
                     >
                       {coup.is_active ? 'Deactivate' : 'Activate'}
                     </button>
                   </div>
 
-                  <div className="flex items-center justify-between pt-1 text-[11px] text-[#6B6258] border-t border-dashed border-[#E8DFD2]">
+                  <div className="flex items-center justify-between pt-1 text-[11px] text-[#6B5F55] border-t border-dashed border-[#E9E2D8]">
                     <span>
                       Total Uses: {coup.usage_count || 0} / {(coup.usage_limit ?? coup.usage_limit_total) ?? '∞'} <br/>
                       Per User: {(coup.per_user_limit ?? coup.usage_limit_per_user) ?? '∞'}
@@ -2976,7 +2775,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                     <button
                       type="button"
                       onClick={() => setSelectedCouponForUsage(coup)}
-                      className="font-semibold text-[#8A1538] bg-[#F7E9EE] px-2 py-1 rounded hover:bg-[#F2D5DE] transition-colors flex items-center gap-1"
+                      className="font-bold text-[11px] text-[#7A1129] bg-[#F3E9DC] px-2.5 py-1 rounded-[6px] hover:bg-[#E9E2D8] transition-colors flex items-center gap-1"
                     >
                       <History className="w-3 h-3" />
                       View Log
@@ -2993,35 +2792,35 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       {/* TAB I: AUDIT TRAIL (ADMIN ONLY)                      */}
       {/* ==================================================== */}
       {activeTab === 'audit' && isAdmin && (
-        <div className="bg-white rounded-2xl border border-[#E8DFD2] p-5 sm:p-6 shadow-xs space-y-4">
-          <div className="border-b border-[#E8DFD2] pb-3">
-            <h3 className="font-display font-bold text-lg text-[#1F1B16] flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-[#8A1538]" />
+        <div className="bg-white rounded-[14px] border border-[#E9E2D8] p-5 sm:p-6 shadow-2xs space-y-4">
+          <div className="border-b border-[#E9E2D8] pb-3">
+            <h3 className="font-extrabold text-[18px] text-[#241C17] flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-[#7A1129]" />
               <span>Security & Operations Audit Trail</span>
             </h3>
-            <p className="text-xs text-[#6B6258]">
+            <p className="text-xs text-[#6B5F55]">
               Immutable log of order status transitions, Cashfree refunds, and store configuration changes.
             </p>
           </div>
 
           {auditLogs.length === 0 ? (
-            <div className="p-8 text-center text-xs text-[#6B6258]">
+            <div className="p-8 text-center text-xs text-[#6B5F55]">
               No audit logs recorded yet. Actions by staff and owner will automatically appear here.
             </div>
           ) : (
-            <div className="divide-y divide-[#E8DFD2] overflow-x-auto">
+            <div className="divide-y divide-[#E9E2D8] overflow-x-auto">
               {auditLogs.map((log) => (
                 <div key={log.id} className="py-3 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-[500px]">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-[#8A1538]">{log.action}</span>
-                      <span className="text-[#6B6258]">• User: <strong>{log.user_name}</strong> ({log.user_role})</span>
+                      <span className="font-mono font-bold text-[#7A1129]">{log.action}</span>
+                      <span className="text-[#6B5F55]">• User: <strong>{log.user_name}</strong> ({log.user_role})</span>
                     </div>
-                    <div className="text-[#1F1B16] mt-0.5 font-mono text-[11px]">
+                    <div className="text-[#241C17] mt-0.5 font-mono text-[11px]">
                       Entity: {log.entity_type} #{log.entity_id} • Details: {JSON.stringify(log.details)}
                     </div>
                   </div>
-                  <div className="text-[11px] text-[#6B6258] whitespace-nowrap">
+                  <div className="text-[11px] text-[#6B5F55] whitespace-nowrap tabular-nums">
                     {new Date(log.created_at).toLocaleString('en-IN')}
                   </div>
                 </div>
@@ -3116,15 +2915,15 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       {/* ==================================================== */}
       {isProductModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl border border-[#E8DFD2] space-y-4 my-8">
-            <div className="flex items-center justify-between border-b border-[#E8DFD2] pb-3">
-              <h3 className="font-display font-bold text-lg text-[#1F1B16]">
+          <div className="w-full max-w-xl rounded-[14px] bg-white p-6 shadow-xl border border-[#E9E2D8] space-y-4 my-8">
+            <div className="flex items-center justify-between border-b border-[#E9E2D8] pb-3">
+              <h3 className="font-extrabold text-[18px] text-[#241C17]">
                 {productForm.id ? 'Edit Sweet / Mithai' : 'Add New Sweet to Catalog'}
               </h3>
               <button
                 type="button"
                 onClick={() => setIsProductModalOpen(false)}
-                className="p-1 rounded-lg text-stone-400 hover:text-stone-700"
+                className="p-1.5 rounded-[8px] text-stone-400 hover:text-[#241C17] hover:bg-stone-100 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -3132,7 +2931,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
 
             <form onSubmit={handleSaveProduct} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
                   Mithai Name *
                 </label>
                 <input
@@ -3141,18 +2940,18 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   placeholder="e.g. Kashmiri Kesar Peda"
                   value={productForm.name}
                   onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs focus:outline-none focus:border-[#8A1538]"
+                  className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
                   Category *
                 </label>
                 <select
                   value={productForm.category_id}
                   onChange={(e) => setProductForm({ ...productForm, category_id: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-white text-xs font-medium focus:outline-none focus:border-[#8A1538]"
+                  className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs font-medium text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                 >
                   {categories.filter((c) => c.is_active !== false).map((c) => (
                     <option key={c.id} value={c.id}>
@@ -3163,7 +2962,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
                   Description
                 </label>
                 <textarea
@@ -3171,14 +2970,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   placeholder="Aromatic Awadhi specialty prepared with pure ingredients..."
                   value={productForm.description}
                   onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs focus:outline-none focus:border-[#8A1538]"
+                  className="w-full px-3.5 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                 />
               </div>
 
               {/* PRIMARY PHOTO UPLOAD (JPEG/PNG/WebP <= 5MB) */}
               <div className="space-y-2">
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16]">
-                  Primary Product Photo (JPEG, PNG, WebP $\le$ 5MB)
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17]">
+                  Primary Product Photo (JPEG, PNG, WebP ≤ 5MB)
                 </label>
 
                 <div className="flex items-center gap-3">
@@ -3186,14 +2985,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                     <img
                       src={productForm.image_url}
                       alt=""
-                      className="w-16 h-16 rounded-xl object-cover border border-[#E8DFD2] bg-[#F3EBE0]"
+                      className="w-16 h-16 rounded-[10px] object-cover border border-[#E9E2D8] bg-[#F3E9DC]"
                     />
                   ) : (
                     <ProductImagePlaceholder
                       aspect="square"
                       size="sm"
                       variant="admin-thumbnail"
-                      className="w-16 h-16 rounded-xl border border-[#E8DFD2]"
+                      className="w-16 h-16 rounded-[10px] border border-[#E9E2D8]"
                     />
                   )}
 
@@ -3209,12 +3008,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                       type="button"
                       disabled={isUploadingImage}
                       onClick={() => fileInputRef.current?.click()}
-                      className="px-3.5 py-2 rounded-xl border border-[#E8DFD2] bg-white hover:bg-[#F3EBE0] text-xs font-semibold text-[#1F1B16] flex items-center gap-1.5 transition-colors shadow-xs"
+                      className="px-3.5 py-2 min-h-[38px] rounded-[10px] border border-[#E9E2D8] bg-white hover:bg-[#F3E9DC] text-xs font-semibold text-[#241C17] flex items-center gap-1.5 transition-colors shadow-2xs"
                     >
-                      <Upload className="w-3.5 h-3.5 text-[#8A1538]" />
+                      <Upload className="w-3.5 h-3.5 text-[#7A1129]" />
                       <span>{isUploadingImage ? 'Uploading photo...' : 'Upload Primary Photo'}</span>
                     </button>
-                    <div className="text-[10px] text-[#6B6258]">
+                    <div className="text-[10px] text-[#6B5F55]">
                       Square 1:1 image recommended. Max file size: 5MB.
                     </div>
                   </div>
@@ -3223,58 +3022,58 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
 
               {/* Variant specifications if new product */}
               {!productForm.id && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-[#E8DFD2]">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-[#E9E2D8]">
                   <div>
-                    <label className="block text-[11px] font-bold text-[#1F1B16] mb-1">Variant Pack</label>
+                    <label className="block text-[11px] font-bold text-[#241C17] mb-1">Variant Pack</label>
                     <input
                       type="text"
                       value={productForm.variantLabel}
                       onChange={(e) => setProductForm({ ...productForm, variantLabel: e.target.value })}
                       placeholder="e.g. 500g"
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-[#E8DFD2] text-xs"
+                      className="w-full px-2.5 py-1.5 rounded-[8px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17]"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-[#1F1B16] mb-1">Price (₹)</label>
+                    <label className="block text-[11px] font-bold text-[#241C17] mb-1">Price (₹)</label>
                     <input
                       type="number"
                       value={productForm.variantPrice}
                       onChange={(e) => setProductForm({ ...productForm, variantPrice: Number(e.target.value) })}
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-[#E8DFD2] text-xs"
+                      className="w-full px-2.5 py-1.5 rounded-[8px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17]"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-[#1F1B16] mb-1">MRP (₹)</label>
+                    <label className="block text-[11px] font-bold text-[#241C17] mb-1">MRP (₹)</label>
                     <input
                       type="number"
                       value={productForm.variantMrp}
                       onChange={(e) => setProductForm({ ...productForm, variantMrp: Number(e.target.value) })}
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-[#E8DFD2] text-xs"
+                      className="w-full px-2.5 py-1.5 rounded-[8px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17]"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-[#1F1B16] mb-1">Stock</label>
+                    <label className="block text-[11px] font-bold text-[#241C17] mb-1">Stock</label>
                     <input
                       type="number"
                       value={productForm.variantStock}
                       onChange={(e) => setProductForm({ ...productForm, variantStock: Number(e.target.value) })}
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-[#E8DFD2] text-xs"
+                      className="w-full px-2.5 py-1.5 rounded-[8px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17]"
                     />
                   </div>
                 </div>
               )}
 
-              <div className="flex gap-2 pt-3 border-t border-[#E8DFD2]">
+              <div className="flex gap-2 pt-3 border-t border-[#E9E2D8]">
                 <button
                   type="button"
                   onClick={() => setIsProductModalOpen(false)}
-                  className="flex-1 min-h-[44px] rounded-xl border border-[#E8DFD2] text-xs font-semibold text-[#1F1B16] hover:bg-[#F3EBE0]"
+                  className="flex-1 min-h-[44px] rounded-[10px] border border-[#E9E2D8] text-xs font-semibold text-[#241C17] hover:bg-[#F3E9DC] transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 min-h-[44px] rounded-xl bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-bold shadow-xs"
+                  className="flex-1 min-h-[44px] rounded-[10px] bg-[#7A1129] hover:bg-[#5E0D20] text-white text-xs font-bold shadow-2xs transition-colors"
                 >
                   Save Mithai
                 </button>
@@ -3289,32 +3088,32 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       {/* ==================================================== */}
       {assigningOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-[#E8DFD2] space-y-4">
-            <div className="flex items-center justify-between border-b border-[#E8DFD2] pb-3">
-              <h3 className="font-display font-bold text-base text-[#1F1B16]">
+          <div className="w-full max-w-sm rounded-[14px] bg-white p-6 shadow-xl border border-[#E9E2D8] space-y-4">
+            <div className="flex items-center justify-between border-b border-[#E9E2D8] pb-3">
+              <h3 className="font-extrabold text-base text-[#241C17]">
                 Assign Delivery Partner
               </h3>
               <button
                 type="button"
                 onClick={() => setAssigningOrder(null)}
-                className="p-1 rounded-lg text-stone-400 hover:text-stone-700"
+                className="p-1.5 rounded-[8px] text-stone-400 hover:text-[#241C17] hover:bg-stone-100 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="text-xs text-[#6B6258]">
+            <div className="text-xs text-[#6B5F55]">
               Order #{assigningOrder.order_number} to {assigningOrder.address_snapshot?.recipient_name} ({assigningOrder.address_snapshot?.street_address})
             </div>
 
             <div className="space-y-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16]">
+              <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17]">
                 Select Barabanki Rider
               </label>
               <select
                 value={selectedPartnerId}
                 onChange={(e) => setSelectedPartnerId(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-white text-xs font-medium focus:outline-none focus:border-[#8A1538]"
+                className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs font-medium text-[#241C17] focus:outline-hidden focus:border-[#7A1129]"
               >
                 <option value="">-- Choose Active Rider --</option>
                 {deliveryPartners.map((dp) => (
@@ -3329,14 +3128,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
               <button
                 type="button"
                 onClick={() => setAssigningOrder(null)}
-                className="flex-1 min-h-[44px] rounded-xl border border-[#E8DFD2] text-xs font-semibold text-[#1F1B16] hover:bg-[#F3EBE0]"
+                className="flex-1 min-h-[44px] rounded-[10px] border border-[#E9E2D8] text-xs font-semibold text-[#241C17] hover:bg-[#F3E9DC] transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleAssignDelivery}
-                className="flex-1 min-h-[44px] rounded-xl bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-bold shadow-xs"
+                className="flex-1 min-h-[44px] rounded-[10px] bg-[#7A1129] hover:bg-[#5E0D20] text-white text-xs font-bold shadow-2xs transition-colors"
               >
                 Confirm Assignment
               </button>
@@ -3350,29 +3149,29 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       {/* ==================================================== */}
       {refundOrderTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-[#E8DFD2] space-y-4">
-            <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center mx-auto">
+          <div className="w-full max-w-sm rounded-[14px] bg-white p-6 shadow-xl border border-[#E9E2D8] space-y-4">
+            <div className="w-12 h-12 rounded-full bg-[#FDEFD0] text-[#8A4B00] flex items-center justify-center mx-auto">
               <AlertCircle className="w-6 h-6" />
             </div>
 
             <div className="text-center space-y-1">
-              <h3 className="font-display font-bold text-lg text-[#1F1B16]">
+              <h3 className="font-extrabold text-lg text-[#241C17]">
                 Refund Order #{refundOrderTarget.order_number}?
               </h3>
-              <p className="text-xs text-[#6B6258] leading-relaxed">
+              <p className="text-xs text-[#6B5F55] leading-relaxed">
                 This will trigger the Cashfree Refunds API for <strong>{formatINR(refundOrderTarget.total_amount)}</strong> back to the customer's account and transition order status to <strong>REFUNDED</strong>.
               </p>
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-[#241C17] mb-1">
                 Refund Reason
               </label>
               <input
                 type="text"
                 value={refundReason}
                 onChange={(e) => setRefundReason(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs focus:outline-none focus:border-[#8A1538]"
+                className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17] focus:outline-hidden focus:border-[#7A1129]"
               />
             </div>
 
@@ -3380,7 +3179,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
               <button
                 type="button"
                 onClick={() => setRefundOrderTarget(null)}
-                className="flex-1 min-h-[44px] rounded-xl border border-[#E8DFD2] text-xs font-semibold text-[#1F1B16] hover:bg-[#F3EBE0]"
+                className="flex-1 min-h-[44px] rounded-[10px] border border-[#E9E2D8] text-xs font-semibold text-[#241C17] hover:bg-[#F3E9DC] transition-colors"
               >
                 Cancel
               </button>
@@ -3388,7 +3187,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                 type="button"
                 disabled={isRefunding}
                 onClick={handleExecuteRefund}
-                className="flex-1 min-h-[44px] rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs disabled:opacity-50"
+                className="flex-1 min-h-[44px] rounded-[10px] bg-[#C79A3D] hover:bg-[#B3872F] text-white text-xs font-bold shadow-2xs disabled:opacity-50 transition-colors"
               >
                 {isRefunding ? 'Processing Refund...' : 'Confirm Refund'}
               </button>
@@ -3402,9 +3201,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       {/* ==================================================== */}
       {isCategoryModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-[#E8DFD2] space-y-4">
-            <div className="flex items-center justify-between border-b border-[#E8DFD2] pb-3">
-              <h3 className="font-display font-bold text-base text-[#1F1B16]">
+          <div className="w-full max-w-md rounded-[14px] bg-white p-6 shadow-xl border border-[#E9E2D8] space-y-4">
+            <div className="flex items-center justify-between border-b border-[#E9E2D8] pb-3">
+              <h3 className="font-extrabold text-base text-[#241C17]">
                 {editingCategoryId ? 'Edit Sweet Category' : 'Add New Category'}
               </h3>
               <button
@@ -3413,7 +3212,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   setIsCategoryModalOpen(false);
                   setEditingCategoryId(null);
                 }}
-                className="p-1 rounded-lg text-stone-400 hover:text-stone-700"
+                className="p-1.5 rounded-[8px] text-stone-400 hover:text-[#241C17] hover:bg-stone-100 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -3421,7 +3220,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
 
             <form onSubmit={handleSaveCategory} className="space-y-3">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
                   Category Name *
                 </label>
                 <input
@@ -3430,12 +3229,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   placeholder="e.g. Desi Ghee Ladoos"
                   value={categoryForm.name}
                   onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs focus:outline-none focus:border-[#8A1538]"
+                  className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
                   Description
                 </label>
                 <textarea
@@ -3443,12 +3242,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   placeholder="Traditional Awadhi sweets made with pure shuddh ghee..."
                   value={categoryForm.description}
                   onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs focus:outline-none focus:border-[#8A1538]"
+                  className="w-full px-3.5 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
                   Image URL
                 </label>
                 <input
@@ -3456,12 +3255,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   placeholder="https://..."
                   value={categoryForm.image_url}
                   onChange={(e) => setCategoryForm({ ...categoryForm, image_url: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs focus:outline-none focus:border-[#8A1538]"
+                  className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
                   Display Order
                 </label>
                 <input
@@ -3469,24 +3268,24 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   min={1}
                   value={categoryForm.display_order}
                   onChange={(e) => setCategoryForm({ ...categoryForm, display_order: Number(e.target.value) })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs focus:outline-none focus:border-[#8A1538]"
+                  className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                 />
               </div>
 
-              <div className="flex gap-2 pt-2 border-t border-[#E8DFD2]">
+              <div className="flex gap-2 pt-2 border-t border-[#E9E2D8]">
                 <button
                   type="button"
                   onClick={() => {
                     setIsCategoryModalOpen(false);
                     setEditingCategoryId(null);
                   }}
-                  className="flex-1 min-h-[44px] rounded-xl border border-[#E8DFD2] text-xs font-semibold text-[#1F1B16] hover:bg-[#F3EBE0]"
+                  className="flex-1 min-h-[44px] rounded-[10px] border border-[#E9E2D8] text-xs font-semibold text-[#241C17] hover:bg-[#F3E9DC] transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 min-h-[44px] rounded-xl bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-bold shadow-xs"
+                  className="flex-1 min-h-[44px] rounded-[10px] bg-[#7A1129] hover:bg-[#5E0D20] text-white text-xs font-bold shadow-2xs transition-colors"
                 >
                   Save Category
                 </button>
@@ -3501,15 +3300,15 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       {/* ==================================================== */}
       {isPartnerModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-[#E8DFD2] space-y-4">
-            <div className="flex items-center justify-between border-b border-[#E8DFD2] pb-3">
-              <h3 className="font-display font-bold text-base text-[#1F1B16]">
+          <div className="w-full max-w-sm rounded-[14px] bg-white p-6 shadow-xl border border-[#E9E2D8] space-y-4">
+            <div className="flex items-center justify-between border-b border-[#E9E2D8] pb-3">
+              <h3 className="font-extrabold text-base text-[#241C17]">
                 Onboard Delivery Rider
               </h3>
               <button
                 type="button"
                 onClick={() => setIsPartnerModalOpen(false)}
-                className="p-1 rounded-lg text-stone-400 hover:text-stone-700"
+                className="p-1.5 rounded-[8px] text-stone-400 hover:text-[#241C17] hover:bg-stone-100 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -3517,7 +3316,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
 
             <form onSubmit={handleSavePartner} className="space-y-3">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
                   Rider Full Name *
                 </label>
                 <input
@@ -3526,12 +3325,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   placeholder="e.g. Ramesh Kumar"
                   value={partnerForm.name}
                   onChange={(e) => setPartnerForm({ ...partnerForm, name: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs focus:outline-none focus:border-[#8A1538]"
+                  className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
                   Mobile Number *
                 </label>
                 <input
@@ -3540,12 +3339,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   placeholder="+91 98765 XXXXX"
                   value={partnerForm.phone}
                   onChange={(e) => setPartnerForm({ ...partnerForm, phone: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs focus:outline-none focus:border-[#8A1538]"
+                  className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
                   Vehicle Number
                 </label>
                 <input
@@ -3553,21 +3352,21 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   placeholder="UP-32-XX-0000"
                   value={partnerForm.vehicle_number}
                   onChange={(e) => setPartnerForm({ ...partnerForm, vehicle_number: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs focus:outline-none focus:border-[#8A1538]"
+                  className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                 />
               </div>
 
-              <div className="flex gap-2 pt-2 border-t border-[#E8DFD2]">
+              <div className="flex gap-2 pt-2 border-t border-[#E9E2D8]">
                 <button
                   type="button"
                   onClick={() => setIsPartnerModalOpen(false)}
-                  className="flex-1 min-h-[44px] rounded-xl border border-[#E8DFD2] text-xs font-semibold text-[#1F1B16] hover:bg-[#F3EBE0]"
+                  className="flex-1 min-h-[44px] rounded-[10px] border border-[#E9E2D8] text-xs font-semibold text-[#241C17] hover:bg-[#F3E9DC] transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 min-h-[44px] rounded-xl bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-bold shadow-xs"
+                  className="flex-1 min-h-[44px] rounded-[10px] bg-[#7A1129] hover:bg-[#5E0D20] text-white text-xs font-bold shadow-2xs transition-colors"
                 >
                   Add Rider
                 </button>
@@ -3582,9 +3381,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       {/* ==================================================== */}
       {isCouponModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-[#E8DFD2] space-y-4">
-            <div className="flex items-center justify-between border-b border-[#E8DFD2] pb-3">
-              <h3 className="font-display font-bold text-base text-[#1F1B16]">
+          <div className="w-full max-w-sm rounded-[14px] bg-white p-6 shadow-xl border border-[#E9E2D8] space-y-4">
+            <div className="flex items-center justify-between border-b border-[#E9E2D8] pb-3">
+              <h3 className="font-extrabold text-base text-[#241C17]">
                 {editingCouponId ? 'Edit Store Coupon' : 'Create New Coupon'}
               </h3>
               <button
@@ -3593,7 +3392,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   setIsCouponModalOpen(false);
                   setEditingCouponId(null);
                 }}
-                className="p-1 rounded-lg text-stone-400 hover:text-stone-700"
+                className="p-1.5 rounded-[8px] text-stone-400 hover:text-[#241C17] hover:bg-stone-100 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -3601,7 +3400,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
 
             <form onSubmit={handleSaveCoupon} className="space-y-3">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
                   Coupon Code *
                 </label>
                 <input
@@ -3611,12 +3410,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   value={couponForm.code}
                   disabled={Boolean(editingCouponId)}
                   onChange={(e) => setCouponForm({ ...couponForm, code: e.target.value.toUpperCase() })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs font-mono font-bold focus:outline-none focus:border-[#8A1538] disabled:opacity-50"
+                  className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs font-mono font-bold text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129] disabled:opacity-50"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
                   Description
                 </label>
                 <input
@@ -3624,17 +3423,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   placeholder="Flat ₹50 off on orders over ₹399"
                   value={couponForm.description}
                   onChange={(e) => setCouponForm({ ...couponForm, description: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs focus:outline-none focus:border-[#8A1538]"
+                  className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[11px] font-bold text-[#1F1B16] mb-1">Type</label>
+                  <label className="block text-[11px] font-bold text-[#241C17] mb-1">Type</label>
                   <select
                     value={couponForm.discount_type}
                     onChange={(e) => setCouponForm({ ...couponForm, discount_type: e.target.value as any })}
-                    className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-white text-xs font-medium"
+                    className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-white text-xs font-medium text-[#241C17]"
                   >
                     <option value="FLAT">Flat (₹)</option>
                     <option value="PERCENTAGE">Percent (%)</option>
@@ -3642,7 +3441,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-[#1F1B16] mb-1">
+                  <label className="block text-[11px] font-bold text-[#241C17] mb-1">
                     Value {couponForm.discount_type === 'FLAT' ? '(₹)' : '(%)'}
                   </label>
                   <input
@@ -3650,75 +3449,75 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                     min={1}
                     value={couponForm.discount_value}
                     onChange={(e) => setCouponForm({ ...couponForm, discount_value: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs"
+                    className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17]"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[11px] font-bold text-[#1F1B16] mb-1">Min Order (₹)</label>
+                  <label className="block text-[11px] font-bold text-[#241C17] mb-1">Min Order (₹)</label>
                   <input
                     type="number"
                     min={0}
                     value={couponForm.min_order_amount}
                     onChange={(e) => setCouponForm({ ...couponForm, min_order_amount: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs"
+                    className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-[#1F1B16] mb-1">Max Discount (₹)</label>
+                  <label className="block text-[11px] font-bold text-[#241C17] mb-1">Max Discount (₹)</label>
                   <input
                     type="number"
                     min={0}
                     value={couponForm.max_discount_amount}
                     onChange={(e) => setCouponForm({ ...couponForm, max_discount_amount: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs"
+                    className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17]"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[11px] font-bold text-[#1F1B16] mb-1">Total Limit</label>
+                  <label className="block text-[11px] font-bold text-[#241C17] mb-1">Total Limit</label>
                   <input
                     type="number"
                     min={1}
                     placeholder="∞ (Unlimited)"
                     value={couponForm.usage_limit}
                     onChange={(e) => setCouponForm({ ...couponForm, usage_limit: e.target.value ? Number(e.target.value) : '' })}
-                    className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs"
+                    className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-[#1F1B16] mb-1">Per-User Limit</label>
+                  <label className="block text-[11px] font-bold text-[#241C17] mb-1">Per-User Limit</label>
                   <input
                     type="number"
                     min={1}
                     placeholder="∞ (Unlimited)"
                     value={couponForm.per_user_limit}
                     onChange={(e) => setCouponForm({ ...couponForm, per_user_limit: e.target.value ? Number(e.target.value) : '' })}
-                    className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs"
+                    className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17]"
                   />
                 </div>
               </div>
 
-              <div className="flex gap-2 pt-2 border-t border-[#E8DFD2]">
+              <div className="flex gap-2 pt-2 border-t border-[#E9E2D8]">
                 <button
                   type="button"
                   onClick={() => {
                     setIsCouponModalOpen(false);
                     setEditingCouponId(null);
                   }}
-                  className="flex-1 min-h-[44px] rounded-xl border border-[#E8DFD2] text-xs font-semibold text-[#1F1B16] hover:bg-[#F3EBE0]"
+                  className="flex-1 min-h-[44px] rounded-[10px] border border-[#E9E2D8] text-xs font-semibold text-[#241C17] hover:bg-[#F3E9DC] transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 min-h-[44px] rounded-xl bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-bold shadow-xs"
+                  className="flex-1 min-h-[44px] rounded-[10px] bg-[#7A1129] hover:bg-[#5E0D20] text-white text-xs font-bold shadow-2xs transition-colors"
                 >
                   Save Coupon
                 </button>
@@ -3733,9 +3532,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       {/* ==================================================== */}
       {isVariantModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-[#E8DFD2] space-y-4">
-            <div className="flex items-center justify-between border-b border-[#E8DFD2] pb-3">
-              <h3 className="font-display font-bold text-base text-[#1F1B16]">
+          <div className="w-full max-w-sm rounded-[14px] bg-white p-6 shadow-xl border border-[#E9E2D8] space-y-4">
+            <div className="flex items-center justify-between border-b border-[#E9E2D8] pb-3">
+              <h3 className="font-extrabold text-base text-[#241C17]">
                 {editingVariantId ? 'Edit Sweet Pack Variant' : 'Add Pack Size Variant'}
               </h3>
               <button
@@ -3745,19 +3544,19 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   setEditingVariantId(null);
                   setSelectedProductForVariant(null);
                 }}
-                className="p-1 rounded-lg text-stone-400 hover:text-stone-700"
+                className="p-1.5 rounded-[8px] text-stone-400 hover:text-[#241C17] hover:bg-stone-100 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="text-xs text-[#6B6258]">
+            <div className="text-xs text-[#6B5F55]">
               Product: <strong>{selectedProductForVariant?.name}</strong>
             </div>
 
             <form onSubmit={handleSaveVariant} className="space-y-3">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
                   Pack Label *
                 </label>
                 <input
@@ -3766,60 +3565,60 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   placeholder="e.g. 500g Box (approx 12 pcs)"
                   value={variantForm.label}
                   onChange={(e) => setVariantForm({ ...variantForm, label: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs focus:outline-none focus:border-[#8A1538]"
+                  className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[11px] font-bold text-[#1F1B16] mb-1">Weight (grams)</label>
+                  <label className="block text-[11px] font-bold text-[#241C17] mb-1">Weight (grams)</label>
                   <input
                     type="number"
                     min={50}
                     value={variantForm.weightGrams}
                     onChange={(e) => setVariantForm({ ...variantForm, weightGrams: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs"
+                    className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-[#1F1B16] mb-1">Counter Stock</label>
+                  <label className="block text-[11px] font-bold text-[#241C17] mb-1">Counter Stock</label>
                   <input
                     type="number"
                     min={0}
                     value={variantForm.stockQuantity}
                     onChange={(e) => setVariantForm({ ...variantForm, stockQuantity: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs"
+                    className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17]"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[11px] font-bold text-[#1F1B16] mb-1">Selling Price (₹) *</label>
+                  <label className="block text-[11px] font-bold text-[#241C17] mb-1">Selling Price (₹) *</label>
                   <input
                     type="number"
                     required
                     min={1}
                     value={variantForm.price}
                     onChange={(e) => setVariantForm({ ...variantForm, price: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs"
+                    className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-[#1F1B16] mb-1">MRP (₹)</label>
+                  <label className="block text-[11px] font-bold text-[#241C17] mb-1">MRP (₹)</label>
                   <input
                     type="number"
                     min={1}
                     value={variantForm.mrp}
                     onChange={(e) => setVariantForm({ ...variantForm, mrp: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs"
+                    className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs text-[#241C17]"
                   />
                 </div>
               </div>
 
-              <div className="flex gap-2 pt-2 border-t border-[#E8DFD2]">
+              <div className="flex gap-2 pt-2 border-t border-[#E9E2D8]">
                 <button
                   type="button"
                   onClick={() => {
@@ -3827,13 +3626,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                     setEditingVariantId(null);
                     setSelectedProductForVariant(null);
                   }}
-                  className="flex-1 min-h-[44px] rounded-xl border border-[#E8DFD2] text-xs font-semibold text-[#1F1B16] hover:bg-[#F3EBE0]"
+                  className="flex-1 min-h-[44px] rounded-[10px] border border-[#E9E2D8] text-xs font-semibold text-[#241C17] hover:bg-[#F3E9DC] transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 min-h-[44px] rounded-xl bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-bold shadow-xs"
+                  className="flex-1 min-h-[44px] rounded-[10px] bg-[#7A1129] hover:bg-[#5E0D20] text-white text-xs font-bold shadow-2xs transition-colors"
                 >
                   Save Variant
                 </button>
@@ -3848,12 +3647,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       {/* ==================================================== */}
       {confirmDialog.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-[#E8DFD2] space-y-4">
+          <div className="w-full max-w-sm rounded-[14px] bg-white p-6 shadow-xl border border-[#E9E2D8] space-y-4">
             <div className="text-center space-y-1">
-              <h3 className="font-display font-bold text-lg text-[#1F1B16]">
+              <h3 className="font-extrabold text-lg text-[#241C17]">
                 {confirmDialog.title}
               </h3>
-              <p className="text-xs text-[#6B6258] leading-relaxed">
+              <p className="text-xs text-[#6B5F55] leading-relaxed">
                 {confirmDialog.message}
               </p>
             </div>
@@ -3862,17 +3661,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
               <button
                 type="button"
                 onClick={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}
-                className="flex-1 min-h-[44px] rounded-xl border border-[#E8DFD2] text-xs font-semibold text-[#1F1B16] hover:bg-[#F3EBE0]"
+                className="flex-1 min-h-[44px] rounded-[10px] border border-[#E9E2D8] text-xs font-semibold text-[#241C17] hover:bg-[#F3E9DC] transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={confirmDialog.onConfirm}
-                className={`flex-1 min-h-[44px] rounded-xl text-xs font-bold text-white shadow-xs ${
+                className={`flex-1 min-h-[44px] rounded-[10px] text-xs font-bold text-white shadow-2xs transition-colors ${
                   confirmDialog.isDestructive
-                    ? 'bg-[#B3261E] hover:bg-red-700'
-                    : 'bg-[#8A1538] hover:bg-[#701029]'
+                    ? 'bg-[#A8261E] hover:bg-red-700'
+                    : 'bg-[#7A1129] hover:bg-[#5E0D20]'
                 }`}
               >
                 {confirmDialog.confirmLabel}
@@ -3900,39 +3699,39 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-            <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-white shadow-2xl border border-[#E8DFD2] overflow-hidden my-auto animate-in fade-in-50 zoom-in-95 duration-150">
+            <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-[14px] bg-white shadow-xl border border-[#E9E2D8] overflow-hidden my-auto animate-in fade-in-50 zoom-in-95 duration-150">
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-[#E8DFD2] px-6 py-4 bg-[#FBF7F1] shrink-0">
+              <div className="flex items-center justify-between border-b border-[#E9E2D8] px-6 py-4 bg-[#F7F4EF] shrink-0">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Receipt className="w-5 h-5 text-[#8A1538]" />
-                    <h3 className="font-display font-bold text-lg text-[#1F1B16]">
+                    <Receipt className="w-5 h-5 text-[#7A1129]" />
+                    <h3 className="font-extrabold text-lg text-[#241C17]">
                       Order #{selectedOrderForDetails.order_number}
                     </h3>
                     <span
-                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
                         modalIsTakeaway
-                          ? 'bg-emerald-100 text-[#2E7D4F] border border-emerald-300'
-                          : 'bg-blue-100 text-blue-800 border border-blue-200'
+                          ? 'bg-[#E3F4EA] text-[#17663E] border border-[#17663E]/20'
+                          : 'bg-[#F3E9DC] text-[#7A1129] border border-[#7A1129]/20'
                       }`}
                     >
                       {modalIsTakeaway ? '🏪 Store Takeaway' : '🚚 Doorstep Delivery'}
                     </span>
                     <span
-                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
                         modalStatus === 'DELIVERED'
-                          ? 'bg-emerald-100 text-[#2E7D4F]'
+                          ? 'bg-[#E3F4EA] text-[#17663E]'
                           : modalStatus === 'CANCELLED'
-                          ? 'bg-red-100 text-[#B3261E]'
+                          ? 'bg-[#FDE8E8] text-[#A8261E]'
                           : modalStatus === 'REFUNDED'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-[#F7E9EE] text-[#8A1538]'
+                          ? 'bg-[#FDEFD0] text-[#8A4B00]'
+                          : 'bg-[#F3E9DC] text-[#7A1129]'
                       }`}
                     >
                       {modalStatus}
                     </span>
                   </div>
-                  <p className="text-xs text-[#6B6258] mt-0.5">
+                  <p className="text-xs text-[#6B5F55] mt-0.5">
                     Placed on {new Date(selectedOrderForDetails.created_at).toLocaleString('en-IN', {
                       dateStyle: 'medium',
                       timeStyle: 'short',
@@ -3942,7 +3741,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                 <button
                   type="button"
                   onClick={() => setSelectedOrderForDetails(null)}
-                  className="p-1.5 rounded-xl text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors"
+                  className="p-1.5 rounded-[10px] text-[#6B5F55] hover:text-[#241C17] hover:bg-[#E9E2D8]/40 transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -3951,18 +3750,18 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
               {/* Scrollable Content Body */}
               <div className="p-6 overflow-y-auto space-y-5">
                 {/* 1. Customer & Fulfilment Information */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-stone-50/70 p-4 rounded-xl border border-[#E8DFD2]/60 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#F7F4EF] p-4 rounded-[12px] border border-[#E9E2D8] text-xs">
                   <div className="space-y-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B6258] block">Customer Details</span>
-                    <div className="font-bold text-[#1F1B16] text-sm">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B5F55] block">Customer Details</span>
+                    <div className="font-bold text-[#241C17] text-sm">
                       {selectedOrderForDetails.address_snapshot?.recipient_name || selectedOrderForDetails.recipient_name || 'Customer'}
                     </div>
-                    <div className="text-[#6B6258] flex items-center gap-1.5">
-                      <Phone className="w-3.5 h-3.5 text-[#8A1538]" />
+                    <div className="text-[#6B5F55] flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 text-[#7A1129]" />
                       <span>{selectedOrderForDetails.address_snapshot?.recipient_phone || selectedOrderForDetails.guest_phone || 'N/A'}</span>
                     </div>
                     <div className="pt-1">
-                      <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded ${modalIsTakeaway ? 'bg-emerald-50 text-[#2E7D4F] border border-emerald-200' : 'bg-blue-50 text-blue-800 border border-blue-200'}`}>
+                      <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${modalIsTakeaway ? 'bg-[#E3F4EA] text-[#17663E] border border-[#17663E]/20' : 'bg-[#F3E9DC] text-[#7A1129] border border-[#7A1129]/20'}`}>
                         {modalIsTakeaway ? '🏪 Store Counter Pickup' : '🚚 Doorstep Delivery'}
                       </span>
                     </div>
@@ -3971,23 +3770,23 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   <div className="space-y-1">
                     {modalIsTakeaway ? (
                       <>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B6258] block">Pickup Window & Counter</span>
-                        <div className="text-[#1F1B16] leading-relaxed flex items-start gap-1.5 font-bold text-sm text-[#8A1538]">
-                          <Clock className="w-4 h-4 text-[#8A1538] shrink-0 mt-0.5" />
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B5F55] block">Pickup Window & Counter</span>
+                        <div className="text-[#241C17] leading-relaxed flex items-start gap-1.5 font-bold text-sm text-[#7A1129]">
+                          <Clock className="w-4 h-4 text-[#7A1129] shrink-0 mt-0.5" />
                           <span>
                             {selectedOrderForDetails.slot_snapshot?.slot_time_formatted || 'Standard Slot'}
                             {selectedOrderForDetails.slot_snapshot?.slot_date ? ` (${selectedOrderForDetails.slot_snapshot.slot_date})` : ''}
                           </span>
                         </div>
-                        <div className="text-[#6B6258] text-[11px] pt-1">
+                        <div className="text-[#6B5F55] text-[11px] pt-1">
                           Counter: Saraswati Sweets Main Market, Barabanki
                         </div>
                       </>
                     ) : (
                       <>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B6258] block">Delivery Destination</span>
-                        <div className="text-[#1F1B16] leading-relaxed flex items-start gap-1.5">
-                          <MapPin className="w-3.5 h-3.5 text-[#8A1538] shrink-0 mt-0.5" />
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B5F55] block">Delivery Destination</span>
+                        <div className="text-[#241C17] leading-relaxed flex items-start gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-[#7A1129] shrink-0 mt-0.5" />
                           <span>
                             {selectedOrderForDetails.address_snapshot?.street_address}
                             {selectedOrderForDetails.address_snapshot?.landmark ? `, Near ${selectedOrderForDetails.address_snapshot?.landmark}` : ''}
@@ -3996,7 +3795,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                           </span>
                         </div>
                         {selectedOrderForDetails.delivery_partner_name && (
-                          <div className="text-[#2E7D4F] flex items-center gap-1 font-semibold pt-1">
+                          <div className="text-[#17663E] flex items-center gap-1 font-semibold pt-1">
                             <Bike className="w-3.5 h-3.5" />
                             <span>Rider: {selectedOrderForDetails.delivery_partner_name} ({selectedOrderForDetails.delivery_partner_phone})</span>
                           </div>
@@ -4009,15 +3808,15 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                 {/* 2. Itemized Products Table */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <h4 className="font-display font-bold text-sm text-[#1F1B16] flex items-center gap-1.5">
-                      <Package className="w-4 h-4 text-[#8A1538]" />
+                    <h4 className="font-bold text-sm text-[#241C17] flex items-center gap-1.5">
+                      <Package className="w-4 h-4 text-[#7A1129]" />
                       <span>Ordered Products ({selectedOrderForDetails.items?.length || 0} items)</span>
                     </h4>
                   </div>
 
-                  <div className="border border-[#E8DFD2] rounded-xl overflow-hidden">
+                  <div className="border border-[#E9E2D8] rounded-[12px] overflow-hidden">
                     <table className="w-full text-left text-xs">
-                      <thead className="bg-[#FBF7F1] border-b border-[#E8DFD2] text-[#6B6258] font-bold uppercase tracking-wider text-[10px]">
+                      <thead className="bg-[#F7F4EF] border-b border-[#E9E2D8] text-[#6B5F55] font-bold uppercase tracking-wider text-[10px]">
                         <tr>
                           <th className="py-2.5 px-3">Product & Pack / Weight</th>
                           <th className="py-2.5 px-3 text-right">Unit Price</th>
@@ -4025,24 +3824,24 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                           <th className="py-2.5 px-3 text-right">Line Total</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#E8DFD2]">
+                      <tbody className="divide-y divide-[#E9E2D8]">
                         {selectedOrderForDetails.items?.map((it: any, idx: number) => {
                           const unitPrice = it.unit_price || (it.quantity ? Math.round((it.total_price || 0) / it.quantity) : 0);
                           const lineTotal = it.total_price || (unitPrice * (it.quantity || 1));
 
                           return (
-                            <tr key={idx} className="hover:bg-stone-50/50">
+                            <tr key={idx} className="hover:bg-[#F7F4EF]/50">
                               <td className="py-2.5 px-3">
-                                <div className="font-semibold text-[#1F1B16]">{it.product_name}</div>
-                                <div className="text-[11px] text-[#6B6258]">{it.variant_label}</div>
+                                <div className="font-semibold text-[#241C17]">{it.product_name}</div>
+                                <div className="text-[11px] text-[#6B5F55]">{it.variant_label}</div>
                               </td>
-                              <td className="py-2.5 px-3 text-right font-medium text-[#1F1B16] tabular-nums">
+                              <td className="py-2.5 px-3 text-right font-medium text-[#241C17] tabular-nums">
                                 {formatINR(unitPrice)}
                               </td>
-                              <td className="py-2.5 px-3 text-center font-bold text-[#1F1B16] tabular-nums">
+                              <td className="py-2.5 px-3 text-center font-bold text-[#241C17] tabular-nums">
                                 × {it.quantity}
                               </td>
-                              <td className="py-2.5 px-3 text-right font-bold text-[#1F1B16] tabular-nums">
+                              <td className="py-2.5 px-3 text-right font-bold text-[#241C17] tabular-nums">
                                 {formatINR(lineTotal)}
                               </td>
                             </tr>
@@ -4054,13 +3853,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                 </div>
 
                 {/* 3. Dedicated Order Price Breakdown Section */}
-                <div className="bg-[#FBF7F1] rounded-2xl border border-[#E8DFD2] p-4 sm:p-5 space-y-3.5 shadow-2xs">
-                  <div className="flex items-center justify-between border-b border-[#E8DFD2] pb-2.5">
-                    <h4 className="font-display font-bold text-sm text-[#1F1B16] flex items-center gap-1.5">
-                      <IndianRupee className="w-4 h-4 text-[#8A1538]" />
+                <div className="bg-[#F7F4EF] rounded-[14px] border border-[#E9E2D8] p-4 sm:p-5 space-y-3.5 shadow-2xs">
+                  <div className="flex items-center justify-between border-b border-[#E9E2D8] pb-2.5">
+                    <h4 className="font-bold text-sm text-[#241C17] flex items-center gap-1.5">
+                      <IndianRupee className="w-4 h-4 text-[#7A1129]" />
                       <span>Order Price Breakdown</span>
                     </h4>
-                    <span className="text-[10px] font-mono uppercase tracking-wider text-[#6B6258] bg-stone-100 px-2 py-0.5 rounded border border-[#E8DFD2]">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-[#6B5F55] bg-white px-2 py-0.5 rounded border border-[#E9E2D8]">
                       Authoritative Persisted Totals
                     </span>
                   </div>
@@ -4069,26 +3868,26 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                     {/* Items Subtotal */}
                     <div className="flex justify-between items-center">
                       <div>
-                        <span className="font-medium text-[#1F1B16]">Items Subtotal</span>
-                        <span className="text-[10px] text-[#6B6258] block">Total price of products before discounts and delivery</span>
+                        <span className="font-medium text-[#241C17]">Items Subtotal</span>
+                        <span className="text-[10px] text-[#6B5F55] block">Total price of products before discounts and delivery</span>
                       </div>
-                      <span className="font-semibold text-[#1F1B16] tabular-nums text-sm">{formatINR(modalSubtotal)}</span>
+                      <span className="font-semibold text-[#241C17] tabular-nums text-sm">{formatINR(modalSubtotal)}</span>
                     </div>
 
                     {/* Product Discount */}
                     <div className="flex justify-between items-center">
                       <div>
-                        <span className="font-medium text-[#1F1B16]">Product Discount</span>
+                        <span className="font-medium text-[#241C17]">Product Discount</span>
                         {selectedOrderForDetails.coupon_code && (
-                          <span className="ml-1.5 text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-mono font-bold">
+                          <span className="ml-1.5 text-[10px] bg-[#E3F4EA] text-[#17663E] px-1.5 py-0.5 rounded font-mono font-bold">
                             Coupon: {selectedOrderForDetails.coupon_code}
                           </span>
                         )}
-                        <span className="text-[10px] text-[#6B6258] block">
+                        <span className="text-[10px] text-[#6B5F55] block">
                           {modalDiscount > 0 ? 'Discount applied through coupons or special offers' : 'No promotional coupon or offer applied'}
                         </span>
                       </div>
-                      <span className={`font-semibold tabular-nums text-sm ${modalDiscount > 0 ? 'text-[#2E7D4F]' : 'text-[#6B6258]'}`}>
+                      <span className={`font-semibold tabular-nums text-sm ${modalDiscount > 0 ? 'text-[#17663E]' : 'text-[#6B5F55]'}`}>
                         {modalDiscount > 0 ? `−${formatINR(modalDiscount)}` : '₹0'}
                       </span>
                     </div>
@@ -4096,16 +3895,16 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                     {/* Delivery / Pickup Fee */}
                     <div className="flex justify-between items-center">
                       <div>
-                        <span className="font-medium text-[#1F1B16]">
+                        <span className="font-medium text-[#241C17]">
                           {modalIsTakeaway ? 'Store Counter Pickup Fee' : 'Delivery Fee'}
                         </span>
-                        <span className="text-[10px] text-[#6B6258] block">
+                        <span className="text-[10px] text-[#6B5F55] block">
                           {modalIsTakeaway ? 'FREE (₹0 Counter Pickup)' : 'Flat delivery fee across Barabanki'}
                         </span>
                       </div>
-                      <span className="font-semibold text-[#1F1B16] tabular-nums text-sm">
+                      <span className="font-semibold text-[#241C17] tabular-nums text-sm">
                         {modalDeliveryFee === 0 ? (
-                          <span className="text-[#2E7D4F] font-bold">FREE (₹0)</span>
+                          <span className="text-[#17663E] font-bold">FREE (₹0)</span>
                         ) : (
                           formatINR(modalDeliveryFee)
                         )}
@@ -4115,49 +3914,49 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                     {/* Taxes */}
                     <div className="flex justify-between items-center">
                       <div>
-                        <span className="font-medium text-[#1F1B16]">Taxes (GST)</span>
-                        <span className="text-[10px] text-[#6B6258] block">
+                        <span className="font-medium text-[#241C17]">Taxes (GST)</span>
+                        <span className="text-[10px] text-[#6B5F55] block">
                           {modalTaxes > 0 ? 'Applicable GST added to order' : 'Inclusive in sweets MRP (0% additional tax)'}
                         </span>
                       </div>
-                      <span className="font-semibold text-[#1F1B16] tabular-nums text-sm">
+                      <span className="font-semibold text-[#241C17] tabular-nums text-sm">
                         {modalTaxes > 0 ? formatINR(modalTaxes) : '₹0'}
                       </span>
                     </div>
 
                     {/* Final Order Total */}
-                    <div className="pt-3 border-t-2 border-[#E8DFD2] flex justify-between items-baseline">
+                    <div className="pt-3 border-t border-[#E9E2D8] flex justify-between items-baseline">
                       <div>
-                        <span className="text-base font-bold text-[#1F1B16] block">Final Order Total</span>
-                        <span className="text-[11px] text-[#6B6258]">Exact final amount payable by customer</span>
+                        <span className="text-base font-extrabold text-[#241C17] block">Final Order Total</span>
+                        <span className="text-[11px] text-[#6B5F55]">Exact final amount payable by customer</span>
                       </div>
                       <div className="text-right">
-                        <span className="text-2xl font-display font-bold text-[#8A1538] tabular-nums">
+                        <span className="text-2xl font-extrabold text-[#7A1129] tabular-nums">
                           {formatINR(modalFinalTotal)}
                         </span>
                       </div>
                     </div>
 
                     {/* Mathematical verification summary */}
-                    <div className="p-2.5 rounded-xl bg-white/80 border border-[#E8DFD2] text-[11px] font-mono text-[#6B6258] flex flex-wrap items-center justify-between gap-1">
+                    <div className="p-2.5 rounded-[10px] bg-white border border-[#E9E2D8] text-[11px] font-mono text-[#6B5F55] flex flex-wrap items-center justify-between gap-1">
                       <span>
                         Calculation: {formatINR(modalSubtotal)} (Subtotal) − {formatINR(modalDiscount)} (Discount) + {formatINR(modalDeliveryFee)} (Delivery){modalTaxes > 0 ? ` + ${formatINR(modalTaxes)} (Tax)` : ''} =
                       </span>
-                      <span className="font-bold text-[#8A1538]">{formatINR(modalFinalTotal)}</span>
+                      <span className="font-bold text-[#7A1129]">{formatINR(modalFinalTotal)}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* 4. Payment & Gateway System Information */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-xl border border-[#E8DFD2] bg-stone-50/60 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-[12px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs">
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B6258] block">Payment Method</span>
-                    <div className="font-bold text-[#1F1B16] mt-0.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B5F55] block">Payment Method</span>
+                    <div className="font-bold text-[#241C17] mt-0.5">
                       {selectedOrderForDetails.payment_method === 'ONLINE' ? 'Online Payment (Cashfree Payment Gateway)' : 'Cash on Delivery (COD)'}
                     </div>
-                    <div className="text-[11px] text-[#6B6258] mt-1">
+                    <div className="text-[11px] text-[#6B5F55] mt-1">
                       {selectedOrderForDetails.payment_method === 'ONLINE' ? (
-                        <span>Gateway Ref: <code className="bg-stone-200/80 px-1 py-0.5 rounded text-[10px]">{selectedOrderForDetails.provider_order_id || (selectedOrderForDetails.payment_method === 'ONLINE' ? selectedOrderForDetails.order_number : 'N/A')}</code></span>
+                        <span>Gateway Ref: <code className="bg-white px-1.5 py-0.5 rounded border border-[#E9E2D8] text-[10px]">{selectedOrderForDetails.provider_order_id || (selectedOrderForDetails.payment_method === 'ONLINE' ? selectedOrderForDetails.order_number : 'N/A')}</code></span>
                       ) : (
                         <span>Pay exact cash upon door delivery</span>
                       )}
@@ -4165,17 +3964,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                   </div>
 
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B6258] block">Payment Status</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B5F55] block">Payment Status</span>
                     <div className="mt-0.5">
                       <span
-                        className={`inline-block text-[11px] font-bold px-2 py-0.5 rounded ${
+                        className={`inline-block text-[11px] font-bold px-2 py-0.5 rounded-full ${
                           selectedOrderForDetails.payment_status === 'CAPTURED'
-                            ? 'bg-emerald-100 text-[#2E7D4F]'
+                            ? 'bg-[#E3F4EA] text-[#17663E]'
                             : selectedOrderForDetails.payment_status === 'FAILED'
-                            ? 'bg-red-100 text-[#B3261E]'
+                            ? 'bg-[#FDE8E8] text-[#A8261E]'
                             : selectedOrderForDetails.payment_status?.includes('REFUND')
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-yellow-100 text-yellow-800'
+                            ? 'bg-[#FDEFD0] text-[#8A4B00]'
+                            : 'bg-[#FDEFD0] text-[#8A4B00]'
                         }`}
                       >
                         {selectedOrderForDetails.payment_status === 'CAPTURED'
@@ -4184,8 +3983,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                       </span>
                     </div>
                     {selectedOrderForDetails.provider_payment_id && (
-                      <div className="text-[11px] text-[#6B6258] mt-1">
-                        Payment ID: <code className="bg-stone-200/80 px-1 py-0.5 rounded text-[10px]">{selectedOrderForDetails.provider_payment_id}</code>
+                      <div className="text-[11px] text-[#6B5F55] mt-1">
+                        Payment ID: <code className="bg-white px-1.5 py-0.5 rounded border border-[#E9E2D8] text-[10px]">{selectedOrderForDetails.provider_payment_id}</code>
                       </div>
                     )}
                   </div>
@@ -4193,14 +3992,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
               </div>
 
               {/* Modal Footer */}
-              <div className="border-t border-[#E8DFD2] px-6 py-3.5 bg-[#FBF7F1] flex items-center justify-between gap-3 shrink-0">
-                <div className="text-xs text-[#6B6258]">
-                  Order Status: <strong className="text-[#1F1B16]">{modalStatus}</strong>
+              <div className="border-t border-[#E9E2D8] px-6 py-3.5 bg-[#F7F4EF] flex items-center justify-between gap-3 shrink-0">
+                <div className="text-xs text-[#6B5F55]">
+                  Order Status: <strong className="text-[#241C17]">{modalStatus}</strong>
                 </div>
                 <button
                   type="button"
                   onClick={() => setSelectedOrderForDetails(null)}
-                  className="px-5 py-2 rounded-xl bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-bold shadow-xs transition-colors"
+                  className="px-5 min-h-[44px] rounded-[10px] bg-[#7A1129] hover:bg-[#5E0D20] text-white text-xs font-bold shadow-xs transition-colors flex items-center justify-center cursor-pointer"
                 >
                   Close Details
                 </button>
@@ -4220,6 +4019,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
         isMuted={isMuted}
         onToggleMute={handleToggleSound}
       />
+        </div>
+      </main>
     </div>
   );
 };

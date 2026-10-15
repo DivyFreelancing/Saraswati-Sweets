@@ -76,46 +76,46 @@ export const AdminOrderNotificationBanner: React.FC<AdminOrderNotificationBanner
                 key={alert.id}
                 role="alert"
                 aria-live="assertive"
-                className="pointer-events-auto bg-gradient-to-r from-[#2A0E14] to-[#4A101C] text-white border border-[#C79A3D]/70 rounded-2xl p-4 shadow-2xl shadow-black/40 backdrop-blur-md transform transition-all duration-300 ease-out animate-in slide-in-from-top-4"
+                className="pointer-events-auto bg-[#4A0A1B] text-white border border-[#E8C16A]/70 rounded-[14px] p-4 shadow-2xl shadow-black/40 backdrop-blur-md transform transition-all duration-300 ease-out animate-in slide-in-from-top-4"
               >
                 <div className="flex items-start justify-between gap-3">
                   {/* Icon badge */}
-                  <div className="w-10 h-10 rounded-full bg-[#C79A3D]/20 border border-[#C79A3D] flex items-center justify-center shrink-0 mt-0.5">
-                    <ShoppingBag className="w-5 h-5 text-[#E8C872]" />
+                  <div className="w-10 h-10 rounded-full bg-[#E8C16A]/20 border border-[#E8C16A] flex items-center justify-center shrink-0 mt-0.5">
+                    <ShoppingBag className="w-5 h-5 text-[#E8C16A]" />
                   </div>
 
                   {/* Body */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[#E8C872]">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[#E8C16A]">
                         <Sparkles className="w-3 h-3" /> New Order Received
                       </span>
-                      <span className="text-[11px] text-[#D8C7B5]">· {timeStr}</span>
+                      <span className="text-[11px] text-[#E9E2D8]/80">· {timeStr}</span>
                     </div>
 
                     <div className="mt-1 flex items-baseline justify-between gap-2">
-                      <h4 className="font-display font-bold text-base text-white truncate">
+                      <h4 className="font-extrabold text-base text-white truncate">
                         #{alert.order_number}
                       </h4>
-                      <span className="font-bold text-base text-[#FAF4DE]">
+                      <span className="font-extrabold text-base text-[#F7F4EF]">
                         {formatINR(alert.total_amount)}
                       </span>
                     </div>
 
                     {/* Customer & items preview */}
-                    <div className="mt-1 text-xs text-[#E8DFD2] flex flex-wrap gap-x-2 gap-y-0.5">
+                    <div className="mt-1 text-xs text-[#E9E2D8] flex flex-wrap gap-x-2 gap-y-0.5">
                       {alert.recipient_name && (
                         <span className="font-medium truncate max-w-[160px]">
                           {alert.recipient_name}
                         </span>
                       )}
                       {alert.payment_method && (
-                        <span className="px-1.5 py-0.2 rounded bg-black/30 text-[10px] uppercase font-semibold text-[#C79A3D] border border-[#C79A3D]/30">
+                        <span className="px-1.5 py-0.5 rounded-full bg-black/30 text-[10px] uppercase font-semibold text-[#E8C16A] border border-[#E8C16A]/30">
                           {alert.payment_method}
                         </span>
                       )}
                       {alert.item_count ? (
-                        <span className="text-[#D8C7B5]">
+                        <span className="text-[#E9E2D8]/80">
                           ({alert.item_count} item{alert.item_count > 1 ? 's' : ''})
                         </span>
                       ) : null}
@@ -129,7 +129,7 @@ export const AdminOrderNotificationBanner: React.FC<AdminOrderNotificationBanner
                           onViewOrder(alert.order_number);
                           onDismiss(alert.id);
                         }}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#C79A3D] hover:bg-[#B3872F] text-[#2A0E14] text-xs font-bold transition-colors cursor-pointer shadow-xs active:scale-95"
+                        className="inline-flex items-center gap-1 min-h-[36px] px-3.5 py-1.5 rounded-[8px] bg-[#E8C16A] hover:bg-[#F6E08B] text-[#4A0A1B] text-xs font-bold transition-colors cursor-pointer shadow-xs active:scale-95"
                       >
                         <span>View Order</span>
                         <ArrowRight className="w-3.5 h-3.5" />
@@ -138,7 +138,7 @@ export const AdminOrderNotificationBanner: React.FC<AdminOrderNotificationBanner
                       <button
                         type="button"
                         onClick={() => onDismiss(alert.id)}
-                        className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-[#FAF4DE] text-xs font-medium transition-colors cursor-pointer"
+                        className="min-h-[36px] px-3 py-1.5 rounded-[8px] bg-white/10 hover:bg-white/20 text-[#F7F4EF] text-xs font-medium transition-colors cursor-pointer"
                       >
                         Dismiss
                       </button>

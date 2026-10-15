@@ -189,3 +189,44 @@ h1, h2, h3, .font-display {
   color: var(--color-maroon);
 }
 
+/* Scoped Admin Shell: Manrope typography with tabular numerals (DESIGN.md Section 3) */
+.admin-shell {
+  font-family: 'Manrope', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-feature-settings: 'tnum' on, 'lnum' on;
+  letter-spacing: -0.01em;
+}
+
+.admin-shell *,
+.admin-shell *::before,
+.admin-shell *::after {
+  font-feature-settings: 'tnum' on, 'lnum' on;
+}
+
+/* Admin Shell Layout: 900px breakpoint (DESIGN.md Section 4) */
+@media (min-width: 900px) {
+  .admin-desktop-sidebar {
+    display: flex !important;
+  }
+  .admin-mobile-nav {
+    display: none !important;
+  }
+  .admin-main-area {
+    margin-left: 232px !important;
+    padding: 28px 32px !important;
+  }
+}
+
+@media (max-width: 899.98px) {
+  .admin-desktop-sidebar {
+    display: none !important;
+  }
+  .admin-mobile-nav {
+    display: block !important;
+  }
+  .admin-main-area {
+    margin-left: 0 !important;
+    padding: 16px 16px !important;
+  }
+}
+
+

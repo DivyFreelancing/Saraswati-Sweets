@@ -68,7 +68,7 @@ export const AdminMarketingTab: React.FC<AdminMarketingTabProps> = ({
     coupon_code: '',
     discount_text: '',
     badge: 'Limited Period',
-    bg_color: '#8A1538',
+    bg_color: '#7A1129',
     is_active: true,
     display_order: 1,
   });
@@ -97,7 +97,7 @@ export const AdminMarketingTab: React.FC<AdminMarketingTabProps> = ({
       coupon_code: coupons[0]?.code || 'SWAD100',
       discount_text: 'FLAT ₹100 OFF',
       badge: 'Festive Special',
-      bg_color: '#8A1538',
+      bg_color: '#7A1129',
       is_active: true,
       display_order: offers.length + 1,
     });
@@ -113,7 +113,7 @@ export const AdminMarketingTab: React.FC<AdminMarketingTabProps> = ({
       coupon_code: offer.coupon_code || '',
       discount_text: offer.discount_text,
       badge: offer.badge || '',
-      bg_color: offer.bg_color || '#8A1538',
+      bg_color: offer.bg_color || '#7A1129',
       is_active: offer.is_active,
       display_order: offer.display_order || 1,
     });
@@ -252,28 +252,28 @@ export const AdminMarketingTab: React.FC<AdminMarketingTabProps> = ({
   return (
     <div className="space-y-6">
       {/* Header with Sub-tab Switcher */}
-      <div className="bg-white rounded-2xl border border-[#E8DFD2] p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white rounded-[14px] border border-[#E9E2D8] p-5 sm:p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#8A1538] uppercase tracking-wider mb-1">
-            <Sparkles className="w-4 h-4 text-[#C9A227]" />
+          <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#7A1129] uppercase tracking-wider mb-1">
+            <Sparkles className="w-4 h-4 text-[#E8C16A]" />
             <span>Storefront Visibility & Promos</span>
           </div>
-          <h2 className="font-display font-bold text-xl sm:text-2xl text-[#1F1B16]">
+          <h2 className="font-extrabold text-xl sm:text-2xl text-[#241C17]">
             Offers & Homepage Banners
           </h2>
-          <p className="text-xs sm:text-sm text-[#6B6258] mt-0.5">
+          <p className="text-xs sm:text-sm text-[#6B5F55] mt-0.5">
             Configure celebratory banners and discount cards shown on the homepage and offers page.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           {/* Sub-tab pills */}
-          <div className="flex rounded-xl bg-[#F3EBE0] p-1 border border-[#E8DFD2]">
+          <div className="flex rounded-[10px] bg-[#F7F4EF] p-1 border border-[#E9E2D8]">
             <button
               type="button"
               onClick={() => setSubTab('offers')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${
-                subTab === 'offers' ? 'bg-[#8A1538] text-white shadow-xs' : 'text-[#1F1B16] hover:bg-white/60'
+              className={`min-h-[36px] px-3.5 py-1.5 rounded-[8px] text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer ${
+                subTab === 'offers' ? 'bg-[#7A1129] text-white shadow-xs' : 'text-[#241C17] hover:bg-white/60'
               }`}
             >
               <Tag className="w-3.5 h-3.5" />
@@ -282,8 +282,8 @@ export const AdminMarketingTab: React.FC<AdminMarketingTabProps> = ({
             <button
               type="button"
               onClick={() => setSubTab('banners')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${
-                subTab === 'banners' ? 'bg-[#8A1538] text-white shadow-xs' : 'text-[#1F1B16] hover:bg-white/60'
+              className={`min-h-[36px] px-3.5 py-1.5 rounded-[8px] text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer ${
+                subTab === 'banners' ? 'bg-[#7A1129] text-white shadow-xs' : 'text-[#241C17] hover:bg-white/60'
               }`}
             >
               <ImageIcon className="w-3.5 h-3.5" />
@@ -295,9 +295,9 @@ export const AdminMarketingTab: React.FC<AdminMarketingTabProps> = ({
             <button
               type="button"
               onClick={subTab === 'offers' ? handleOpenCreateOffer : handleOpenCreateBanner}
-              className="min-h-[40px] px-3.5 py-1.5 rounded-xl bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-bold transition-colors shadow-xs flex items-center gap-1"
+              className="min-h-[44px] px-4 py-2 rounded-[10px] bg-[#7A1129] hover:bg-[#5E0D20] text-white text-xs font-bold transition-colors shadow-xs flex items-center gap-1 cursor-pointer"
             >
-              <Plus className="w-3.5 h-3.5 text-[#F6E08B]" />
+              <Plus className="w-4 h-4 text-[#F6E08B]" />
               <span>{subTab === 'offers' ? '+ New Offer' : '+ New Banner'}</span>
             </button>
           )}
@@ -310,56 +310,56 @@ export const AdminMarketingTab: React.FC<AdminMarketingTabProps> = ({
           {offers.map((offer) => (
             <div
               key={offer.id}
-              className="p-5 rounded-2xl border border-[#E8DFD2] bg-white shadow-xs space-y-3 flex flex-col justify-between"
+              className="p-5 rounded-[14px] border border-[#E9E2D8] bg-white shadow-2xs space-y-3 flex flex-col justify-between"
             >
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span
-                    className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded text-white shadow-xs"
-                    style={{ backgroundColor: offer.bg_color || '#8A1538' }}
+                    className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full text-white shadow-xs"
+                    style={{ backgroundColor: offer.bg_color || '#7A1129' }}
                   >
                     {offer.discount_text}
                   </span>
                   <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                      offer.is_active ? 'bg-emerald-100 text-[#2E7D4F]' : 'bg-stone-200 text-stone-600'
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      offer.is_active ? 'bg-[#E3F4EA] text-[#17663E]' : 'bg-[#F7F4EF] text-[#6B5F55]'
                     }`}
                   >
                     {offer.is_active ? 'ACTIVE' : 'INACTIVE'}
                   </span>
                 </div>
 
-                <h3 className="font-display font-bold text-base text-[#1F1B16]">
+                <h3 className="font-extrabold text-base text-[#241C17]">
                   {offer.title}
                 </h3>
                 {offer.tagline && (
-                  <p className="text-xs text-[#8A1538] font-semibold">{offer.tagline}</p>
+                  <p className="text-xs text-[#7A1129] font-semibold">{offer.tagline}</p>
                 )}
-                <p className="text-xs text-[#6B6258] leading-relaxed">{offer.description}</p>
+                <p className="text-xs text-[#6B5F55] leading-relaxed">{offer.description}</p>
               </div>
 
-              <div className="pt-3 border-t border-[#E8DFD2] flex items-center justify-between">
+              <div className="pt-3 border-t border-[#E9E2D8] flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-[#6B6258]">Code:</span>
-                  <span className="font-mono font-bold text-xs bg-[#FBF7F1] border border-[#E8DFD2] px-2 py-0.5 rounded text-[#8A1538]">
+                  <span className="text-[11px] text-[#6B5F55]">Code:</span>
+                  <span className="font-mono font-bold text-xs bg-[#F7F4EF] border border-[#E9E2D8] px-2 py-0.5 rounded text-[#7A1129]">
                     {offer.coupon_code || 'Auto-applied'}
                   </span>
                 </div>
 
                 {isAdmin && (
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
                     <button
                       type="button"
                       onClick={() => handleOpenEditOffer(offer)}
-                      className="p-1.5 rounded-lg border border-[#E8DFD2] text-[#1F1B16] hover:bg-[#F3EBE0]"
+                      className="p-2 rounded-[10px] border border-[#E9E2D8] text-[#241C17] hover:bg-[#F7F4EF] transition-colors cursor-pointer"
                       title="Edit Offer"
                     >
-                      <Edit2 className="w-3.5 h-3.5 text-[#8A1538]" />
+                      <Edit2 className="w-3.5 h-3.5 text-[#7A1129]" />
                     </button>
                     <button
                       type="button"
                       onClick={() => handleDeleteOffer(offer)}
-                      className="p-1.5 rounded-lg border border-[#E8DFD2] text-[#B3261E] hover:bg-red-50"
+                      className="p-2 rounded-[10px] border border-[#E9E2D8] text-[#A8261E] hover:bg-[#FDE8E8] transition-colors cursor-pointer"
                       title="Delete Offer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -378,22 +378,22 @@ export const AdminMarketingTab: React.FC<AdminMarketingTabProps> = ({
           {banners.map((banner) => (
             <div
               key={banner.id}
-              className="bg-white rounded-2xl border border-[#E8DFD2] overflow-hidden shadow-xs flex flex-col"
+              className="bg-white rounded-[14px] border border-[#E9E2D8] overflow-hidden shadow-2xs flex flex-col"
             >
-              <div className="relative aspect-[21/9] bg-[#F3EBE0] overflow-hidden">
+              <div className="relative aspect-[21/9] bg-[#F7F4EF] overflow-hidden">
                 <img
                   src={banner.image_url}
                   alt={banner.title}
                   className="w-full h-full object-cover"
                 />
                 {banner.badge && (
-                  <span className="absolute top-2.5 left-2.5 bg-[#8A1538] text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shadow-xs">
+                  <span className="absolute top-2.5 left-2.5 bg-[#7A1129] text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shadow-xs">
                     {banner.badge}
                   </span>
                 )}
                 <span
-                  className={`absolute top-2.5 right-2.5 text-[10px] font-bold px-2 py-0.5 rounded shadow-xs ${
-                    banner.is_active ? 'bg-emerald-600 text-white' : 'bg-stone-500 text-white'
+                  className={`absolute top-2.5 right-2.5 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-xs ${
+                    banner.is_active ? 'bg-[#E3F4EA] text-[#17663E]' : 'bg-[#FDE8E8] text-[#A8261E]'
                   }`}
                 >
                   {banner.is_active ? 'ACTIVE' : 'INACTIVE'}
@@ -402,36 +402,36 @@ export const AdminMarketingTab: React.FC<AdminMarketingTabProps> = ({
 
               <div className="p-5 flex-1 flex flex-col justify-between space-y-3">
                 <div>
-                  <h3 className="font-display font-bold text-base sm:text-lg text-[#1F1B16]">
+                  <h3 className="font-extrabold text-base sm:text-lg text-[#241C17]">
                     {banner.title}
                   </h3>
                   {banner.subtitle && (
-                    <p className="text-xs text-[#6B6258] mt-1 leading-relaxed">
+                    <p className="text-xs text-[#6B5F55] mt-1 leading-relaxed">
                       {banner.subtitle}
                     </p>
                   )}
                 </div>
 
-                <div className="pt-3 border-t border-[#E8DFD2] flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5 text-[#8A1538] font-bold">
+                <div className="pt-3 border-t border-[#E9E2D8] flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5 text-[#7A1129] font-bold">
                     <span>CTA: {banner.cta_text}</span>
-                    <span className="text-stone-400 font-mono text-[11px]">({banner.cta_link})</span>
+                    <span className="text-[#6B5F55] font-mono text-[11px]">({banner.cta_link})</span>
                   </div>
 
                   {isAdmin && (
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                       <button
                         type="button"
                         onClick={() => handleOpenEditBanner(banner)}
-                        className="p-1.5 rounded-lg border border-[#E8DFD2] text-[#1F1B16] hover:bg-[#F3EBE0]"
+                        className="p-2 rounded-[10px] border border-[#E9E2D8] text-[#241C17] hover:bg-[#F7F4EF] transition-colors cursor-pointer"
                         title="Edit Banner"
                       >
-                        <Edit2 className="w-3.5 h-3.5 text-[#8A1538]" />
+                        <Edit2 className="w-3.5 h-3.5 text-[#7A1129]" />
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDeleteBanner(banner)}
-                        className="p-1.5 rounded-lg border border-[#E8DFD2] text-[#B3261E] hover:bg-red-50"
+                        className="p-2 rounded-[10px] border border-[#E9E2D8] text-[#A8261E] hover:bg-[#FDE8E8] transition-colors cursor-pointer"
                         title="Delete Banner"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -448,16 +448,16 @@ export const AdminMarketingTab: React.FC<AdminMarketingTabProps> = ({
       {/* CREATE / EDIT OFFER MODAL */}
       {isOfferModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-[#E8DFD2] space-y-4 my-8">
-            <div className="flex items-center justify-between border-b border-[#E8DFD2] pb-3">
-              <h3 className="font-display font-bold text-lg text-[#1F1B16] flex items-center gap-2">
-                <Tag className="w-5 h-5 text-[#8A1538]" />
+          <div className="w-full max-w-lg rounded-[14px] bg-white p-6 shadow-xl border border-[#E9E2D8] space-y-4 my-8">
+            <div className="flex items-center justify-between border-b border-[#E9E2D8] pb-3">
+              <h3 className="font-extrabold text-lg text-[#241C17] flex items-center gap-2">
+                <Tag className="w-5 h-5 text-[#7A1129]" />
                 <span>{editingOffer ? 'Edit Offer' : 'Create New Promotional Offer'}</span>
               </h3>
               <button
                 type="button"
                 onClick={() => setIsOfferModalOpen(false)}
-                className="p-1 rounded-lg text-stone-400 hover:text-stone-700"
+                className="p-1.5 rounded-[10px] text-[#6B5F55] hover:text-[#241C17] hover:bg-[#E9E2D8]/40 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -465,84 +465,84 @@ export const AdminMarketingTab: React.FC<AdminMarketingTabProps> = ({
 
             <form onSubmit={handleSaveOffer} className="space-y-3.5 text-xs">
               <div>
-                <label className="block font-bold text-[#1F1B16] mb-1">Offer Title *</label>
+                <label className="block font-bold text-[#241C17] mb-1">Offer Title *</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Festival Delight Offer"
                   value={offerForm.title}
                   onChange={(e) => setOfferForm({ ...offerForm, title: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] focus:outline-none focus:border-[#8A1538]"
+                  className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-[#1F1B16] mb-1">Discount Text Badge *</label>
+                  <label className="block font-bold text-[#241C17] mb-1">Discount Text Badge *</label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. FLAT ₹100 OFF"
                     value={offerForm.discount_text}
                     onChange={(e) => setOfferForm({ ...offerForm, discount_text: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] focus:outline-none focus:border-[#8A1538]"
+                    className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-[#1F1B16] mb-1">Linked Coupon Code</label>
+                  <label className="block font-bold text-[#241C17] mb-1">Linked Coupon Code</label>
                   <input
                     type="text"
                     placeholder="e.g. SWAD100"
                     value={offerForm.coupon_code}
                     onChange={(e) => setOfferForm({ ...offerForm, coupon_code: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] focus:outline-none focus:border-[#8A1538]"
+                    className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-bold text-[#1F1B16] mb-1">Subtitle / Tagline</label>
+                <label className="block font-bold text-[#241C17] mb-1">Subtitle / Tagline</label>
                 <input
                   type="text"
                   placeholder="e.g. Pure Desi Ghee Celebrations"
                   value={offerForm.tagline}
                   onChange={(e) => setOfferForm({ ...offerForm, tagline: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] focus:outline-none focus:border-[#8A1538]"
+                  className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-[#1F1B16] mb-1">Detailed Description</label>
+                <label className="block font-bold text-[#241C17] mb-1">Detailed Description</label>
                 <textarea
                   rows={2}
                   placeholder="Terms or instructions for availing discount..."
                   value={offerForm.description}
                   onChange={(e) => setOfferForm({ ...offerForm, description: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] focus:outline-none focus:border-[#8A1538] resize-none"
+                  className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129] resize-none"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-[#1F1B16] mb-1">Badge</label>
+                  <label className="block font-bold text-[#241C17] mb-1">Badge</label>
                   <input
                     type="text"
                     placeholder="e.g. Limited Period"
                     value={offerForm.badge}
                     onChange={(e) => setOfferForm({ ...offerForm, badge: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] focus:outline-none focus:border-[#8A1538]"
+                    className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-[#1F1B16] mb-1">Display Order</label>
+                  <label className="block font-bold text-[#241C17] mb-1">Display Order</label>
                   <input
                     type="number"
                     min={1}
                     value={offerForm.display_order}
                     onChange={(e) => setOfferForm({ ...offerForm, display_order: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] focus:outline-none focus:border-[#8A1538]"
+                    className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                   />
                 </div>
               </div>
@@ -553,23 +553,23 @@ export const AdminMarketingTab: React.FC<AdminMarketingTabProps> = ({
                     type="checkbox"
                     checked={offerForm.is_active}
                     onChange={(e) => setOfferForm({ ...offerForm, is_active: e.target.checked })}
-                    className="w-4 h-4 text-[#8A1538] rounded border-stone-300"
+                    className="w-4 h-4 accent-[#7A1129] rounded border-stone-300"
                   />
-                  <span className="font-semibold text-[#1F1B16]">Active on Storefront</span>
+                  <span className="font-semibold text-[#241C17]">Active on Storefront</span>
                 </label>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#E8DFD2]">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#E9E2D8]">
                 <button
                   type="button"
                   onClick={() => setIsOfferModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-stone-600 hover:bg-stone-100"
+                  className="min-h-[44px] px-4 py-2 rounded-[10px] text-[#6B5F55] hover:bg-[#E9E2D8]/40 font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#8A1538] text-white font-bold hover:bg-[#701029]"
+                  className="min-h-[44px] px-5 py-2 rounded-[10px] bg-[#7A1129] text-white font-bold hover:bg-[#5E0D20] shadow-xs cursor-pointer"
                 >
                   {editingOffer ? 'Save Changes' : 'Create Offer'}
                 </button>
@@ -582,16 +582,16 @@ export const AdminMarketingTab: React.FC<AdminMarketingTabProps> = ({
       {/* CREATE / EDIT BANNER MODAL */}
       {isBannerModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-[#E8DFD2] space-y-4 my-8">
-            <div className="flex items-center justify-between border-b border-[#E8DFD2] pb-3">
-              <h3 className="font-display font-bold text-lg text-[#1F1B16] flex items-center gap-2">
-                <ImageIcon className="w-5 h-5 text-[#8A1538]" />
+          <div className="w-full max-w-lg rounded-[14px] bg-white p-6 shadow-xl border border-[#E9E2D8] space-y-4 my-8">
+            <div className="flex items-center justify-between border-b border-[#E9E2D8] pb-3">
+              <h3 className="font-extrabold text-lg text-[#241C17] flex items-center gap-2">
+                <ImageIcon className="w-5 h-5 text-[#7A1129]" />
                 <span>{editingBanner ? 'Edit Banner' : 'Create Homepage Banner'}</span>
               </h3>
               <button
                 type="button"
                 onClick={() => setIsBannerModalOpen(false)}
-                className="p-1 rounded-lg text-stone-400 hover:text-stone-700"
+                className="p-1.5 rounded-[10px] text-[#6B5F55] hover:text-[#241C17] hover:bg-[#E9E2D8]/40 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -599,60 +599,60 @@ export const AdminMarketingTab: React.FC<AdminMarketingTabProps> = ({
 
             <form onSubmit={handleSaveBanner} className="space-y-3.5 text-xs">
               <div>
-                <label className="block font-bold text-[#1F1B16] mb-1">Banner Title *</label>
+                <label className="block font-bold text-[#241C17] mb-1">Banner Title *</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Awadhi Shahi Diwali & Wedding Gifting"
                   value={bannerForm.title}
                   onChange={(e) => setBannerForm({ ...bannerForm, title: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] focus:outline-none focus:border-[#8A1538]"
+                  className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-[#1F1B16] mb-1">Image URL *</label>
+                <label className="block font-bold text-[#241C17] mb-1">Image URL *</label>
                 <input
                   type="url"
                   required
                   placeholder="https://..."
                   value={bannerForm.image_url}
                   onChange={(e) => setBannerForm({ ...bannerForm, image_url: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] focus:outline-none focus:border-[#8A1538]"
+                  className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-[#1F1B16] mb-1">Subtitle / Callout</label>
+                <label className="block font-bold text-[#241C17] mb-1">Subtitle / Callout</label>
                 <textarea
                   rows={2}
                   placeholder="Subtext explaining authentic pure desi ghee heritage..."
                   value={bannerForm.subtitle}
                   onChange={(e) => setBannerForm({ ...bannerForm, subtitle: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] focus:outline-none focus:border-[#8A1538] resize-none"
+                  className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129] resize-none"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-[#1F1B16] mb-1">Button Text</label>
+                  <label className="block font-bold text-[#241C17] mb-1">Button Text</label>
                   <input
                     type="text"
                     placeholder="e.g. Shop Sweets"
                     value={bannerForm.cta_text}
                     onChange={(e) => setBannerForm({ ...bannerForm, cta_text: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] focus:outline-none focus:border-[#8A1538]"
+                    className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-[#1F1B16] mb-1">Button Link</label>
+                  <label className="block font-bold text-[#241C17] mb-1">Button Link</label>
                   <input
                     type="text"
                     placeholder="e.g. /catalog or /hampers"
                     value={bannerForm.cta_link}
                     onChange={(e) => setBannerForm({ ...bannerForm, cta_link: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] focus:outline-none focus:border-[#8A1538]"
+                    className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
                   />
                 </div>
               </div>
@@ -663,23 +663,23 @@ export const AdminMarketingTab: React.FC<AdminMarketingTabProps> = ({
                     type="checkbox"
                     checked={bannerForm.is_active}
                     onChange={(e) => setBannerForm({ ...bannerForm, is_active: e.target.checked })}
-                    className="w-4 h-4 text-[#8A1538] rounded border-stone-300"
+                    className="w-4 h-4 accent-[#7A1129] rounded border-stone-300"
                   />
-                  <span className="font-semibold text-[#1F1B16]">Active on Homepage</span>
+                  <span className="font-semibold text-[#241C17]">Active on Homepage</span>
                 </label>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#E8DFD2]">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#E9E2D8]">
                 <button
                   type="button"
                   onClick={() => setIsBannerModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-stone-600 hover:bg-stone-100"
+                  className="min-h-[44px] px-4 py-2 rounded-[10px] text-[#6B5F55] hover:bg-[#E9E2D8]/40 font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#8A1538] text-white font-bold hover:bg-[#701029]"
+                  className="min-h-[44px] px-5 py-2 rounded-[10px] bg-[#7A1129] text-white font-bold hover:bg-[#5E0D20] shadow-xs cursor-pointer"
                 >
                   {editingBanner ? 'Save Changes' : 'Create Banner'}
                 </button>
