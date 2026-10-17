@@ -26,7 +26,7 @@ router.get('/categories', (_req, res: Response) => {
 
 
 router.get('/products/:slug', (req, res: Response) => {
-  res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+  res.setHeader('Cache-Control', 'no-cache');
   const { slug } = req.params;
   const p = Array.from(inMemoryStore.products.values()).find(p => p.slug === slug && p.is_active);
   if (!p) {
@@ -76,7 +76,7 @@ router.get('/products/:slug', (req, res: Response) => {
 });
 
 router.get('/products', (_req, res: Response) => {
-  res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+  res.setHeader('Cache-Control', 'no-cache');
   const products = Array.from(inMemoryStore.products.values())
     .filter((p) => p.is_active);
     

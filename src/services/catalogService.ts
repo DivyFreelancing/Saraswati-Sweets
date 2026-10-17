@@ -36,6 +36,20 @@ function setCached<T>(key: string, data: T): void {
 export const catalogService = {
   isLive: () => isSupabaseConfigured(),
 
+  clearProductCache(): void {
+    for (const key of Object.keys(memCache)) {
+      if (key.startsWith('products') || key.startsWith('categories')) {
+        delete memCache[key];
+      }
+    }
+  },
+
+  clearCache(): void {
+    for (const key of Object.keys(memCache)) {
+      delete memCache[key];
+    }
+  },
+
   async getCategories(): Promise<Category[]> {
     const cacheKey = 'categories';
     const cached = getCached<Category[]>(cacheKey);

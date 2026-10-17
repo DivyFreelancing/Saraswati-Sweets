@@ -437,6 +437,22 @@ router.post('/products', requireRole(['ADMIN']), async (req: AuthenticatedReques
     return;
   }
 
+  const parsedShelfLife = Number(shelf_life_days);
+  if (
+    shelf_life_days === undefined ||
+    shelf_life_days === null ||
+    shelf_life_days === '' ||
+    isNaN(parsedShelfLife) ||
+    !Number.isInteger(parsedShelfLife) ||
+    parsedShelfLife <= 0
+  ) {
+    res.status(400).json({
+      error: 'INVALID_SHELF_LIFE',
+      message: 'Shelf life must be a positive whole number of days (greater than 0).'
+    });
+    return;
+  }
+
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
   const id = randomUUID();
   const finalImageUrl = image_url || 'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=800&q=80';
@@ -449,7 +465,7 @@ router.post('/products', requireRole(['ADMIN']), async (req: AuthenticatedReques
     description: String(description || '').trim(),
     category_id,
     is_pure_ghee: Boolean(pure_ghee),
-    shelf_life_days: Number(shelf_life_days) || 7,
+    shelf_life_days: parsedShelfLife,
     is_active: true,
     ingredients: String(ingredients || '').trim(),
     is_bestseller: Boolean(is_bestseller),
@@ -457,26 +473,28 @@ router.post('/products', requireRole(['ADMIN']), async (req: AuthenticatedReques
     
   };
 
-  const { error: prodErr } = await supabaseServer!.from('products').insert([productRow]);
-  if (prodErr) {
-    console.error('[Admin] Product insert failed:', prodErr);
-    res.status(500).json({ error: 'DB_WRITE_FAILED', message: prodErr.message });
-    return;
-  }
+  if (supabaseServer) {
+    const { error: prodErr } = await supabaseServer.from('products').insert([productRow]);
+    if (prodErr) {
+      console.error('[Admin] Product insert failed:', prodErr);
+      res.status(500).json({ error: 'DB_WRITE_FAILED', message: prodErr.message });
+      return;
+    }
 
-  // Write primary image to product_images table
-  const imageId = randomUUID();
-  const { error: imgErr } = await supabaseServer!.from('product_images').insert([{
-    id: imageId,
-    product_id: id,
-    image_url: finalImageUrl,
-    is_primary: true,
-    display_order: 0,
-  }]);
-  if (imgErr) {
-    console.error('[Admin] Product image insert failed:', imgErr);
-    res.status(500).json({ error: 'DB_WRITE_FAILED', message: 'Failed to save product image: ' + imgErr.message });
-    return;
+    // Write primary image to product_images table
+    const imageId = randomUUID();
+    const { error: imgErr } = await supabaseServer.from('product_images').insert([{
+      id: imageId,
+      product_id: id,
+      image_url: finalImageUrl,
+      is_primary: true,
+      display_order: 0,
+    }]);
+    if (imgErr) {
+      console.error('[Admin] Product image insert failed:', imgErr);
+      res.status(500).json({ error: 'DB_WRITE_FAILED', message: 'Failed to save product image: ' + imgErr.message });
+      return;
+    }
   }
 
   // Write variants to product_variants table
@@ -495,11 +513,17 @@ router.post('/products', requireRole(['ADMIN']), async (req: AuthenticatedReques
         stock_quantity: Number(v.stockQuantity) || 50,
         display_order: idx,
       };
-      const { error: varErr } = await supabaseServer!.from('product_variants').insert([variantRow]);
-      if (varErr) {
-        console.error('[Admin] Variant insert failed:', varErr);
-        // Don't fail the whole request; product is already created
-      } else {
+      let insertFailed = false;
+      if (supabaseServer) {
+        const { error: varErr } = await supabaseServer.from('product_variants').insert([variantRow]);
+        if (varErr) {
+          console.error('[Admin] Variant insert failed:', varErr);
+          insertFailed = true;
+          // Don't fail the whole request; product is already created
+        }
+      }
+
+      if (!insertFailed) {
         const memVariant: MasterVariant = {
           id: vId,
           productId: id,
@@ -558,65 +582,90 @@ router.put('/products/:id', requireRole(['ADMIN']), async (req: AuthenticatedReq
   if (description !== undefined) updates.description = String(description).trim();
   if (category_id !== undefined) updates.category_id = category_id;
   if (pure_ghee !== undefined) updates.is_pure_ghee = Boolean(pure_ghee);
-  if (shelf_life_days !== undefined) updates.shelf_life_days = Number(shelf_life_days);
+  if (shelf_life_days !== undefined) {
+    const parsedShelfLife = Number(shelf_life_days);
+    if (
+      shelf_life_days === null ||
+      shelf_life_days === '' ||
+      isNaN(parsedShelfLife) ||
+      !Number.isInteger(parsedShelfLife) ||
+      parsedShelfLife <= 0
+    ) {
+      res.status(400).json({
+        error: 'INVALID_SHELF_LIFE',
+        message: 'Shelf life must be a positive whole number of days (greater than 0).'
+      });
+      return;
+    }
+    updates.shelf_life_days = parsedShelfLife;
+  }
   if (is_active !== undefined) updates.is_active = Boolean(is_active);
   if (ingredients !== undefined) updates.ingredients = String(ingredients).trim();
   if (is_bestseller !== undefined) updates.is_bestseller = Boolean(is_bestseller);
   if (is_featured !== undefined) updates.is_featured = Boolean(is_featured);
   
 
-  const { error } = await supabaseServer!.from('products').update(updates).eq('id', id);
-  if (error) {
-    console.error('[Admin] Product update failed:', error);
-    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
-    return;
-  }
-
-  // Handle image update separately in product_images table
-  if (image_url !== undefined) {
-    const { data: existingImgs } = await supabaseServer!
-      .from('product_images')
-      .select('id')
-      .eq('product_id', id)
-      .eq('is_primary', true);
-
-    let imgErr: any = null;
-    if (existingImgs && existingImgs.length > 0) {
-      const primaryId = existingImgs[0].id;
-      const { error: updateErr } = await supabaseServer!
-        .from('product_images')
-        .update({
-          image_url: image_url,
-          display_order: 0,
-        })
-        .eq('id', primaryId);
-      imgErr = updateErr;
-
-      // Safely prune duplicate primary images only after update succeeds
-      if (!updateErr && existingImgs.length > 1) {
-        const extraIds = existingImgs.slice(1).map((x: any) => x.id);
-        await supabaseServer!.from('product_images').delete().in('id', extraIds);
-      }
-    } else {
-      const { error: insertErr } = await supabaseServer!
-        .from('product_images')
-        .insert([{
-          id: randomUUID(),
-          product_id: id,
-          image_url: image_url,
-          is_primary: true,
-          display_order: 0,
-        }]);
-      imgErr = insertErr;
-    }
-
-    if (imgErr) {
-      console.error('[Admin] Product image update failed:', imgErr);
-      res.status(500).json({ error: 'DB_WRITE_FAILED', message: 'Failed to save product image: ' + imgErr.message });
+  if (supabaseServer) {
+    const { error } = await supabaseServer.from('products').update(updates).eq('id', id);
+    if (error) {
+      console.error('[Admin] Product update failed:', error);
+      res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
       return;
     }
 
-    // Update image on all variants too
+    // Handle image update separately in product_images table
+    if (image_url !== undefined) {
+      const { data: existingImgs } = await supabaseServer
+        .from('product_images')
+        .select('id')
+        .eq('product_id', id)
+        .eq('is_primary', true);
+
+      let imgErr: any = null;
+      if (existingImgs && existingImgs.length > 0) {
+        const primaryId = existingImgs[0].id;
+        const { error: updateErr } = await supabaseServer
+          .from('product_images')
+          .update({
+            image_url: image_url,
+            display_order: 0,
+          })
+          .eq('id', primaryId);
+        imgErr = updateErr;
+
+        // Safely prune duplicate primary images only after update succeeds
+        if (!updateErr && existingImgs.length > 1) {
+          const extraIds = existingImgs.slice(1).map((x: any) => x.id);
+          await supabaseServer.from('product_images').delete().in('id', extraIds);
+        }
+      } else {
+        const { error: insertErr } = await supabaseServer
+          .from('product_images')
+          .insert([{
+            id: randomUUID(),
+            product_id: id,
+            image_url: image_url,
+            is_primary: true,
+            display_order: 0,
+          }]);
+        imgErr = insertErr;
+      }
+
+      if (imgErr) {
+        console.error('[Admin] Product image update failed:', imgErr);
+        res.status(500).json({ error: 'DB_WRITE_FAILED', message: 'Failed to save product image: ' + imgErr.message });
+        return;
+      }
+
+      // Update image on all variants too
+      Array.from(inMemoryStore.variants.values())
+        .filter((v) => v.productId === id)
+        .forEach((v) => {
+          v.imageUrl = image_url;
+          Map.prototype.set.call(inMemoryStore.variants, v.id, v);
+        });
+    }
+  } else if (image_url !== undefined) {
     Array.from(inMemoryStore.variants.values())
       .filter((v) => v.productId === id)
       .forEach((v) => {
@@ -643,6 +692,7 @@ router.put('/products/:id', requireRole(['ADMIN']), async (req: AuthenticatedReq
     name: updates.name,
     is_active: updates.is_active,
     category_id: updates.category_id,
+    shelf_life_days: updates.shelf_life_days,
   });
   res.json({ success: true, product: prod });
   
@@ -659,18 +709,20 @@ router.delete('/products/:id', requireRole(['ADMIN']), async (req: Authenticated
   }
 
   // Delete variants first (FK), then product
-  const { error: varErr } = await supabaseServer!.from('product_variants').delete().eq('product_id', id);
-  if (varErr) {
-    console.error('[Admin] Variant delete failed:', varErr);
-    res.status(500).json({ error: 'DB_WRITE_FAILED', message: varErr.message });
-    return;
-  }
+  if (supabaseServer) {
+    const { error: varErr } = await supabaseServer.from('product_variants').delete().eq('product_id', id);
+    if (varErr) {
+      console.error('[Admin] Variant delete failed:', varErr);
+      res.status(500).json({ error: 'DB_WRITE_FAILED', message: varErr.message });
+      return;
+    }
 
-  const { error: prodErr } = await supabaseServer!.from('products').delete().eq('id', id);
-  if (prodErr) {
-    console.error('[Admin] Product delete failed:', prodErr);
-    res.status(500).json({ error: 'DB_WRITE_FAILED', message: prodErr.message });
-    return;
+    const { error: prodErr } = await supabaseServer.from('products').delete().eq('id', id);
+    if (prodErr) {
+      console.error('[Admin] Product delete failed:', prodErr);
+      res.status(500).json({ error: 'DB_WRITE_FAILED', message: prodErr.message });
+      return;
+    }
   }
 
   // Update cache

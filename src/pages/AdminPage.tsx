@@ -54,6 +54,7 @@ import { AdminNotificationsTab } from '../components/admin/AdminNotificationsTab
 import { AdminCouponUsageModal } from '../components/admin/AdminCouponUsageModal';
 import { StoreOperationsCard } from '../components/admin/StoreOperationsCard';
 import { ProductImagePlaceholder } from '../components/common/ProductImagePlaceholder';
+import { catalogService } from '../services/catalogService';
 import {
   isOrderSoundMuted,
   setOrderSoundMuted,
@@ -827,6 +828,19 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       return;
     }
 
+    const shelfLife = Number(productForm.shelf_life_days);
+    if (
+      productForm.shelf_life_days === undefined ||
+      productForm.shelf_life_days === null ||
+      productForm.shelf_life_days === 0 ||
+      isNaN(shelfLife) ||
+      !Number.isInteger(shelfLife) ||
+      shelfLife <= 0
+    ) {
+      showToast('Please enter a valid shelf life in days (positive whole number greater than 0).', 'error');
+      return;
+    }
+
     try {
       const isEdit = Boolean(productForm.id);
       const url = isEdit ? `/api/admin/products/${productForm.id}` : '/api/admin/products';
@@ -838,7 +852,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
         description: productForm.description,
         image_url: productForm.image_url,
         pure_ghee: productForm.pure_ghee,
-        shelf_life_days: productForm.shelf_life_days,
+        shelf_life_days: shelfLife,
         ingredients: productForm.ingredients,
         ...(!isEdit
           ? {
@@ -868,6 +882,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       if (res.ok) {
         showToast(isEdit ? 'Product updated!' : 'Mithai added to catalog!', 'success');
         setIsProductModalOpen(false);
+        catalogService.clearProductCache();
         loadAllAdminData(true);
       } else {
         showToast(data.message || 'Failed to save product', 'error');
@@ -2060,7 +2075,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                                 description: prod.description,
                                 image_url: prod.image_url,
                                 pure_ghee: prod.pure_ghee,
-                                shelf_life_days: prod.shelf_life_days,
+                                shelf_life_days: Number(prod.shelf_life_days) > 0 ? Number(prod.shelf_life_days) : 7,
                                 ingredients: prod.ingredients,
                                 variantLabel: '',
                                 variantPrice: 0,
@@ -2967,21 +2982,48 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
-                  Category *
-                </label>
-                <select
-                  value={productForm.category_id}
-                  onChange={(e) => setProductForm({ ...productForm, category_id: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs font-medium text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
-                >
-                  {categories.filter((c) => c.is_active !== false).map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
+                    Category *
+                  </label>
+                  <select
+                    value={productForm.category_id}
+                    onChange={(e) => setProductForm({ ...productForm, category_id: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs font-medium text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
+                  >
+                    {categories.filter((c) => c.is_active !== false).map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-[#241C17] mb-1">
+                    Shelf Life (Days) *
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    required
+                    placeholder="15"
+                    value={productForm.shelf_life_days === 0 ? '' : productForm.shelf_life_days}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setProductForm({
+                        ...productForm,
+                        shelf_life_days: val === '' ? 0 : parseInt(val, 10),
+                      });
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-xs font-medium text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
+                  />
+                  <div className="text-[10px] text-[#6B5F55] mt-0.5">
+                    Enter shelf life in whole days (e.g. 15 or 20)
+                  </div>
+                </div>
               </div>
 
               <div>
