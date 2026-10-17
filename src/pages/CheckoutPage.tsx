@@ -91,6 +91,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
   );
   const [guestPhoneInput, setGuestPhoneInput] = useState('');
   const [isPromptingGuestPhone, setIsPromptingGuestPhone] = useState(false);
+  const [promotionalOptIn, setPromotionalOptIn] = useState(false);
 
   // Helper to generate selectable pickup dates based on advance days
   const getAvailableDates = (advanceDays: number = 3) => {
@@ -396,6 +397,24 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
         setIsPlacingOrder(false);
         return;
       }
+
+      // Record immutable consent and policy acknowledgement
+      try {
+        const authHeaders = await getValidAuthHeaders();
+        fetch('/api/auth/consent-acknowledgement', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
+          body: JSON.stringify({ source: 'CHECKOUT', policy_version: '2026-v1.0' }),
+        }).catch(() => {});
+
+        if (promotionalOptIn) {
+          fetch('/api/auth/preferences', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', ...authHeaders },
+            body: JSON.stringify({ promotional_opt_in: true }),
+          }).catch(() => {});
+        }
+      } catch (_) {}
 
       // If Cash on Delivery, order is confirmed immediately
       if (paymentMethod === 'COD') {
@@ -1475,6 +1494,61 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                 <span className="text-2xl font-display text-[#8A1538] tabular-nums">
                   {formatINR(effectiveTotal)}
                 </span>
+              </div>
+            </div>
+
+            {/* Communication Preferences & Statutory Disclosures (CPA 2019 & DPDP Act 2023) */}
+            <div className="pt-3 pb-1 space-y-2.5 border-t border-[#E8DFD2]">
+              <label className="flex items-start gap-2.5 cursor-pointer text-xs text-[#6B6258] select-none hover:text-[#1F1B16]">
+                <input
+                  type="checkbox"
+                  checked={promotionalOptIn}
+                  onChange={(e) => setPromotionalOptIn(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-[#E8DFD2] text-[#8A1538] focus:ring-[#8A1538] accent-[#8A1538] cursor-pointer shrink-0"
+                />
+                <span>
+                  Receive fresh festival sweet batch announcements &amp; seasonal offers via WhatsApp/SMS (optional).
+                </span>
+              </label>
+
+              <div className="text-[11px] leading-relaxed text-[#6B6258] bg-[#FDFBF7] p-2.5 rounded-xl border border-[#E8DFD2]/60">
+                By placing this order, you agree to our{' '}
+                <a
+                  href="/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#8A1538] underline hover:text-[#5E0D20] font-semibold"
+                >
+                  Terms &amp; Conditions
+                </a>
+                ,{' '}
+                <a
+                  href="/shipping-policy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#8A1538] underline hover:text-[#5E0D20] font-semibold"
+                >
+                  Shipping Policy
+                </a>
+                , and{' '}
+                <a
+                  href="/refund-policy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#8A1538] underline hover:text-[#5E0D20] font-semibold"
+                >
+                  Cancellation &amp; Refund Policy
+                </a>
+                , and acknowledge our{' '}
+                <a
+                  href="/privacy-policy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#8A1538] underline hover:text-[#5E0D20] font-semibold"
+                >
+                  Privacy Policy
+                </a>
+                .
               </div>
             </div>
 

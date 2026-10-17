@@ -173,12 +173,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 <li>
                   <button
                     type="button"
-                    onClick={() =>
-                      openLegal(
-                        'Shipping & Delivery',
-                        'We deliver freshly prepared sweets across Barabanki (PIN codes: 225001, 225002, 225003, 225122) promptly after fresh preparation. A flat delivery fee of ₹50 applies for all orders.'
-                      )
-                    }
+                    onClick={() => onNavigate('/shipping-policy')}
                     className="hover:text-[#7A1129] transition-colors"
                   >
                     Delivery Info & PIN Codes
@@ -342,11 +337,15 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             </div>
 
             {/* Copyright & Legal Links */}
-            <div className="pt-3 text-[11px] sm:text-xs text-[#6E6259] space-y-1">
+            <div className="pt-3 text-[11px] sm:text-xs text-[#6E6259] space-y-1.5">
               <div>
-                All rights reserved © {new Date().getFullYear()} Saraswati Sweets Private Limited · Pure Desi Ghee Mithai Since 1989
+                All rights reserved © {new Date().getFullYear()} {BUSINESS_INFO.legalName} · Pure Desi Ghee Mithai Since {BUSINESS_INFO.establishedYear}
               </div>
-              <div className="flex items-center justify-center gap-4 text-[11px] pt-1">
+              <div className="text-[11px] text-[#8A1538] font-medium flex items-center justify-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-[#2E7D4F]" />
+                <span>FSSAI State License No. <strong>{BUSINESS_INFO.fssaiLicenseNumber}</strong></span>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] pt-1">
                 <button
                   type="button"
                   onClick={() => onNavigate('/privacy-policy')}
@@ -357,28 +356,34 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 <span>·</span>
                 <button
                   type="button"
-                  onClick={() =>
-                    openLegal(
-                      'Terms & Conditions',
-                      'All sweets are prepared fresh in our Barabanki kitchen. Product weights include standard food-grade packaging. Orders are fulfilled promptly via direct local delivery. Prices are inclusive of all local taxes.'
-                    )
-                  }
-                  className="hover:text-[#7A1129] hover:underline"
+                  onClick={() => onNavigate('/terms')}
+                  className="hover:text-[#7A1129] hover:underline font-medium"
                 >
                   Terms & Conditions
                 </button>
                 <span>·</span>
                 <button
                   type="button"
-                  onClick={() =>
-                    openLegal(
-                      'Return Policy',
-                      'Given the perishable nature of fresh traditional Indian sweets, orders may be cancelled up to 1 hour before dispatch. In the rare event of transit damage or quality concern, we provide immediate replacements or full refunds.'
-                    )
-                  }
-                  className="hover:text-[#7A1129] hover:underline"
+                  onClick={() => onNavigate('/shipping-policy')}
+                  className="hover:text-[#7A1129] hover:underline font-medium"
                 >
-                  Return Policy
+                  Shipping & Delivery
+                </button>
+                <span>·</span>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('/refund-policy')}
+                  className="hover:text-[#7A1129] hover:underline font-medium"
+                >
+                  Cancellation & Refund
+                </button>
+                <span>·</span>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('/contact')}
+                  className="hover:text-[#7A1129] hover:underline font-medium"
+                >
+                  Grievance Redressal
                 </button>
                 <span>·</span>
                 <button

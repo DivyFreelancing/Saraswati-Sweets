@@ -78,7 +78,7 @@ export function generateSitemapXml(): string {
     urls.push({ loc, lastmod: formatDate(lastmod) });
   };
 
-  // 1. Core Public Landing Pages
+  // 1. Core Public Landing & Legal Policy Pages
   addUrl('/', null);
   addUrl('/catalog', null);
   addUrl('/categories', null);
@@ -86,6 +86,10 @@ export function generateSitemapXml(): string {
   addUrl('/bulk-enquiry', null);
   addUrl('/contact', null);
   addUrl('/certifications', null);
+  addUrl('/terms', null);
+  addUrl('/shipping-policy', null);
+  addUrl('/refund-policy', null);
+  addUrl('/privacy-policy', null);
 
   // 2. Active Public Categories
   const categories = Array.from(inMemoryStore.categories.values())

@@ -19,6 +19,9 @@ import {
   Mail,
   User,
   Lock,
+  Download,
+  FileText,
+  Bell,
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
@@ -42,6 +45,19 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
   const [profilePhoneInput, setProfilePhoneInput] = useState(user?.phone ? user.phone.replace(/\D/g, '').slice(-10) : '');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileSaveError, setProfileSaveError] = useState('');
+
+  // Communication preferences & Privacy Rights state (DPDP Act 2023 & CPA 2019)
+  const [promotionalOptIn, setPromotionalOptIn] = useState<boolean>(false);
+  const [isUpdatingPreferences, setIsUpdatingPreferences] = useState(false);
+  const [isExportingData, setIsExportingData] = useState(false);
+
+  // Privacy Request Modal state
+  const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
+  const [privacyRequestType, setPrivacyRequestType] = useState<string>('DATA_CORRECTION');
+  const [privacyDetails, setPrivacyDetails] = useState('');
+  const [isSubmittingPrivacy, setIsSubmittingPrivacy] = useState(false);
+  const [privacySuccessTicket, setPrivacySuccessTicket] = useState<string | null>(null);
+  const [privacyError, setPrivacyError] = useState('');
 
   // Authenticated email state (retrieved from user session or supabase auth)
   const [authEmail, setAuthEmail] = useState<string | null>(user?.email || null);
@@ -121,6 +137,116 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
 
     loadOrders();
   }, [isAuthenticated, getAuthHeaders]);
+
+  // Load communication preferences on mount
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let isMounted = true;
+    async function fetchPreferences() {
+      try {
+        const res = await fetch('/api/auth/preferences', {
+          headers: getAuthHeaders(),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && typeof data.promotional_opt_in === 'boolean') {
+            setPromotionalOptIn(data.promotional_opt_in);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load preferences:', e);
+      }
+    }
+    fetchPreferences();
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthenticated, getAuthHeaders]);
+
+  const handleTogglePromotional = async (newValue: boolean) => {
+    setIsUpdatingPreferences(true);
+    try {
+      const res = await fetch('/api/auth/preferences', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({ promotional_opt_in: newValue }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPromotionalOptIn(newValue);
+      } else {
+        console.warn('Failed to update preference:', data.message);
+      }
+    } catch (err) {
+      console.warn('Network error updating preference:', err);
+    } finally {
+      setIsUpdatingPreferences(false);
+    }
+  };
+
+  const handleExportData = async () => {
+    setIsExportingData(true);
+    try {
+      const res = await fetch('/api/auth/export-my-data', {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `saraswati-sweets-personal-data-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        const data = await res.json();
+        alert(data.message || 'Failed to generate data export.');
+      }
+    } catch (err) {
+      alert('Network error while exporting data.');
+    } finally {
+      setIsExportingData(false);
+    }
+  };
+
+  const handleSubmitPrivacyRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!privacyDetails.trim()) {
+      setPrivacyError('Please describe your specific request or grievance.');
+      return;
+    }
+    setIsSubmittingPrivacy(true);
+    setPrivacyError('');
+    try {
+      const res = await fetch('/api/auth/privacy-request', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          request_type: privacyRequestType,
+          details: privacyDetails.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setPrivacySuccessTicket(data.ticketNumber);
+        setPrivacyDetails('');
+      } else {
+        setPrivacyError(data.message || 'Failed to submit privacy request.');
+      }
+    } catch (err: any) {
+      setPrivacyError(err.message || 'Network error while submitting request.');
+    } finally {
+      setIsSubmittingPrivacy(false);
+    }
+  };
 
   // If not authenticated, prompt login
   if (!isAuthenticated) {
@@ -610,6 +736,114 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
         )}
       </div>
 
+      {/* 4. Communication Preferences & Privacy Rights (DPDP Act, 2023 & Consumer Protection Rules) */}
+      <div className="bg-white rounded-2xl border border-[#E8DFD2] p-6 sm:p-7 space-y-6 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E8DFD2]/70 pb-4">
+          <div className="space-y-1">
+            <h2 className="font-display font-bold text-xl sm:text-2xl text-[#1F1B16] flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6 text-[#7A1129]" />
+              <span>Communication Preferences &amp; Privacy Rights</span>
+            </h2>
+            <p className="text-xs sm:text-sm text-[#6B6258]">
+              Manage promotional messages and exercise statutory rights under the Digital Personal Data Protection Act, 2023.
+            </p>
+          </div>
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full bg-[#FAF4DE] text-[#7A1129] border border-[#C79A3D]/40 self-start sm:self-auto">
+            DPDP Compliant
+          </span>
+        </div>
+
+        {/* Section A: Communication Preferences */}
+        <div className="p-4 rounded-xl bg-[#FBF7F1] border border-[#E8DFD2] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Bell className="w-4 h-4 text-[#7A1129]" />
+              <span className="font-bold text-sm text-[#1F1B16]">
+                Festive Batch Announcements &amp; Offers
+              </span>
+            </div>
+            <p className="text-xs text-[#6B6258] max-w-xl">
+              Receive updates on seasonal fresh batches (e.g. Holi Gujiya, Diwali Kaju Katli) and exclusive coupon discounts via WhatsApp and Email. Essential transactional receipts and delivery alerts are always delivered.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            disabled={isUpdatingPreferences}
+            onClick={() => handleTogglePromotional(!promotionalOptIn)}
+            className={`min-h-[40px] px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
+              promotionalOptIn
+                ? 'bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs'
+                : 'bg-stone-200 hover:bg-stone-300 text-stone-700'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${promotionalOptIn ? 'bg-emerald-300' : 'bg-stone-400'}`} />
+            <span>
+              {isUpdatingPreferences
+                ? 'Updating...'
+                : promotionalOptIn
+                ? 'Subscribed (Opted In)'
+                : 'Disabled (Opted Out)'}
+            </span>
+          </button>
+        </div>
+
+        {/* Section B: Data Principal Rights Desk */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Card 1: Right to Access / Export */}
+          <div className="p-4 rounded-xl border border-[#E8DFD2] bg-white space-y-3 flex flex-col justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 font-bold text-sm text-[#1F1B16]">
+                <Download className="w-4 h-4 text-[#7A1129]" />
+                <span>Right to Access &amp; Portability</span>
+              </div>
+              <p className="text-xs text-[#6B6258] leading-relaxed">
+                Download a machine-readable JSON copy of your personal data, saved addresses, order history, and recorded consent logs.
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={isExportingData}
+              onClick={handleExportData}
+              className="w-full min-h-[40px] px-4 py-2 rounded-xl bg-[#FAF4DE] hover:bg-[#F5EAD9] border border-[#C79A3D]/50 text-[#7A1129] font-bold text-xs transition-colors flex items-center justify-center gap-2"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>{isExportingData ? 'Generating Export...' : 'Download My Personal Data'}</span>
+            </button>
+          </div>
+
+          {/* Card 2: Right to Correction & Erasure / Grievance */}
+          <div className="p-4 rounded-xl border border-[#E8DFD2] bg-white space-y-3 flex flex-col justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 font-bold text-sm text-[#1F1B16]">
+                <FileText className="w-4 h-4 text-[#7A1129]" />
+                <span>Correction, Erasure &amp; Grievance</span>
+              </div>
+              <p className="text-xs text-[#6B6258] leading-relaxed">
+                Submit a formal statutory request to update personal details, request profile erasure, or submit a complaint to our Grievance Officer.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setPrivacySuccessTicket(null);
+                setPrivacyError('');
+                setIsPrivacyModalOpen(true);
+              }}
+              className="w-full min-h-[40px] px-4 py-2 rounded-xl bg-[#7A1129] hover:bg-[#5E0D20] text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-xs"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Submit Privacy / Grievance Request</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Section C: Statutory Redressal Timelines Notice */}
+        <div className="p-3.5 rounded-xl bg-[#FDFBF7] border border-[#E8DFD2]/70 text-[11px] text-[#6E6259] leading-relaxed">
+          <strong className="text-[#1F1B16]">Statutory Grievance Redressal (CPA 2019 &amp; DPDP Act):</strong> Grievance Officer: <strong className="text-[#1F1B16]">Mr. Ram Prakash Srivastava</strong> | Email: <a href="mailto:saraswatisweetsbarabanki@gmail.com" className="text-[#7A1129] underline font-medium">saraswatisweetsbarabanki@gmail.com</a> | Helpline: <a href="tel:+919161110030" className="text-[#7A1129] underline font-medium">+91 91611 10030</a>. All inquiries acknowledged within 48 hours and redressed within 30 days.
+        </div>
+      </div>
+
       {/* 4. Address Modal (Add / Edit) */}
       {isAddressModalOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -903,6 +1137,122 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Privacy Request Modal (DPDP Act Statutory Desk) */}
+      {isPrivacyModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div
+            onClick={() => setIsPrivacyModalOpen(false)}
+            className="fixed inset-0 bg-black/50 backdrop-blur-xs"
+          />
+
+          <div className="min-h-full flex items-center justify-center p-4">
+            <div className="relative w-full max-w-lg bg-white rounded-2xl border border-[#E8DFD2] shadow-2xl p-6 sm:p-8 space-y-5 animate-in zoom-in-95 duration-150">
+              <button
+                type="button"
+                onClick={() => setIsPrivacyModalOpen(false)}
+                className="absolute top-4 right-4 text-[#6B6258] hover:text-[#1F1B16] p-1.5"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="space-y-1">
+                <h2 className="font-display font-bold text-xl text-[#1F1B16] flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-[#7A1129]" />
+                  <span>Privacy Request &amp; Grievance Desk</span>
+                </h2>
+                <p className="text-xs text-[#6B6258]">
+                  Submit your request under Section 11-13 of the DPDP Act, 2023. Our designated Grievance Officer will review your submission.
+                </p>
+              </div>
+
+              {privacySuccessTicket ? (
+                <div className="p-5 rounded-2xl bg-[#FAF4DE] border border-[#C79A3D]/60 space-y-3 text-center">
+                  <CheckCircle2 className="w-10 h-10 text-emerald-700 mx-auto" />
+                  <h3 className="font-bold text-base text-[#1F1B16]">
+                    Privacy Request Logged
+                  </h3>
+                  <p className="text-xs text-[#6B6258]">
+                    Your request has been officially recorded with Ticket ID:
+                  </p>
+                  <div className="font-mono font-bold text-lg text-[#7A1129] py-1 bg-white rounded-lg border border-[#E8DFD2]">
+                    {privacySuccessTicket}
+                  </div>
+                  <p className="text-[11px] text-[#6B6258] leading-relaxed">
+                    Our Grievance Officer will formally acknowledge this ticket within 48 hours to <strong>{user?.email || 'your account email'}</strong> and provide final resolution within 30 days.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setIsPrivacyModalOpen(false)}
+                    className="w-full py-2.5 rounded-xl bg-[#7A1129] hover:bg-[#5E0D20] text-white text-xs font-bold transition-colors mt-2"
+                  >
+                    Close Window
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleSubmitPrivacyRequest} className="space-y-4">
+                  {privacyError && (
+                    <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 font-medium">
+                      {privacyError}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1.5">
+                      Statutory Request Category *
+                    </label>
+                    <select
+                      value={privacyRequestType}
+                      onChange={(e) => setPrivacyRequestType(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-white text-sm font-medium focus:outline-none focus:border-[#7A1129]"
+                    >
+                      <option value="DATA_CORRECTION">Data Correction / Update of inaccurate records</option>
+                      <option value="DATA_ERASURE">Data Erasure / Account Deletion Request</option>
+                      <option value="CONSENT_WITHDRAWAL">Revocation / Withdrawal of Processing Consent</option>
+                      <option value="DATA_ACCESS">Data Portability &amp; Personal Data Summary</option>
+                      <option value="GRIEVANCE">Consumer Protection / Privacy Grievance</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#1F1B16] mb-1.5">
+                      Request Details &amp; Specifics *
+                    </label>
+                    <textarea
+                      required
+                      rows={4}
+                      value={privacyDetails}
+                      onChange={(e) => setPrivacyDetails(e.target.value)}
+                      placeholder="Please specify what data needs correction, why erasure is requested, or describe your grievance in detail..."
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DFD2] bg-[#FBF7F1] text-xs focus:outline-none focus:border-[#7A1129]"
+                    />
+                    <span className="text-[11px] text-[#6B6258] mt-1 block">
+                      Note: Per Indian tax and GST laws, transaction records for fulfilled orders cannot be deleted and will be archived per statutory financial retention requirements.
+                    </span>
+                  </div>
+
+                  <div className="pt-2 flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setIsPrivacyModalOpen(false)}
+                      className="flex-1 min-h-[44px] rounded-xl border border-[#E8DFD2] hover:bg-[#FAF4DE] text-xs font-bold text-[#6B6258] transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmittingPrivacy}
+                      className="flex-1 min-h-[44px] rounded-xl bg-[#7A1129] hover:bg-[#5E0D20] text-white text-xs font-bold transition-colors shadow-xs disabled:opacity-50"
+                    >
+                      {isSubmittingPrivacy ? 'Logging Request...' : 'Submit Official Request'}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         </div>

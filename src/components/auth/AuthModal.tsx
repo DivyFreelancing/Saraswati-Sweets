@@ -247,6 +247,27 @@ export const AuthModal: React.FC = () => {
                     <ShieldCheck className="w-3.5 h-3.5 text-[#2E7D4F]" />
                     <span>Your cart & addresses will automatically sync securely.</span>
                   </div>
+                  <p className="text-[11px] leading-relaxed text-[#6E6259]">
+                    By continuing, you agree to our{' '}
+                    <a
+                      href="/terms"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#7A1129] font-medium underline hover:text-[#5E0D20]"
+                    >
+                      Terms &amp; Conditions
+                    </a>{' '}
+                    and acknowledge our{' '}
+                    <a
+                      href="/privacy-policy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#7A1129] font-medium underline hover:text-[#5E0D20]"
+                    >
+                      Privacy Policy
+                    </a>
+                    .
+                  </p>
                 </div>
               </form>
             )}

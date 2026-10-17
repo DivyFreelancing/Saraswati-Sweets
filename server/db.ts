@@ -477,8 +477,37 @@ export interface ServerProfile {
   full_name?: string;
   role: 'CUSTOMER' | 'STAFF' | 'ADMIN';
   promotional_emails_opt_in?: boolean;
+  notif_promotional_opt_in?: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface ServerConsentLog {
+  id: string;
+  userId: string;
+  consentType: 'TERMS_AND_PRIVACY_ACK' | 'PROMOTIONAL_OPT_IN' | 'PROMOTIONAL_OPT_OUT' | 'DATA_EXPORT_REQUEST' | 'PRIVACY_REQUEST';
+  policyVersion: string;
+  status: 'ACCEPTED' | 'WITHDRAWN' | 'SUBMITTED';
+  source: string; // e.g. 'CHECKOUT', 'REGISTRATION', 'PROFILE_PREFERENCES', 'PRIVACY_DESK'
+  ipAddress?: string;
+  userAgent?: string;
+  metadata?: Record<string, any>;
+  createdAt: string;
+}
+
+export interface ServerPrivacyRequest {
+  id: string;
+  ticketNumber: string;
+  userId: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string;
+  requestType: 'DATA_ACCESS' | 'DATA_CORRECTION' | 'DATA_ERASURE' | 'CONSENT_WITHDRAWAL' | 'GRIEVANCE';
+  details: string;
+  status: 'RECEIVED' | 'IN_REVIEW' | 'RESOLVED' | 'REJECTED';
+  resolutionNotes?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ServerAddress {
@@ -1216,7 +1245,88 @@ export const inMemoryStore = {
   giftHampers: new Map<any, any>(),
   bulkEnquiries: new Map<any, any>(),
   notifications: [] as ServerNotification[],
+  consentLogs: [] as ServerConsentLog[],
+  privacyRequests: new Map<string, ServerPrivacyRequest>(),
 };
+
+/**
+ * Creates an authoritative server-side consent audit record (DPDP Act 2023 & Consumer Protection)
+ */
+export async function logConsentRecord(entry: {
+  userId: string;
+  consentType: ServerConsentLog['consentType'];
+  policyVersion: string;
+  status: 'ACCEPTED' | 'WITHDRAWN' | 'SUBMITTED';
+  source: string;
+  ipAddress?: string;
+  userAgent?: string;
+  metadata?: Record<string, any>;
+}): Promise<ServerConsentLog> {
+  const log: ServerConsentLog = {
+    id: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
+    ...entry,
+  };
+  inMemoryStore.consentLogs.push(log);
+
+  if (isLiveSupabase && supabaseServer) {
+    try {
+      await supabaseServer.from('consent_logs').insert([{
+        id: log.id,
+        user_id: log.userId,
+        consent_type: log.consentType,
+        policy_version: log.policyVersion,
+        status: log.status,
+        source: log.source,
+        ip_address: log.ipAddress || null,
+        user_agent: log.userAgent ? log.userAgent.slice(0, 500) : null,
+        metadata: log.metadata || null,
+        created_at: log.createdAt,
+      }]);
+    } catch (err) {
+      console.warn('[ConsentAudit] Supabase consent_logs insert warning:', err);
+    }
+  }
+
+  return log;
+}
+
+/**
+ * Records a customer privacy or grievance request with an authoritative ticket number
+ */
+export async function recordPrivacyRequest(entry: {
+  userId: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string;
+  requestType: ServerPrivacyRequest['requestType'];
+  details: string;
+}): Promise<ServerPrivacyRequest> {
+  const now = new Date().toISOString();
+  const ticketNumber = `SS-PR-${Date.now().toString(36).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
+  const req: ServerPrivacyRequest = {
+    id: crypto.randomUUID(),
+    ticketNumber,
+    status: 'RECEIVED',
+    createdAt: now,
+    updatedAt: now,
+    ...entry,
+  };
+
+  inMemoryStore.privacyRequests.set(req.id, req);
+
+  // Also log the submission in the consent audit trail
+  await logConsentRecord({
+    userId: entry.userId,
+    consentType: 'PRIVACY_REQUEST',
+    policyVersion: '2026-v1.0',
+    status: 'SUBMITTED',
+    source: 'PRIVACY_REQUEST_DESK',
+    metadata: { ticketNumber, requestType: entry.requestType },
+  });
+
+  return req;
+}
 
 /**
  * Validates a coupon server-side against validity dates, min order amount,

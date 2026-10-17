@@ -1,7 +1,16 @@
 import { randomUUID } from 'crypto';
 import { Router, Response } from 'express';
 import { AuthenticatedRequest, requireAuth } from '../authMiddleware';
-import { supabaseServer, isLiveSupabase, inMemoryStore, ServerProfile } from '../db';
+import {
+  supabaseServer,
+  isLiveSupabase,
+  inMemoryStore,
+  ServerProfile,
+  logConsentRecord,
+  recordPrivacyRequest,
+  ServerAddress,
+  ServerOrder,
+} from '../db';
 
 const router = Router();
 
@@ -263,6 +272,271 @@ router.post('/sync', requireAuth, async (req: AuthenticatedRequest, res: Respons
   res.json({ success: true, profile: fallbackProfile });
 });
 
+/**
+ * GET /api/auth/preferences - Get communication & consent preferences (DPDP Act & CCPA)
+ */
+router.get('/preferences', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user!.id;
+  const user = inMemoryStore.profiles.get(userId) || req.user!;
 
+  let optIn = false;
+  if (user.notif_promotional_opt_in !== undefined) {
+    optIn = Boolean(user.notif_promotional_opt_in);
+  } else if (user.promotional_emails_opt_in !== undefined) {
+    optIn = Boolean(user.promotional_emails_opt_in);
+  }
+
+  // If live Supabase, read latest row
+  if (isLiveSupabase && supabaseServer) {
+    try {
+      const { data } = await supabaseServer
+        .from('profiles')
+        .select('notif_promotional_opt_in')
+        .eq('id', userId)
+        .maybeSingle();
+      if (data && data.notif_promotional_opt_in !== undefined) {
+        optIn = Boolean(data.notif_promotional_opt_in);
+      }
+    } catch (e) {
+      console.warn('[Preferences] Supabase fetch warning:', e);
+    }
+  }
+
+  // Retrieve user's consent history
+  const userConsents = inMemoryStore.consentLogs
+    .filter((l) => l.userId === userId)
+    .slice(-10);
+
+  res.json({
+    success: true,
+    promotional_opt_in: optIn,
+    consents: userConsents,
+  });
+});
+
+/**
+ * PUT /api/auth/preferences - Update communication preferences with server-side consent audit log
+ */
+router.put('/preferences', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user!.id;
+  const { promotional_opt_in } = req.body;
+
+  if (typeof promotional_opt_in !== 'boolean') {
+    res.status(400).json({
+      error: 'INVALID_PREFERENCE',
+      message: 'promotional_opt_in must be a boolean (true or false).',
+    });
+    return;
+  }
+
+  const nowIso = new Date().toISOString();
+
+  // Update in-memory profile
+  const user = inMemoryStore.profiles.get(userId) || req.user!;
+  user.notif_promotional_opt_in = promotional_opt_in;
+  user.promotional_emails_opt_in = promotional_opt_in;
+  user.updated_at = nowIso;
+  inMemoryStore.profiles.set(userId, user);
+
+  // If live Supabase, persist to database
+  if (isLiveSupabase && supabaseServer) {
+    try {
+      await supabaseServer
+        .from('profiles')
+        .update({
+          notif_promotional_opt_in: promotional_opt_in,
+          updated_at: nowIso,
+        })
+        .eq('id', userId);
+    } catch (e) {
+      console.warn('[Preferences] Supabase update warning:', e);
+    }
+  }
+
+  // Create immutable server-side audit log
+  await logConsentRecord({
+    userId,
+    consentType: promotional_opt_in ? 'PROMOTIONAL_OPT_IN' : 'PROMOTIONAL_OPT_OUT',
+    policyVersion: '2026-v1.0',
+    status: promotional_opt_in ? 'ACCEPTED' : 'WITHDRAWN',
+    source: 'PROFILE_PREFERENCES',
+    ipAddress: req.ip,
+    userAgent: req.headers['user-agent'],
+    metadata: { timestamp: nowIso },
+  });
+
+  res.json({
+    success: true,
+    promotional_opt_in,
+    message: promotional_opt_in
+      ? 'Promotional notifications enabled. You can withdraw consent at any time.'
+      : 'Promotional notifications disabled. Essential order notifications will still be delivered.',
+  });
+});
+
+/**
+ * POST /api/auth/consent-acknowledgement - Authoritatively records user acceptance of Terms & Privacy
+ */
+router.post('/consent-acknowledgement', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user!.id;
+  const { source, policy_version } = req.body;
+
+  const validSource = typeof source === 'string' && source.trim() ? source.trim() : 'CHECKOUT';
+  const version = typeof policy_version === 'string' && policy_version.trim() ? policy_version.trim() : '2026-v1.0';
+
+  const log = await logConsentRecord({
+    userId,
+    consentType: 'TERMS_AND_PRIVACY_ACK',
+    policyVersion: version,
+    status: 'ACCEPTED',
+    source: validSource,
+    ipAddress: req.ip,
+    userAgent: req.headers['user-agent'],
+  });
+
+  res.json({
+    success: true,
+    consent_id: log.id,
+    policy_version: log.policyVersion,
+    recorded_at: log.createdAt,
+  });
+});
+
+/**
+ * GET /api/auth/export-my-data - Right to Access: download customer's personal data (DPDP Act 2023)
+ */
+router.get('/export-my-data', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user!.id;
+  const profile = inMemoryStore.profiles.get(userId) || req.user!;
+
+  // Fetch addresses belonging strictly to this user
+  let userAddresses = Array.from(inMemoryStore.addresses.values()).filter(
+    (a) => a.profile_id === userId
+  );
+  if (isLiveSupabase && supabaseServer && userAddresses.length === 0) {
+    try {
+      const { data } = await supabaseServer
+        .from('addresses')
+        .select('*')
+        .eq('user_id', userId);
+      if (data) userAddresses = data;
+    } catch (e) {
+      console.warn('[ExportData] Addresses fetch warning:', e);
+    }
+  }
+
+  // Fetch orders belonging strictly to this user
+  let userOrders = Array.from(inMemoryStore.orders.values()).filter(
+    (o) => o.user_id === userId || (o as any).profile_id === userId
+  );
+  if (isLiveSupabase && supabaseServer && userOrders.length === 0) {
+    try {
+      const { data } = await supabaseServer
+        .from('orders')
+        .select('id, order_number, status, total_amount, payment_status, payment_method, placed_at, created_at')
+        .eq('user_id', userId);
+      if (data) userOrders = data as any;
+    } catch (e) {
+      console.warn('[ExportData] Orders fetch warning:', e);
+    }
+  }
+
+  // Log data access request
+  await logConsentRecord({
+    userId,
+    consentType: 'DATA_EXPORT_REQUEST',
+    policyVersion: '2026-v1.0',
+    status: 'SUBMITTED',
+    source: 'PRIVACY_EXPORT_DESK',
+    ipAddress: req.ip,
+    userAgent: req.headers['user-agent'],
+  });
+
+  const exportPayload = {
+    metadata: {
+      dataFiduciary: 'Saraswati Sweets Private Limited',
+      fssaiLicense: '12714022000190',
+      exportTimestamp: new Date().toISOString(),
+      statutoryFramework: 'Digital Personal Data Protection Act, 2023 (Section 11 - Right to Access)',
+    },
+    userProfile: {
+      id: profile.id,
+      fullName: profile.full_name,
+      email: profile.email,
+      phone: profile.phone,
+      role: profile.role,
+      promotionalOptIn: Boolean(profile.notif_promotional_opt_in),
+      accountCreatedAt: profile.created_at,
+    },
+    savedAddresses: userAddresses.map((a) => ({
+      id: a.id,
+      label: a.label,
+      recipientName: a.recipient_name,
+      recipientPhone: a.recipient_phone,
+      streetAddress: a.street_address,
+      landmark: a.landmark,
+      city: a.city,
+      state: a.state,
+      pincode: a.pincode,
+      isDefault: a.is_default,
+    })),
+    ordersHistory: userOrders.map((o) => ({
+      orderNumber: o.order_number,
+      status: o.status,
+      paymentStatus: o.payment_status,
+      paymentMethod: o.payment_method,
+      totalAmount: o.total_amount,
+      placedAt: o.placed_at || o.created_at,
+    })),
+    consentRecords: inMemoryStore.consentLogs.filter((l) => l.userId === userId),
+  };
+
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', `attachment; filename="saraswati-sweets-privacy-data-${userId.slice(0, 8)}.json"`);
+  res.status(200).json(exportPayload);
+});
+
+/**
+ * POST /api/auth/privacy-request - Customer submits data correction, erasure, or grievance request
+ */
+router.post('/privacy-request', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user!.id;
+  const user = inMemoryStore.profiles.get(userId) || req.user!;
+  const { request_type, details } = req.body;
+
+  const validTypes = ['DATA_ACCESS', 'DATA_CORRECTION', 'DATA_ERASURE', 'CONSENT_WITHDRAWAL', 'GRIEVANCE'];
+  if (!request_type || !validTypes.includes(request_type)) {
+    res.status(400).json({
+      error: 'INVALID_REQUEST_TYPE',
+      message: `request_type must be one of: ${validTypes.join(', ')}`,
+    });
+    return;
+  }
+
+  const cleanDetails = typeof details === 'string' ? details.trim() : '';
+  if (!cleanDetails) {
+    res.status(400).json({
+      error: 'DETAILS_REQUIRED',
+      message: 'Please provide specific details explaining your privacy request.',
+    });
+    return;
+  }
+
+  const record = await recordPrivacyRequest({
+    userId,
+    customerName: user.full_name || 'Customer',
+    customerEmail: user.email || 'customer@example.com',
+    customerPhone: user.phone,
+    requestType: request_type,
+    details: cleanDetails,
+  });
+
+  res.status(201).json({
+    success: true,
+    ticketNumber: record.ticketNumber,
+    status: record.status,
+    message: 'Your privacy request has been received. Our Grievance Officer will acknowledge within 48 hours and provide complete resolution within 30 days.',
+  });
+});
 
 export default router;

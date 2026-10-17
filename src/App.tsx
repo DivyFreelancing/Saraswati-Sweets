@@ -32,6 +32,9 @@ const AdminPage = React.lazy(() => import('./pages/AdminPage').then(m => ({ defa
 const AdminLoginPage = React.lazy(() => import('./pages/AdminLoginPage').then(m => ({ default: m.AdminLoginPage })));
 const CertificationsPage = React.lazy(() => import('./pages/CertificationsPage').then(m => ({ default: m.CertificationsPage })));
 const PrivacyPolicyPage = React.lazy(() => import('./pages/PrivacyPolicyPage').then(m => ({ default: m.PrivacyPolicyPage })));
+const TermsPage = React.lazy(() => import('./pages/TermsPage').then(m => ({ default: m.TermsPage })));
+const ShippingPolicyPage = React.lazy(() => import('./pages/ShippingPolicyPage').then(m => ({ default: m.ShippingPolicyPage })));
+const RefundPolicyPage = React.lazy(() => import('./pages/RefundPolicyPage').then(m => ({ default: m.RefundPolicyPage })));
 
 import { Product } from './types/database';
 
@@ -187,6 +190,18 @@ function AppContent() {
       case '/privacy-policy':
       case '/privacy':
         return <PrivacyPolicyPage onNavigate={navigateTo} />;
+      case '/terms':
+      case '/terms-and-conditions':
+      case '/terms-of-service':
+        return <TermsPage onNavigate={navigateTo} />;
+      case '/shipping-policy':
+      case '/shipping-and-delivery':
+      case '/delivery-policy':
+        return <ShippingPolicyPage onNavigate={navigateTo} />;
+      case '/refund-policy':
+      case '/cancellation-and-refund':
+      case '/return-policy':
+        return <RefundPolicyPage onNavigate={navigateTo} />;
       case '/contact':
         return <ContactPage />;
       case '/cart':

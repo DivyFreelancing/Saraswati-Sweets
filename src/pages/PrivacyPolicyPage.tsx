@@ -516,10 +516,10 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({ onNavigate
               <div className="rounded-2xl border-2 border-[#C79A3D]/40 bg-gradient-to-br from-[#FAF4DE]/50 to-white p-6 sm:p-8 space-y-5">
                 <div>
                   <h3 className="font-display font-bold text-lg text-[#1F1B16]">
-                    Saraswati Sweets
+                    {BUSINESS_INFO.legalName} (Saraswati Sweets)
                   </h3>
                   <p className="text-sm text-[#6E6259]">
-                    Barabanki, Uttar Pradesh, India
+                    Data Fiduciary & Consumer Grievance Redressal Desk — Barabanki, Uttar Pradesh, India
                   </p>
                 </div>
 
@@ -527,26 +527,26 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({ onNavigate
                   <div className="space-y-1">
                     <span className="font-bold text-[#1F1B16] flex items-center gap-2">
                       <Mail className="w-4 h-4 text-[#7A1129]" />
-                      Email:
+                      Grievance & Privacy Email:
                     </span>
                     <a
-                      href="mailto:saraswatisweetsbarabanki@gmail.com"
+                      href={`mailto:${BUSINESS_INFO.configuredSupportEmail}`}
                       className="text-[#7A1129] font-medium hover:underline block break-all"
                     >
-                      saraswatisweetsbarabanki@gmail.com
+                      {BUSINESS_INFO.configuredSupportEmail}
                     </a>
                   </div>
 
                   <div className="space-y-1">
                     <span className="font-bold text-[#1F1B16] flex items-center gap-2">
                       <Phone className="w-4 h-4 text-[#7A1129]" />
-                      Phone:
+                      Helpline:
                     </span>
                     <a
-                      href="tel:+919161110030"
+                      href={BUSINESS_INFO.phoneTel}
                       className="text-[#7A1129] font-semibold hover:underline block"
                     >
-                      +919161110030
+                      {BUSINESS_INFO.phone}
                     </a>
                   </div>
                 </div>
@@ -554,10 +554,10 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({ onNavigate
                 <div className="pt-2 border-t border-[#E8DFD2] space-y-1">
                   <span className="font-bold text-[#1F1B16] flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-[#7A1129]" />
-                    Address:
+                    Registered Premises:
                   </span>
                   <p className="text-sm text-[#4A4036] leading-relaxed">
-                    Near Chaya Chauraha, Indira Market, Nawabganj, Barabanki, 225001
+                    {BUSINESS_INFO.address}
                   </p>
                   <div className="pt-2">
                     <a
@@ -570,6 +570,10 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({ onNavigate
                       <ExternalLink className="w-3 h-3" />
                     </a>
                   </div>
+                </div>
+
+                <div className="pt-2 border-t border-[#E8DFD2] text-xs text-[#6E6259] leading-relaxed">
+                  <strong>Statutory Redressal Standards:</strong> In accordance with the Consumer Protection (E-Commerce) Rules, 2020 and the Digital Personal Data Protection Act, 2023, our Grievance Desk will acknowledge your privacy request or grievance within <strong>48 hours</strong> and provide complete resolution within <strong>30 days</strong>.
                 </div>
               </div>
 

@@ -115,6 +115,57 @@ export const ContactPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Statutory Disclosures & Grievance Redressal Desk */}
+      <div id="grievance" className="bg-white rounded-2xl border-2 border-[#C79A3D]/40 p-6 sm:p-8 space-y-6 scroll-mt-24 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E8DFD2] pb-4">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FAF4DE] text-[#7A1129] text-xs font-bold uppercase tracking-wider border border-[#C79A3D]/40 mb-2">
+              <ShieldCheck className="w-3.5 h-3.5 text-[#2E7D4F]" />
+              <span>Consumer Protection Act, 2019 Compliance</span>
+            </div>
+            <h2 className="font-display font-bold text-2xl text-[#1F1B16]">
+              Statutory Business Disclosures & Grievance Desk
+            </h2>
+          </div>
+          <div className="text-xs text-[#6E6259] sm:text-right">
+            <div>FSSAI State License (Form C):</div>
+            <div className="font-mono font-bold text-sm text-[#7A1129]">{BUSINESS_INFO.fssaiLicenseNumber}</div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+          {/* Legal Entity Details */}
+          <div className="space-y-3">
+            <h3 className="font-display font-bold text-base text-[#1F1B16] flex items-center gap-2">
+              <span>Operating Company Identity</span>
+            </h3>
+            <div className="space-y-1.5 text-xs sm:text-sm text-[#4A4036]">
+              <div><strong className="text-[#1F1B16]">Legal Entity:</strong> {BUSINESS_INFO.legalName}</div>
+              <div><strong className="text-[#1F1B16]">Trade Name:</strong> {BUSINESS_INFO.name}</div>
+              <div><strong className="text-[#1F1B16]">Nature of Business:</strong> Manufacturer & Online Retailer of Artisanal Sweets & Namkeen</div>
+              <div><strong className="text-[#1F1B16]">Registered Manufacturing Kitchen:</strong> {BUSINESS_INFO.address}</div>
+              <div><strong className="text-[#1F1B16]">Official Domain:</strong> <a href={BUSINESS_INFO.domain} className="text-[#7A1129] underline">{BUSINESS_INFO.domain}</a></div>
+            </div>
+          </div>
+
+          {/* Grievance Redressal Officer */}
+          <div className="space-y-3 p-4 rounded-xl bg-[#FAF4DE]/50 border border-[#C79A3D]/40">
+            <h3 className="font-display font-bold text-base text-[#7A1129] flex items-center gap-2">
+              <span>Consumer Grievance Officer</span>
+            </h3>
+            <div className="space-y-1.5 text-xs text-[#4A4036]">
+              <div><strong className="text-[#1F1B16]">Designation:</strong> Customer Redressal & Food Safety Officer</div>
+              <div><strong className="text-[#1F1B16]">Email:</strong> <a href={`mailto:${BUSINESS_INFO.configuredSupportEmail}`} className="text-[#7A1129] underline font-medium">{BUSINESS_INFO.configuredSupportEmail}</a></div>
+              <div><strong className="text-[#1F1B16]">Helpline:</strong> <a href={BUSINESS_INFO.phoneTel} className="text-[#7A1129] font-medium">{BUSINESS_INFO.phone}</a></div>
+              <div><strong className="text-[#1F1B16]">Address:</strong> {BUSINESS_INFO.address}</div>
+              <div className="pt-2 text-[11px] text-[#6E6259] leading-relaxed border-t border-[#E8DFD2]">
+                Per Consumer Protection (E-Commerce) Rules, 2020: We acknowledge all customer complaints within <strong>48 hours</strong> and provide ticket resolution within <strong>1 month</strong>.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
