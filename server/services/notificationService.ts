@@ -132,19 +132,11 @@ import {
   getSenderEmail,
   getAdminRecipientEmail,
   DEFAULT_SENDER_EMAIL,
-  DEFAULT_ADMIN_RECIPIENT_EMAIL,
 } from '../config/emailConfig';
 
 /**
  * Resolves the recipient email address for administrative notification emails (e.g. new orders, bulk enquiries).
- * Delegates to centralized emailConfig module.
- * Priority:
- * 1. process.env.ADMIN_ORDER_EMAIL if non-empty after trimming
- * 2. process.env.ADMIN_EMAIL
- * 3. customFallback if provided and valid
- * 4. Default admin inbox: 'saraswatisweetsbarabanki@gmail.com'
- *
- * Guaranteed: Under no circumstances does this fall back to unverified or disallowed domains.
+ * Strictly requires ADMIN_ORDER_EMAIL from environment; returns empty string if unconfigured.
  */
 export function getAdminNotificationRecipient(customFallback?: string | null): string {
   return getAdminRecipientEmail(customFallback);
@@ -168,6 +160,15 @@ export class ZeptoMailProvider implements IEmailProvider {
 
   async sendEmail(message: EmailMessage, recipientProfile?: ServerProfile): Promise<EmailSendResult> {
     const typeTag = message.notificationType || 'TRANSACTIONAL';
+
+    if (!message.to || !message.to.trim()) {
+      console.warn(`[Email Service] ${typeTag} skipped: recipient address is missing or not configured in environment.`);
+      return {
+        success: false,
+        skipped: true,
+        reason: 'Recipient email address is missing or unconfigured in environment.',
+      };
+    }
 
     // 1. Check Promotional Opt-out (transactional never blocked!)
     if (message.isPromotional) {
@@ -953,27 +954,32 @@ export async function notifyOrderPlaced(order: ServerOrder): Promise<void> {
     },
   });
 
-  // Transactional Email to Store Owner — always fires so store staff is alerted immediately
-  await emailProvider.sendEmail({
-    to: getAdminNotificationRecipient(),
-    recipientName: 'Saraswati Sweets Store Owner',
-    notificationType: 'ADMIN_NEW_ORDER_ALERT',
-    subject: `[NEW ${isTakeaway ? 'TAKEAWAY' : 'DELIVERY'} ORDER ALERT] #${order.order_number} - ₹${order.total_amount} (${order.payment_method})`,
-    html: `
-      <div style="font-family: Arial, sans-serif; padding: 20px;">
-        <h2>New Order Received: #${escapeHtml(order.order_number)} [${isTakeaway ? 'TAKEAWAY / STORE PICKUP' : 'HOME DELIVERY'}]</h2>
-        <p><strong>Customer:</strong> ${escapeHtml(order.address_snapshot.recipient_name)} (${escapeHtml(order.address_snapshot.recipient_phone)})</p>
-        <p><strong>Fulfillment:</strong> ${isTakeaway ? `Store Counter Pickup (${escapeHtml(pickupTimeText)})` : 'Fresh Direct Delivery'}</p>
-        ${isTakeaway ? `<p><strong>Scheduled Slot:</strong> ${escapeHtml(pickupTimeText)}</p>` : `<p><strong>Address:</strong> ${escapeHtml(order.address_snapshot.street_address)}, Barabanki - ${escapeHtml(order.address_snapshot.pincode)}</p>`}
-        <p><strong>Items:</strong></p>
-        <ul>
-          ${(order.items || []).map((i) => `<li>${escapeHtml(i.product_name)} (${escapeHtml(i.variant_label)}) x ${i.quantity} = ₹${i.total_price}</li>`).join('')}
-        </ul>
-        <p><strong>Order Total:</strong> ₹${order.total_amount} [${escapeHtml(order.payment_method)} / ${escapeHtml(order.payment_status)}]</p>
-        <p><strong>Order Tracking Link:</strong> <a href="${escapeHtml(trackingUrl)}">${escapeHtml(trackingUrl)}</a></p>
-      </div>
-    `,
-  });
+  // Transactional Email to Store Owner — fires if ADMIN_ORDER_EMAIL is configured in environment
+  const adminRecipient = getAdminNotificationRecipient();
+  if (adminRecipient) {
+    await emailProvider.sendEmail({
+      to: adminRecipient,
+      recipientName: 'Saraswati Sweets Store Owner',
+      notificationType: 'ADMIN_NEW_ORDER_ALERT',
+      subject: `[NEW ${isTakeaway ? 'TAKEAWAY' : 'DELIVERY'} ORDER ALERT] #${order.order_number} - ₹${order.total_amount} (${order.payment_method})`,
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+          <h2>New Order Received: #${escapeHtml(order.order_number)} [${isTakeaway ? 'TAKEAWAY / STORE PICKUP' : 'HOME DELIVERY'}]</h2>
+          <p><strong>Customer:</strong> ${escapeHtml(order.address_snapshot.recipient_name)} (${escapeHtml(order.address_snapshot.recipient_phone)})</p>
+          <p><strong>Fulfillment:</strong> ${isTakeaway ? `Store Counter Pickup (${escapeHtml(pickupTimeText)})` : 'Fresh Direct Delivery'}</p>
+          ${isTakeaway ? `<p><strong>Scheduled Slot:</strong> ${escapeHtml(pickupTimeText)}</p>` : `<p><strong>Address:</strong> ${escapeHtml(order.address_snapshot.street_address)}, Barabanki - ${escapeHtml(order.address_snapshot.pincode)}</p>`}
+          <p><strong>Items:</strong></p>
+          <ul>
+            ${(order.items || []).map((i) => `<li>${escapeHtml(i.product_name)} (${escapeHtml(i.variant_label)}) x ${i.quantity} = ₹${i.total_price}</li>`).join('')}
+          </ul>
+          <p><strong>Order Total:</strong> ₹${order.total_amount} [${escapeHtml(order.payment_method)} / ${escapeHtml(order.payment_status)}]</p>
+          <p><strong>Order Tracking Link:</strong> <a href="${escapeHtml(trackingUrl)}">${escapeHtml(trackingUrl)}</a></p>
+        </div>
+      `,
+    });
+  } else {
+    console.warn('[NotificationService] Skipping store owner order alert email: ADMIN_ORDER_EMAIL is not configured in environment.');
+  }
 
   // Emit real-time event to connected admin dashboard clients
   try {
@@ -1195,28 +1201,33 @@ export async function notifyNewBulkEnquiry(enquiry: ServerBulkEnquiry): Promise<
   });
 
   // Email to Store Owner
-  await emailProvider.sendEmail({
-    to: getAdminNotificationRecipient(),
-    recipientName: 'Saraswati Sweets Admin',
-    notificationType: 'BULK_ENQUIRY_ADMIN_ALERT',
-    subject: `[NEW BULK ENQUIRY] ${enquiry.event_type} - ${enquiry.contact_name} (${enquiry.phone})`,
-    html: `
-      <div style="font-family: Arial, sans-serif; padding: 20px;">
-        <h2 style="color: #8A1538;">New Bulk Mithai Enquiry: ${escapeHtml(enquiry.enquiry_number)}</h2>
-        <p><strong>Name:</strong> ${escapeHtml(enquiry.contact_name)} ${enquiry.organization_name ? `(${escapeHtml(enquiry.organization_name)})` : ''}</p>
-        <p><strong>Phone:</strong> <a href="tel:${escapeHtml(enquiry.phone)}">${escapeHtml(enquiry.phone)}</a></p>
-        <p><strong>Email:</strong> ${enquiry.email ? escapeHtml(enquiry.email) : 'Not provided'}</p>
-        <p><strong>Event Type:</strong> ${escapeHtml(enquiry.event_type)}</p>
-        <p><strong>Target Date:</strong> ${escapeHtml(enquiry.event_date)}</p>
-        <p><strong>Estimated Quantity:</strong> ${enquiry.estimated_quantity_kg ? `${escapeHtml(String(enquiry.estimated_quantity_kg))} kg` : 'Not specified'}</p>
-        <p><strong>Estimated Guests:</strong> ${enquiry.estimated_guests ? escapeHtml(String(enquiry.estimated_guests)) : 'Not specified'}</p>
-        <p><strong>Budget Range:</strong> ${enquiry.budget_range ? escapeHtml(enquiry.budget_range) : 'Not specified'}</p>
-        <p><strong>Delivery Address:</strong> ${enquiry.delivery_address ? escapeHtml(enquiry.delivery_address) : 'Barabanki'}</p>
-        <p><strong>Requested Sweets:</strong> ${enquiry.requested_sweets ? escapeHtml(enquiry.requested_sweets) : 'None'}</p>
-        <p><strong>Client Notes:</strong> ${enquiry.notes ? escapeHtml(enquiry.notes) : 'None'}</p>
-      </div>
-    `,
-  });
+  const adminRecipient = getAdminNotificationRecipient();
+  if (adminRecipient) {
+    await emailProvider.sendEmail({
+      to: adminRecipient,
+      recipientName: 'Saraswati Sweets Admin',
+      notificationType: 'BULK_ENQUIRY_ADMIN_ALERT',
+      subject: `[NEW BULK ENQUIRY] ${enquiry.event_type} - ${enquiry.contact_name} (${enquiry.phone})`,
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+          <h2 style="color: #8A1538;">New Bulk Mithai Enquiry: ${escapeHtml(enquiry.enquiry_number)}</h2>
+          <p><strong>Name:</strong> ${escapeHtml(enquiry.contact_name)} ${enquiry.organization_name ? `(${escapeHtml(enquiry.organization_name)})` : ''}</p>
+          <p><strong>Phone:</strong> <a href="tel:${escapeHtml(enquiry.phone)}">${escapeHtml(enquiry.phone)}</a></p>
+          <p><strong>Email:</strong> ${enquiry.email ? escapeHtml(enquiry.email) : 'Not provided'}</p>
+          <p><strong>Event Type:</strong> ${escapeHtml(enquiry.event_type)}</p>
+          <p><strong>Target Date:</strong> ${escapeHtml(enquiry.event_date)}</p>
+          <p><strong>Estimated Quantity:</strong> ${enquiry.estimated_quantity_kg ? `${escapeHtml(String(enquiry.estimated_quantity_kg))} kg` : 'Not specified'}</p>
+          <p><strong>Estimated Guests:</strong> ${enquiry.estimated_guests ? escapeHtml(String(enquiry.estimated_guests)) : 'Not specified'}</p>
+          <p><strong>Budget Range:</strong> ${enquiry.budget_range ? escapeHtml(enquiry.budget_range) : 'Not specified'}</p>
+          <p><strong>Delivery Address:</strong> ${enquiry.delivery_address ? escapeHtml(enquiry.delivery_address) : 'Barabanki'}</p>
+          <p><strong>Requested Sweets:</strong> ${enquiry.requested_sweets ? escapeHtml(enquiry.requested_sweets) : 'None'}</p>
+          <p><strong>Client Notes:</strong> ${enquiry.notes ? escapeHtml(enquiry.notes) : 'None'}</p>
+        </div>
+      `,
+    });
+  } else {
+    console.warn('[NotificationService] Skipping store owner bulk enquiry email: ADMIN_ORDER_EMAIL is not configured in environment.');
+  }
 
   // Email to Customer (if email provided)
   if (enquiry.email) {

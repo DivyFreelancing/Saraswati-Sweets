@@ -3,6 +3,11 @@ import fs from 'fs';
 import path from 'path';
 import { inMemoryStore, isStoreLoaded } from '../db';
 import { getBaseSiteUrl } from '../services/seoService';
+import {
+  ROUTE_ALIASES,
+  isPrivatePath,
+  StaticPublicRoute,
+} from '../../src/config/routes';
 
 /**
  * Escapes characters for safe inclusion in HTML attribute values and text content.
@@ -99,7 +104,7 @@ export const STATIC_ROUTE_METADATA: Record<string, RouteSeoMeta> = {
   },
   '/refund-policy': {
     title: 'Cancellation & Refund Policy | Saraswati Sweets Barabanki',
-    description: 'Customer-first cancellation terms, quality replacement guarantees, and direct banking refund processing timelines for orders at Saraswati Sweets Barabanki.',
+    description: 'Cancellation, replacement and refund terms for orders from Saraswati Sweets, Barabanki.',
     canonicalPath: '/refund-policy',
     ogType: 'website',
   },
@@ -111,32 +116,18 @@ export const STATIC_ROUTE_METADATA: Record<string, RouteSeoMeta> = {
   },
 };
 
-// Aliases mapped to canonical definitions
-STATIC_ROUTE_METADATA['/legacy-and-certifications'] = STATIC_ROUTE_METADATA['/certifications'];
-STATIC_ROUTE_METADATA['/legacy'] = STATIC_ROUTE_METADATA['/certifications'];
-STATIC_ROUTE_METADATA['/terms-and-conditions'] = STATIC_ROUTE_METADATA['/terms'];
-STATIC_ROUTE_METADATA['/terms-of-service'] = STATIC_ROUTE_METADATA['/terms'];
-STATIC_ROUTE_METADATA['/shipping-and-delivery'] = STATIC_ROUTE_METADATA['/shipping-policy'];
-STATIC_ROUTE_METADATA['/delivery-policy'] = STATIC_ROUTE_METADATA['/shipping-policy'];
-STATIC_ROUTE_METADATA['/cancellation-and-refund'] = STATIC_ROUTE_METADATA['/refund-policy'];
-STATIC_ROUTE_METADATA['/return-policy'] = STATIC_ROUTE_METADATA['/refund-policy'];
-STATIC_ROUTE_METADATA['/privacy'] = STATIC_ROUTE_METADATA['/privacy-policy'];
+// Aliases mapped to canonical definitions from shared routes config
+for (const [alias, target] of Object.entries(ROUTE_ALIASES)) {
+  if (STATIC_ROUTE_METADATA[target]) {
+    STATIC_ROUTE_METADATA[alias] = STATIC_ROUTE_METADATA[target];
+  }
+}
 
 /**
  * Returns true if the path is a private, customer-account, or checkout transaction path.
  */
 export function isPrivateRoute(pathname: string): boolean {
-  return (
-    pathname === '/admin' ||
-    pathname.startsWith('/admin/') ||
-    pathname === '/checkout' ||
-    pathname === '/cart' ||
-    pathname === '/profile' ||
-    pathname === '/orders' ||
-    pathname.startsWith('/orders/') ||
-    pathname === '/order-confirmation' ||
-    pathname.startsWith('/order-confirmation/')
-  );
+  return isPrivatePath(pathname);
 }
 
 /**
@@ -308,11 +299,15 @@ export function injectSeoIntoHtml(
     html = html.replace('</head>', `${tagsToInject.join('\n')}\n</head>`);
   }
 
-  // 7. Align canonical LocalBusiness schema url with siteUrl if valid
+  // 7. Align canonical LocalBusiness schema url and image with siteUrl if valid
   if (shouldInjectUrl && siteUrl) {
     html = html.replace(
       /"url":\s*"https:\/\/saraswatisweetsbarabanki\.com\/"/g,
       `"url": "${siteUrl}/"`
+    );
+    html = html.replace(
+      /"image":\s*"https:\/\/saraswatisweetsbarabanki\.com\/images\/gift-hamper-banner\.jpg"/g,
+      `"image": "${getDefaultShareImage(siteUrl)}"`
     );
   }
 

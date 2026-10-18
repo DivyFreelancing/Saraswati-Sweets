@@ -38,6 +38,7 @@ const RefundPolicyPage = React.lazy(() => import('./pages/RefundPolicyPage').the
 const NotFoundPage = React.lazy(() => import('./pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })));
 
 import { Product } from './types/database';
+import { getCanonicalStaticPath, isPrivatePath } from './config/routes';
 
 function AppContent() {
   const { openAuthModal, isAuthModalOpen } = useAuth();
@@ -64,6 +65,20 @@ function AppContent() {
       setCurrentPath('/');
     }
   }, [currentPath, openAuthModal]);
+
+  // Dynamically load Manrope font on-demand only for /admin console routes
+  useEffect(() => {
+    if (currentPath.startsWith('/admin')) {
+      const linkId = 'font-manrope-admin';
+      if (!document.getElementById(linkId)) {
+        const link = document.createElement('link');
+        link.id = linkId;
+        link.rel = 'stylesheet';
+        link.href = 'https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap';
+        document.head.appendChild(link);
+      }
+    }
+  }, [currentPath]);
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname || '/';
@@ -160,7 +175,8 @@ function AppContent() {
       );
     }
 
-    switch (currentPath) {
+    const canonicalPath = getCanonicalStaticPath(currentPath);
+    switch (canonicalPath || currentPath) {
       case '/catalog':
         return (
           <CatalogPage

@@ -548,14 +548,14 @@ async function runDatabaseConcurrencyTests() {
       'In-memory store settings cannot override process.env.ADMIN_ORDER_EMAIL'
     );
 
-    // 6.3 Priority 2: When ADMIN_ORDER_EMAIL is unset, strictly fall back to saraswatisweetsbarabanki@gmail.com
+    // 6.3 Priority 2: When ADMIN_ORDER_EMAIL is unset, strictly returns empty string (no hardcoded fallback in code)
     delete process.env.ADMIN_ORDER_EMAIL;
     if (inMemoryStore.storeSettings) {
       inMemoryStore.storeSettings.store_email = 'unauthorized-store@saraswatisweets.in';
     }
     assert(
-      getAdminNotificationRecipient() === 'saraswatisweetsbarabanki@gmail.com',
-      'Priority 2: Unset ADMIN_ORDER_EMAIL falls back to saraswatisweetsbarabanki@gmail.com'
+      getAdminNotificationRecipient() === '',
+      'Priority 2: Unset ADMIN_ORDER_EMAIL returns empty string (no hardcoded fallback in code)'
     );
     assert(
       getAdminNotificationRecipient() !== 'unauthorized-store@saraswatisweets.in',
@@ -565,8 +565,8 @@ async function runDatabaseConcurrencyTests() {
     // 6.4 Safety: Explicitly setting or passing disallowed address is rejected
     process.env.ADMIN_ORDER_EMAIL = 'unauthorized-store@saraswatisweets.in';
     assert(
-      getAdminNotificationRecipient() === 'saraswatisweetsbarabanki@gmail.com',
-      'Configuring disallowed address safely rejects and uses verified fallback'
+      getAdminNotificationRecipient() === '',
+      'Configuring disallowed address safely rejects and returns empty string'
     );
     delete process.env.ADMIN_ORDER_EMAIL;
   } finally {

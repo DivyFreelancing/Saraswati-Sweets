@@ -18,8 +18,25 @@
  */
 
 export const DEFAULT_SENDER_EMAIL = 'order@saraswatisweetsbarabanki.com';
-export const DEFAULT_ADMIN_RECIPIENT_EMAIL = 'saraswatisweetsbarabanki@gmail.com';
 export const DISALLOWED_EMAIL_DOMAINS = ['saraswatisweets.in'];
+
+let hasLoggedAdminEmailWarning = false;
+
+/**
+ * Validates whether ADMIN_ORDER_EMAIL is set in the environment,
+ * and logs a clear startup warning if it is missing (does not crash).
+ */
+export function verifyAdminEmailConfig(): void {
+  const adminEmail = getAdminRecipientEmail();
+  if (!adminEmail && !hasLoggedAdminEmailWarning) {
+    hasLoggedAdminEmailWarning = true;
+    console.warn('****************************************************************');
+    console.warn('[EmailConfig WARNING] ADMIN_ORDER_EMAIL is missing from environment.');
+    console.warn('Store owner order alerts and bulk enquiry notifications will not be delivered');
+    console.warn('via email until ADMIN_ORDER_EMAIL is configured in environment variables.');
+    console.warn('****************************************************************');
+  }
+}
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -79,16 +96,13 @@ export function getSenderEmail(): string {
 
 /**
  * Resolves the recipient email address for store-owner / administrative alerts.
- * Priority:
- * 1. process.env.ADMIN_ORDER_EMAIL (environment takes precedence over DB / in-memory settings)
- * 2. process.env.ADMIN_EMAIL (canonical fallback env var)
- * 3. Optional custom fallback (if provided, valid, and not disallowed)
- * 4. DEFAULT_ADMIN_RECIPIENT_EMAIL ('saraswatisweetsbarabanki@gmail.com')
+ * Strictly requires ADMIN_ORDER_EMAIL (or ADMIN_EMAIL) from the environment.
+ * Under no circumstances does this fall back to a hardcoded address or disallowed domain.
  *
  * Guarantees:
  * - Environment variables ALWAYS take precedence over store settings.
  * - Under NO circumstances will an email with 'saraswatisweets.in' be returned.
- * - Never returns null or empty string.
+ * - If not configured in environment, returns empty string so callers can gracefully skip sending.
  */
 export function getAdminRecipientEmail(customFallback?: string | null): string {
   // 1. Check primary environment variable
@@ -109,8 +123,7 @@ export function getAdminRecipientEmail(customFallback?: string | null): string {
     return sanitizedCustom;
   }
 
-  // 4. Default admin inbox
-  return DEFAULT_ADMIN_RECIPIENT_EMAIL;
+  return '';
 }
 
 /**
@@ -121,7 +134,6 @@ export function getEmailConfigSummary() {
     senderEmail: getSenderEmail(),
     adminRecipientEmail: getAdminRecipientEmail(),
     defaultSender: DEFAULT_SENDER_EMAIL,
-    defaultAdminInbox: DEFAULT_ADMIN_RECIPIENT_EMAIL,
     disallowedDomains: DISALLOWED_EMAIL_DOMAINS,
   };
 }

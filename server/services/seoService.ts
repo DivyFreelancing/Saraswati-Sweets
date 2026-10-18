@@ -61,6 +61,7 @@ export function generateRobotsTxt(siteUrl?: string): string {
     'Disallow: /checkout',
     'Disallow: /orders',
     'Disallow: /orders/',
+    'Disallow: /order-confirmation',
     'Disallow: /order-confirmation/',
     'Disallow: /profile',
     'Disallow: /api/',

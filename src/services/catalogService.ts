@@ -563,6 +563,7 @@ export const catalogService = {
           estimated_quantity_kg: enquiry.estimated_quantity_kg,
           requested_sweets: enquiry.requested_sweets,
           notes: enquiry.notes,
+          website: enquiry.website,
         }),
       });
 

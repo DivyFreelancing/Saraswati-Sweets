@@ -18,6 +18,7 @@ import {
 import { formatINR } from '../utils/formatters';
 import { useAuth } from '../context/AuthContext';
 import { shouldHandleSpaClick } from '../utils/navigation';
+import { OrderConfirmationSkeleton } from '../components/common/LoadingSkeleton';
 
 interface OrderConfirmationPageProps {
   orderNumber: string;
@@ -167,12 +168,7 @@ export const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
   };
 
   if (isAuthLoading || loading) {
-    return (
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center space-y-4">
-        <div className="w-12 h-12 border-3 border-[#7A1129] border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-sm text-[#6E6259]">Loading order confirmation details...</p>
-      </div>
-    );
+    return <OrderConfirmationSkeleton />;
   }
 
   // If unauthenticated and order not loaded yet, require mobile phone verification (prevents leaking order data)

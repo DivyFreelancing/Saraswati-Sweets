@@ -31,7 +31,7 @@ export default defineConfig(({ command }) => {
           name: 'Saraswati Sweets - Artisanal Mithai & Namkeen',
           short_name: 'Saraswati',
           description: 'Authentic artisanal Indian sweets (mithai), namkeen, and festive gift hampers from Saraswati Sweets in Barabanki, Uttar Pradesh.',
-          theme_color: '#8A1538',
+          theme_color: '#7A1129',
           background_color: '#FBF7F1',
           display: 'standalone',
           start_url: '/',

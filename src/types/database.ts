@@ -150,5 +150,6 @@ export interface BulkOrderEnquiry {
   estimated_quantity_kg?: number;
   requested_sweets?: string;
   notes?: string;
+  website?: string;
   status?: 'NEW' | 'CONTACTED' | 'QUOTED' | 'WON' | 'LOST';
 }

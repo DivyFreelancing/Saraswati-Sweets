@@ -20,6 +20,7 @@ export const BulkEnquiryPage: React.FC = () => {
     requested_sweets: '',
     notes: '',
   });
+  const [honeypot, setHoneypot] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,6 +41,7 @@ export const BulkEnquiryPage: React.FC = () => {
         estimated_quantity_kg: formData.estimated_quantity_kg ? parseInt(formData.estimated_quantity_kg) : undefined,
         requested_sweets: formData.requested_sweets || undefined,
         notes: formData.notes || undefined,
+        website: honeypot || undefined,
         status: 'NEW',
       });
 
@@ -96,6 +98,32 @@ export const BulkEnquiryPage: React.FC = () => {
         onSubmit={handleSubmit}
         className="bg-white rounded-2xl border border-[#E8DFD2] p-6 sm:p-8 shadow-xs space-y-6"
       >
+        {/* Anti-bot Honeypot Trap (Offscreen, aria-hidden, tabindex -1, autocomplete off) */}
+        <div
+          style={{
+            position: 'absolute',
+            left: '-9999px',
+            top: '-9999px',
+            width: '1px',
+            height: '1px',
+            overflow: 'hidden',
+            opacity: 0,
+            pointerEvents: 'none',
+          }}
+          aria-hidden="true"
+        >
+          <label htmlFor="enquiry_website_field">Leave this field blank</label>
+          <input
+            id="enquiry_website_field"
+            type="text"
+            name="website"
+            tabIndex={-1}
+            autoComplete="off"
+            value={honeypot}
+            onChange={(e) => setHoneypot(e.target.value)}
+          />
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           {/* Contact Name */}
           <div>

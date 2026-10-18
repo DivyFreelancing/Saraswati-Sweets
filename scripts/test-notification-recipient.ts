@@ -33,7 +33,6 @@ import {
   getSenderEmail,
   getAdminRecipientEmail,
   DEFAULT_SENDER_EMAIL,
-  DEFAULT_ADMIN_RECIPIENT_EMAIL,
   isValidEmail,
   isDisallowedDomain,
   getEmailConfigSummary,
@@ -118,30 +117,30 @@ async function runNotificationRecipientTests() {
     // Test 1.4: Empty or whitespace-only ADMIN_ORDER_EMAIL falls through to admin personal inbox
     process.env.ADMIN_ORDER_EMAIL = '   ';
     assert(
-      getAdminNotificationRecipient() === 'saraswatisweetsbarabanki@gmail.com',
-      'Whitespace-only process.env.ADMIN_ORDER_EMAIL falls back to saraswatisweetsbarabanki@gmail.com'
+      getAdminNotificationRecipient() === '',
+      'Whitespace-only process.env.ADMIN_ORDER_EMAIL returns empty string'
     );
 
-    // Test 1.5: Unset ADMIN_ORDER_EMAIL falls back to saraswatisweetsbarabanki@gmail.com (NOT disallowed domain)
+    // Test 1.5: Unset ADMIN_ORDER_EMAIL returns empty string (NOT disallowed domain)
     delete process.env.ADMIN_ORDER_EMAIL;
     delete process.env.ADMIN_EMAIL;
     if (inMemoryStore.storeSettings) {
       inMemoryStore.storeSettings.store_email = 'unauthorized-admin@saraswatisweets.in';
     }
     assert(
-      getAdminNotificationRecipient() === 'saraswatisweetsbarabanki@gmail.com',
-      'Unset ADMIN_ORDER_EMAIL falls back to saraswatisweetsbarabanki@gmail.com'
+      getAdminNotificationRecipient() === '',
+      'Unset ADMIN_ORDER_EMAIL returns empty string'
     );
     assert(
       getAdminNotificationRecipient() !== 'unauthorized-admin@saraswatisweets.in',
       'Under no circumstances does recipient fall back to disallowed domain'
     );
 
-    // Test 1.6: If ADMIN_ORDER_EMAIL is explicitly set to disallowed domain, reject and use fallback
+    // Test 1.6: If ADMIN_ORDER_EMAIL is explicitly set to disallowed domain, reject and return empty string
     process.env.ADMIN_ORDER_EMAIL = 'unauthorized-admin@saraswatisweets.in';
     assert(
-      getAdminNotificationRecipient() === 'saraswatisweetsbarabanki@gmail.com',
-      'Accidentally configuring disallowed domain safely rejects and uses verified fallback'
+      getAdminNotificationRecipient() === '',
+      'Accidentally configuring disallowed domain safely rejects and returns empty string'
     );
     delete process.env.ADMIN_ORDER_EMAIL;
 
@@ -161,15 +160,15 @@ async function runNotificationRecipientTests() {
 
     // Test 1.9: Custom fallback parameter of disallowed domain is rejected
     assert(
-      getAdminNotificationRecipient('unauthorized-custom@saraswatisweets.in') === 'saraswatisweetsbarabanki@gmail.com',
-      'Passing disallowed domain as custom fallback is safely rejected in favor of verified fallback'
+      getAdminNotificationRecipient('unauthorized-custom@saraswatisweets.in') === '',
+      'Passing disallowed domain as custom fallback is safely rejected and returns empty string'
     );
 
-    // Test 1.10: Empty or null fallback uses verified fallback
+    // Test 1.10: Empty or null fallback cleanly returns empty string
     assert(
-      getAdminNotificationRecipient('') === 'saraswatisweetsbarabanki@gmail.com' &&
-      getAdminNotificationRecipient(null) === 'saraswatisweetsbarabanki@gmail.com',
-      'Empty or null fallback cleanly resolves to saraswatisweetsbarabanki@gmail.com'
+      getAdminNotificationRecipient('') === '' &&
+      getAdminNotificationRecipient(null) === '',
+      'Empty or null fallback cleanly resolves to empty string'
     );
 
     // -------------------------------------------------------------------------
@@ -443,7 +442,6 @@ async function runNotificationRecipientTests() {
     const summary = getEmailConfigSummary();
     assert(
       summary.defaultSender === 'order@saraswatisweetsbarabanki.com' &&
-      summary.defaultAdminInbox === 'saraswatisweetsbarabanki@gmail.com' &&
       summary.disallowedDomains.includes('saraswatisweets.in'),
       'getEmailConfigSummary provides accurate non-sensitive summary'
     );
@@ -464,12 +462,12 @@ async function runNotificationRecipientTests() {
       'Active sender address never resolves to unassociated legacy address'
     );
 
-    // 7.2 Missing recipient configuration is handled safely (falls back to verified inbox)
+    // 7.2 Missing recipient configuration is handled safely (returns empty string)
     delete process.env.ADMIN_ORDER_EMAIL;
     delete process.env.ADMIN_EMAIL;
     assert(
-      getAdminNotificationRecipient() === 'saraswatisweetsbarabanki@gmail.com',
-      'Missing recipient configuration fails safely to verified default admin inbox'
+      getAdminNotificationRecipient() === '',
+      'Missing recipient configuration returns empty string without crashing'
     );
 
     // 7.3 Email notifications work when valid authorized recipient is configured
@@ -485,8 +483,8 @@ async function runNotificationRecipientTests() {
     }
     delete process.env.ADMIN_ORDER_EMAIL;
     assert(
-      getAdminNotificationRecipient() === 'saraswatisweetsbarabanki@gmail.com',
-      'Disallowed domain in storeSettings is rejected and safely falls back'
+      getAdminNotificationRecipient() === '',
+      'Disallowed domain in storeSettings is rejected and safely returns empty string'
     );
 
   } finally {

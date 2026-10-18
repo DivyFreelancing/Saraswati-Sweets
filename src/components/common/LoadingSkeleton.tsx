@@ -84,3 +84,58 @@ export const ReviewCardSkeleton: React.FC = () => {
     </div>
   );
 };
+
+export const OrderConfirmationSkeleton: React.FC = () => {
+  return (
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8 animate-pulse">
+      {/* Top Banner Skeleton */}
+      <div className="flex flex-col items-center space-y-3">
+        <div className="w-16 h-16 rounded-full bg-[#F5EAD9] border border-[#E8DCC8]" />
+        <div className="h-6 w-48 rounded-full bg-[#E8DCC8]/60" />
+        <div className="h-9 w-72 rounded-xl bg-[#E8DCC8]" />
+        <div className="h-4 w-96 max-w-full rounded-md bg-[#E8DCC8]/50" />
+        <div className="flex gap-2 pt-2">
+          <div className="h-9 w-32 rounded-xl bg-[#F5EAD9] border border-[#E8DCC8]" />
+          <div className="h-9 w-40 rounded-xl bg-[#E8DCC8]/60" />
+        </div>
+      </div>
+
+      {/* Timeline Card Skeleton */}
+      <div className="bg-white rounded-2xl border border-[#E8DCC8] p-6 sm:p-8 space-y-6 shadow-xs">
+        <div className="flex justify-between items-center border-b border-[#E8DCC8]/60 pb-3">
+          <div className="h-5 w-48 bg-[#E8DCC8] rounded-md" />
+          <div className="h-6 w-20 bg-[#E8DCC8]/60 rounded-md" />
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex flex-col items-center space-y-2">
+              <div className="w-8 h-8 rounded-full bg-[#F5EAD9] border border-[#E8DCC8]" />
+              <div className="h-3.5 w-20 bg-[#E8DCC8] rounded-md" />
+              <div className="h-3 w-16 bg-[#E8DCC8]/50 rounded-xs" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Order Summary Card Skeleton */}
+      <div className="bg-white rounded-2xl border border-[#E8DCC8] p-6 sm:p-8 space-y-4 shadow-xs">
+        <div className="h-5 w-36 bg-[#E8DCC8] rounded-md" />
+        <div className="space-y-3 pt-2">
+          {[1, 2].map((i) => (
+            <div key={i} className="flex items-center justify-between py-2 border-b border-[#E8DCC8]/40">
+              <div className="space-y-1.5 flex-1">
+                <div className="h-4 w-40 bg-[#E8DCC8] rounded-md" />
+                <div className="h-3 w-24 bg-[#E8DCC8]/50 rounded-md" />
+              </div>
+              <div className="h-4 w-16 bg-[#E8DCC8] rounded-md" />
+            </div>
+          ))}
+        </div>
+        <div className="pt-2 flex justify-between">
+          <div className="h-5 w-24 bg-[#E8DCC8] rounded-md" />
+          <div className="h-5 w-20 bg-[#E8DCC8] rounded-md" />
+        </div>
+      </div>
+    </div>
+  );
+};
