@@ -3,6 +3,7 @@ import { Category } from '../types/database';
 import { catalogService } from '../services/catalogService';
 import { ArrowRight } from 'lucide-react';
 import { CategoryCardSkeleton } from '../components/common/LoadingSkeleton';
+import { shouldHandleSpaClick } from '../utils/navigation';
 
 interface CategoriesPageProps {
   onSelectCategory: (slug: string) => void;
@@ -32,10 +33,16 @@ export const CategoriesPage: React.FC<CategoriesPageProps> = ({ onSelectCategory
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {categories.map((cat) => (
-          <div
+          <a
             key={cat.id}
-            onClick={() => onSelectCategory(cat.slug)}
-            className="group cursor-pointer bg-white rounded-2xl border border-[#E8DFD2] overflow-hidden shadow-xs hover:shadow-[0_8px_30px_-4px_rgba(138,21,56,0.1)] transition-all duration-200 flex flex-col justify-between"
+            href={`/categories/${cat.slug}`}
+            onClick={(e) => {
+              if (shouldHandleSpaClick(e)) {
+                e.preventDefault();
+                onSelectCategory(cat.slug);
+              }
+            }}
+            className="group cursor-pointer bg-white rounded-2xl border border-[#E8DFD2] overflow-hidden shadow-xs hover:shadow-[0_8px_30px_-4px_rgba(138,21,56,0.1)] transition-all duration-200 flex flex-col justify-between focus:outline-none focus:ring-2 focus:ring-[#8A1538]"
           >
             <div className="relative aspect-[16/10] overflow-hidden bg-[#F3EBE0]">
               <img
@@ -60,7 +67,7 @@ export const CategoriesPage: React.FC<CategoriesPageProps> = ({ onSelectCategory
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </div>
             </div>
-          </div>
+          </a>
         ))}
       </div>
     </div>

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { PWAInstallButton } from '../common/PWAInstallButton';
 import { BUSINESS_INFO } from '../../config/businessInfo';
+import { handleSpaNavigation } from '../../utils/navigation';
 
 interface FooterProps {
   onNavigate: (path: string) => void;
@@ -54,49 +55,49 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               </h4>
               <ul className="space-y-2.5 text-xs sm:text-sm text-[#6E6259]">
                 <li>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('/')}
+                  <a
+                    href="/"
+                    onClick={(e) => handleSpaNavigation(e, '/', onNavigate)}
                     className="hover:text-[#7A1129] transition-colors"
                   >
                     World Of Saraswati
-                  </button>
+                  </a>
                 </li>
                 <li>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('/certifications')}
+                  <a
+                    href="/certifications"
+                    onClick={(e) => handleSpaNavigation(e, '/certifications', onNavigate)}
                     className="hover:text-[#7A1129] text-[#7A1129] font-medium transition-colors"
                   >
                     Our Legacy & Certifications
-                  </button>
+                  </a>
                 </li>
                 <li>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('/bulk-enquiry')}
+                  <a
+                    href="/bulk-enquiry"
+                    onClick={(e) => handleSpaNavigation(e, '/bulk-enquiry', onNavigate)}
                     className="hover:text-[#7A1129] transition-colors"
                   >
                     Bulk Order Enquiry
-                  </button>
+                  </a>
                 </li>
                 <li>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('/orders')}
+                  <a
+                    href="/orders"
+                    onClick={(e) => handleSpaNavigation(e, '/orders', onNavigate)}
                     className="hover:text-[#7A1129] transition-colors"
                   >
                     Track Order
-                  </button>
+                  </a>
                 </li>
                 <li>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('/contact')}
+                  <a
+                    href="/contact"
+                    onClick={(e) => handleSpaNavigation(e, '/contact', onNavigate)}
                     className="hover:text-[#7A1129] transition-colors"
                   >
                     Find A Store
-                  </button>
+                  </a>
                 </li>
               </ul>
             </div>
@@ -108,31 +109,31 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               </h4>
               <ul className="space-y-2.5 text-xs sm:text-sm text-[#6E6259]">
                 <li>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('/catalog')}
+                  <a
+                    href="/catalog"
+                    onClick={(e) => handleSpaNavigation(e, '/catalog', onNavigate)}
                     className="hover:text-[#7A1129] transition-colors"
                   >
                     All Sweets
-                  </button>
+                  </a>
                 </li>
                 <li>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('/categories')}
+                  <a
+                    href="/categories"
+                    onClick={(e) => handleSpaNavigation(e, '/categories', onNavigate)}
                     className="hover:text-[#7A1129] transition-colors"
                   >
                     Shop by Category
-                  </button>
+                  </a>
                 </li>
                 <li>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('/hampers')}
+                  <a
+                    href="/hampers"
+                    onClick={(e) => handleSpaNavigation(e, '/hampers', onNavigate)}
                     className="hover:text-[#7A1129] transition-colors"
                   >
                     Premium Gift Hampers
-                  </button>
+                  </a>
                 </li>
               </ul>
             </div>
@@ -144,40 +145,40 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               </h4>
               <ul className="space-y-2.5 text-xs sm:text-sm text-[#6E6259]">
                 <li>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('/contact')}
+                  <a
+                    href="/contact"
+                    onClick={(e) => handleSpaNavigation(e, '/contact', onNavigate)}
                     className="hover:text-[#7A1129] transition-colors"
                   >
                     Contact Store
-                  </button>
+                  </a>
                 </li>
                 <li>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('/orders')}
+                  <a
+                    href="/orders"
+                    onClick={(e) => handleSpaNavigation(e, '/orders', onNavigate)}
                     className="hover:text-[#7A1129] transition-colors"
                   >
                     Track Your Order
-                  </button>
+                  </a>
                 </li>
                 <li>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('/bulk-enquiry')}
+                  <a
+                    href="/bulk-enquiry"
+                    onClick={(e) => handleSpaNavigation(e, '/bulk-enquiry', onNavigate)}
                     className="hover:text-[#7A1129] transition-colors"
                   >
                     Weddings & Catering
-                  </button>
+                  </a>
                 </li>
                 <li>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('/shipping-policy')}
+                  <a
+                    href="/shipping-policy"
+                    onClick={(e) => handleSpaNavigation(e, '/shipping-policy', onNavigate)}
                     className="hover:text-[#7A1129] transition-colors"
                   >
                     Delivery Info & PIN Codes
-                  </button>
+                  </a>
                 </li>
               </ul>
             </div>
@@ -242,9 +243,10 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
 
           {/* Centered Brand Emblem, Tagline, Badges & Social Media */}
           <div className="py-8 sm:py-10 text-center space-y-4">
-            <div
+            <a
+              href="/"
               className="inline-block cursor-pointer select-none group"
-              onClick={() => onNavigate('/')}
+              onClick={(e) => handleSpaNavigation(e, '/', onNavigate)}
               title="Saraswati Sweets Since 1989"
             >
               <img
@@ -256,7 +258,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 loading="lazy"
                 decoding="async"
               />
-            </div>
+            </a>
 
             <p className="font-display italic text-sm sm:text-base text-[#6E6259] tracking-wide">
               Crafted with tradition, delivered with trust.
@@ -264,15 +266,15 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
 
             {/* Trust Badges Strip (FSSAI, Cashfree, Fast Delivery, 100% Veg) */}
             <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-5 pt-1 text-xs text-[#6E6259]">
-              <button
-                type="button"
-                onClick={() => onNavigate('/certifications')}
+              <a
+                href="/certifications"
+                onClick={(e) => handleSpaNavigation(e, '/certifications', onNavigate)}
                 className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-[#E8DCC8] hover:border-[#2E7D4F] shadow-2xs transition-colors cursor-pointer text-left"
                 title="View official FSSAI State License Form C"
               >
                 <ShieldCheck className="w-3.5 h-3.5 text-[#2E7D4F]" />
                 <span className="font-semibold text-[#221A14]">FSSAI: 12714022000190</span>
-              </button>
+              </a>
 
               <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-[#E8DCC8] shadow-2xs">
                 <span className="font-semibold text-[#221A14]">GST: 09ABEFS9729B1ZY</span>
@@ -346,53 +348,53 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 <span>FSSAI State License No. <strong>{BUSINESS_INFO.fssaiLicenseNumber}</strong></span>
               </div>
               <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] pt-1">
-                <button
-                  type="button"
-                  onClick={() => onNavigate('/privacy-policy')}
+                <a
+                  href="/privacy-policy"
+                  onClick={(e) => handleSpaNavigation(e, '/privacy-policy', onNavigate)}
                   className="hover:text-[#7A1129] hover:underline font-medium"
                 >
                   Privacy Policy
-                </button>
+                </a>
                 <span>·</span>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('/terms')}
+                <a
+                  href="/terms"
+                  onClick={(e) => handleSpaNavigation(e, '/terms', onNavigate)}
                   className="hover:text-[#7A1129] hover:underline font-medium"
                 >
                   Terms & Conditions
-                </button>
+                </a>
                 <span>·</span>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('/shipping-policy')}
+                <a
+                  href="/shipping-policy"
+                  onClick={(e) => handleSpaNavigation(e, '/shipping-policy', onNavigate)}
                   className="hover:text-[#7A1129] hover:underline font-medium"
                 >
                   Shipping & Delivery
-                </button>
+                </a>
                 <span>·</span>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('/refund-policy')}
+                <a
+                  href="/refund-policy"
+                  onClick={(e) => handleSpaNavigation(e, '/refund-policy', onNavigate)}
                   className="hover:text-[#7A1129] hover:underline font-medium"
                 >
                   Cancellation & Refund
-                </button>
+                </a>
                 <span>·</span>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('/contact')}
+                <a
+                  href="/contact"
+                  onClick={(e) => handleSpaNavigation(e, '/contact', onNavigate)}
                   className="hover:text-[#7A1129] hover:underline font-medium"
                 >
                   Grievance Redressal
-                </button>
+                </a>
                 <span>·</span>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('/admin')}
+                <a
+                  href="/admin"
+                  onClick={(e) => handleSpaNavigation(e, '/admin', onNavigate)}
                   className="text-[#7A1129] hover:underline font-semibold"
                 >
                   Staff Portal
-                </button>
+                </a>
               </div>
             </div>
           </div>

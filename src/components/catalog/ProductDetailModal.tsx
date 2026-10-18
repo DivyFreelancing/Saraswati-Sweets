@@ -12,6 +12,7 @@ import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { catalogService } from '../../services/catalogService';
+import { shouldHandleSpaClick } from '../../utils/navigation';
 
 interface ProductDetailModalProps {
   product: Product | null;
@@ -431,11 +432,16 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   </h4>
                   <div className="grid grid-cols-3 gap-2">
                     {relatedProducts.map((rel) => (
-                      <button
+                      <a
                         key={rel.id}
-                        type="button"
-                        onClick={() => onSelectRelatedProduct && onSelectRelatedProduct(rel)}
-                        className="p-2 rounded-lg border border-[#E8DFD2] hover:border-[#8A1538] text-left transition-colors bg-[#FBF7F1]"
+                        href={`/products/${rel.slug}`}
+                        onClick={(e) => {
+                          if (shouldHandleSpaClick(e)) {
+                            e.preventDefault();
+                            onSelectRelatedProduct && onSelectRelatedProduct(rel);
+                          }
+                        }}
+                        className="p-2 rounded-lg border border-[#E8DFD2] hover:border-[#8A1538] text-left transition-colors bg-[#FBF7F1] block"
                       >
                         <div className="aspect-square rounded-md overflow-hidden bg-[#F5EAD9] mb-1.5 flex items-center justify-center">
                           {rel.images?.[0]?.image_url ? (
@@ -464,7 +470,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                         <div className="text-[11px] font-semibold text-[#8A1538] tabular-nums mt-0.5">
                           ₹{rel.variants[0]?.price}
                         </div>
-                      </button>
+                      </a>
                     ))}
                   </div>
                 </div>

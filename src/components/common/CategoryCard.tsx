@@ -1,11 +1,13 @@
 import React from 'react';
 import { Category } from '../../types/database';
 import { getOptimizedImageUrl } from '../../utils/imageUtils';
+import { shouldHandleSpaClick } from '../../utils/navigation';
 
 interface CategoryCardProps {
   category: Category;
   onClick: (slug: string) => void;
   isSelected?: boolean;
+  href?: string;
 }
 
 const CATEGORY_IMAGE_FALLBACKS: Record<string, string> = {
@@ -32,6 +34,7 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
   category,
   onClick,
   isSelected = false,
+  href,
 }) => {
   // Guard against irrelevant placeholder images (e.g. cat photo 1541781774459)
   const isInvalidPlaceholder =
@@ -44,12 +47,20 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
     : category.image_url;
 
   const optimizedImage = getOptimizedImageUrl(resolvedImageUrl, 160, 75);
+  const targetHref = href || `/categories/${category.slug}`;
+
+  const handleClick = (e: React.MouseEvent) => {
+    if (shouldHandleSpaClick(e)) {
+      e.preventDefault();
+      onClick(category.slug);
+    }
+  };
 
   return (
-    <button
-      type="button"
-      onClick={() => onClick(category.slug)}
-      className={`group relative flex flex-col items-center justify-between min-h-[195px] sm:min-h-[220px] text-center pt-6 pb-4 px-3 sm:px-4 transition-all duration-200 border w-full cursor-pointer rounded-t-full rounded-b-xl ${
+    <a
+      href={targetHref}
+      onClick={handleClick}
+      className={`group relative flex flex-col items-center justify-between min-h-[195px] sm:min-h-[220px] text-center pt-6 pb-4 px-3 sm:px-4 transition-all duration-200 border w-full cursor-pointer rounded-t-full rounded-b-xl focus:outline-none focus:ring-2 focus:ring-[#7A1129] ${
         isSelected
           ? 'bg-[#7A1129] text-white border-[#7A1129] shadow-md'
           : 'bg-[#F5EAD9] hover:bg-[#ebdcc7] text-[#221A14] border-[#E8DCC8] hover:border-[#7A1129]/40 shadow-[0_2px_12px_-2px_rgba(34,26,20,0.05),0_1px_3px_0_rgba(34,26,20,0.03)] hover:shadow-[0_6px_20px_-3px_rgba(122,17,41,0.08)]'
@@ -92,6 +103,6 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
           </span>
         )}
       </div>
-    </button>
+    </a>
   );
 };

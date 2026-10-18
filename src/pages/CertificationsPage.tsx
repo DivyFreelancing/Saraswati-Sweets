@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { CertificationsSection } from '../components/certifications/CertificationsSection';
 import { ChevronRight, ShieldCheck, MapPin, Award, CheckCircle } from 'lucide-react';
+import { handleSpaNavigation } from '../utils/navigation';
 
 interface CertificationsPageProps {
   onNavigate?: (path: string) => void;
@@ -17,13 +18,13 @@ export const CertificationsPage: React.FC<CertificationsPageProps> = ({ onNaviga
       {/* Editorial Breadcrumb Bar */}
       <nav aria-label="Breadcrumb" className="bg-[#F5EAD9]/70 border-b border-[#E8DCC8] py-3 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex items-center gap-2 text-xs text-[#6E6259]">
-          <button
-            type="button"
-            onClick={() => onNavigate?.('/')}
+          <a
+            href="/"
+            onClick={(e) => handleSpaNavigation(e, '/', onNavigate)}
             className="hover:text-[#7A1129] transition-colors"
           >
             Home
-          </button>
+          </a>
           <ChevronRight className="w-3.5 h-3.5 text-[#C79A3D]" />
           <span className="text-[#221A14] font-semibold">Our Legacy & Certifications</span>
         </div>
@@ -89,20 +90,20 @@ export const CertificationsPage: React.FC<CertificationsPageProps> = ({ onNaviga
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0">
-            <button
-              type="button"
-              onClick={() => onNavigate?.('/contact')}
-              className="min-h-[44px] px-6 py-2.5 rounded-full bg-[#7A1129] hover:bg-[#5E0D20] text-white font-bold text-xs sm:text-sm shadow-sm transition-all"
+            <a
+              href="/contact"
+              onClick={(e) => handleSpaNavigation(e, '/contact', onNavigate)}
+              className="min-h-[44px] px-6 py-2.5 rounded-full bg-[#7A1129] hover:bg-[#5E0D20] text-white font-bold text-xs sm:text-sm shadow-sm transition-all inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#7A1129]"
             >
               Get Directions to Store
-            </button>
-            <button
-              type="button"
-              onClick={() => onNavigate?.('/catalog')}
-              className="min-h-[44px] px-6 py-2.5 rounded-full bg-[#F5EAD9] hover:bg-[#E8DCC8] text-[#7A1129] font-bold text-xs sm:text-sm transition-all"
+            </a>
+            <a
+              href="/catalog"
+              onClick={(e) => handleSpaNavigation(e, '/catalog', onNavigate)}
+              className="min-h-[44px] px-6 py-2.5 rounded-full bg-[#F5EAD9] hover:bg-[#E8DCC8] text-[#7A1129] font-bold text-xs sm:text-sm transition-all inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#7A1129]"
             >
               Browse Sweet Catalog
-            </button>
+            </a>
           </div>
         </div>
       </main>

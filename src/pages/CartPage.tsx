@@ -6,6 +6,7 @@ import { CartItem } from '../components/common/CartItem';
 import { OrderSummary } from '../components/common/OrderSummary';
 import { EmptyState } from '../components/common/EmptyState';
 import { ShoppingBag, ArrowLeft, ShieldCheck, LogIn, Sparkles } from 'lucide-react';
+import { shouldHandleSpaClick } from '../utils/navigation';
 
 interface CartPageProps {
   onContinueShopping: () => void;
@@ -38,6 +39,7 @@ export const CartPage: React.FC<CartPageProps> = ({
           description="Taste the heritage of Barabanki. Choose from freshly prepared Kaju Katli, Pure Cow Desi Ghee Motichoor, and crunchy Dalmoth."
           actionLabel="Explore Sweet Catalog"
           onAction={onContinueShopping}
+          actionHref="/catalog"
         />
       </div>
     );
@@ -48,14 +50,19 @@ export const CartPage: React.FC<CartPageProps> = ({
       {/* Back button and page title */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E8DFD2] pb-4">
         <div>
-          <button
-            type="button"
-            onClick={onContinueShopping}
+          <a
+            href="/catalog"
+            onClick={(e) => {
+              if (shouldHandleSpaClick(e)) {
+                e.preventDefault();
+                onContinueShopping();
+              }
+            }}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#8A1538] hover:underline mb-1"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Continue Shopping</span>
-          </button>
+          </a>
           <h1 className="font-display font-bold text-2xl sm:text-3xl text-[#1F1B16]">
             Your Fresh Mithai Box ({items.reduce((s, i) => s + i.quantity, 0)} items)
           </h1>

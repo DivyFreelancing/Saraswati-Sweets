@@ -15,6 +15,7 @@ import {
   CertificationDocument,
 } from '../../data/certificationsData';
 import { DocumentViewerModal } from './DocumentViewerModal';
+import { handleSpaNavigation } from '../../utils/navigation';
 
 interface HomepageCertificationsPreviewProps {
   onNavigate: (path: string) => void;
@@ -150,14 +151,14 @@ export const HomepageCertificationsPreview: React.FC<HomepageCertificationsPrevi
 
       {/* View Our Documents CTA Button */}
       <div className="mt-8 sm:mt-10 pt-4 text-center border-t border-[#E8DCC8]/60 flex flex-col sm:flex-row items-center justify-center gap-4">
-        <button
-          type="button"
-          onClick={() => onNavigate('/certifications')}
-          className="min-h-[46px] px-8 py-3 rounded-full bg-[#7A1129] hover:bg-[#5E0D20] text-white font-bold text-xs sm:text-sm inline-flex items-center gap-2 shadow-sm transition-all duration-150 active:scale-95"
+        <a
+          href="/certifications"
+          onClick={(e) => handleSpaNavigation(e, '/certifications', onNavigate)}
+          className="min-h-[46px] px-8 py-3 rounded-full bg-[#7A1129] hover:bg-[#5E0D20] text-white font-bold text-xs sm:text-sm inline-flex items-center gap-2 shadow-sm transition-all duration-150 active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#7A1129]"
         >
           <span>View Our Documents & Certifications</span>
           <ArrowRight className="w-4 h-4 text-[#F2C94C]" />
-        </button>
+        </a>
 
         <span className="text-xs text-[#6E6259]">
           Framed and open for public inspection at our Indira Market flagship store.

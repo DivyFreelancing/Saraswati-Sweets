@@ -18,6 +18,7 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import { BUSINESS_INFO } from '../config/businessInfo';
+import { handleSpaNavigation } from '../utils/navigation';
 
 interface PrivacyPolicyPageProps {
   onNavigate?: (path: string) => void;
@@ -56,14 +57,14 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({ onNavigate
       {/* Editorial Breadcrumb Bar */}
       <nav aria-label="Breadcrumb" className="bg-[#F5EAD9]/70 border-b border-[#E8DCC8] py-3 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex items-center gap-2 text-xs text-[#6E6259]">
-          <button
-            type="button"
-            onClick={() => onNavigate?.('/')}
+          <a
+            href="/"
+            onClick={(e) => handleSpaNavigation(e, '/', onNavigate)}
             className="hover:text-[#7A1129] transition-colors flex items-center gap-1"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             Home
-          </button>
+          </a>
           <ChevronRight className="w-3.5 h-3.5 text-[#C79A3D]" />
           <span className="text-[#221A14] font-semibold">Privacy Policy</span>
         </div>

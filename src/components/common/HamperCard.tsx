@@ -5,13 +5,15 @@ import { PriceDisplay } from './PriceDisplay';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
 import { getOptimizedImageUrl } from '../../utils/imageUtils';
+import { handleSpaNavigation } from '../../utils/navigation';
 
 interface HamperCardProps {
   hamper: GiftHamper;
   onViewDetails?: (hamper: GiftHamper) => void;
+  onNavigate?: (path: string) => void;
 }
 
-export const HamperCard: React.FC<HamperCardProps> = ({ hamper, onViewDetails }) => {
+export const HamperCard: React.FC<HamperCardProps> = ({ hamper, onViewDetails, onNavigate }) => {
   const { addItem } = useCart();
   const { showToast } = useToast();
 
@@ -52,7 +54,12 @@ export const HamperCard: React.FC<HamperCardProps> = ({ hamper, onViewDetails })
   return (
     <div className="flex flex-col bg-white rounded-2xl border border-[#E8DCC8] overflow-hidden shadow-[0_2px_12px_-2px_rgba(34,26,20,0.05),0_1px_3px_0_rgba(34,26,20,0.03)] hover:shadow-[0_8px_30px_-4px_rgba(122,17,41,0.09)] transition-all duration-200">
       {/* Visual Header with subtle festive badge */}
-      <div className="relative aspect-[16/10] overflow-hidden bg-[#F5EAD9]">
+      <a
+        href="/hampers"
+        onClick={(e) => handleSpaNavigation(e, '/hampers', onNavigate)}
+        aria-label={`View details for ${hamper.name}`}
+        className="block relative aspect-[16/10] overflow-hidden bg-[#F5EAD9] focus:outline-none focus:ring-2 focus:ring-[#7A1129]"
+      >
         <img
           loading="lazy"
           decoding="async"
@@ -66,7 +73,7 @@ export const HamperCard: React.FC<HamperCardProps> = ({ hamper, onViewDetails })
           <Gift className="w-3.5 h-3.5 text-[#C79A3D]" />
           <span>Royal Festive Trunk</span>
         </div>
-      </div>
+      </a>
 
       <div className="p-5 sm:p-6 flex flex-col flex-1">
         <span className="text-xs font-bold text-[#C79A3D] uppercase tracking-wider">
@@ -74,7 +81,13 @@ export const HamperCard: React.FC<HamperCardProps> = ({ hamper, onViewDetails })
         </span>
 
         <h3 className="font-display font-bold text-lg sm:text-xl text-[#221A14] mt-1">
-          {hamper.name}
+          <a
+            href="/hampers"
+            onClick={(e) => handleSpaNavigation(e, '/hampers', onNavigate)}
+            className="hover:text-[#7A1129] hover:underline transition-colors focus:outline-none focus:underline"
+          >
+            {hamper.name}
+          </a>
         </h3>
 
         <p className="text-xs sm:text-sm text-[#6E6259] mt-2 line-clamp-2 leading-relaxed">

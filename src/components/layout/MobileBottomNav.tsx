@@ -2,6 +2,7 @@ import React from 'react';
 import { Home, Utensils, Gift, ShoppingBag, User } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
+import { handleSpaNavigation } from '../../utils/navigation';
 
 interface MobileBottomNavProps {
   currentPath: string;
@@ -12,7 +13,6 @@ interface MobileBottomNavProps {
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   currentPath,
   onNavigate,
-  onOpenCart,
 }) => {
   const { totalItems } = useCart();
   const { isAuthenticated } = useAuth();
@@ -29,24 +29,24 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         {navItems.map((item) => {
           const isActive = currentPath === item.path;
           return (
-            <button
+            <a
               key={item.path}
-              type="button"
-              onClick={() => onNavigate(item.path)}
+              href={item.path}
+              onClick={(e) => handleSpaNavigation(e, item.path, onNavigate)}
               className={`flex flex-col items-center justify-center gap-1 transition-colors min-h-[44px] ${
                 isActive ? 'text-[#8A1538]' : 'text-[#6B6258]'
               }`}
             >
               <item.icon className="w-5 h-5" />
               <span className="text-[11px] font-semibold">{item.label}</span>
-            </button>
+            </a>
           );
         })}
 
         {/* Cart Item */}
-        <button
-          type="button"
-          onClick={() => onNavigate('/cart')}
+        <a
+          href="/cart"
+          onClick={(e) => handleSpaNavigation(e, '/cart', onNavigate)}
           className={`flex flex-col items-center justify-center gap-1 transition-colors min-h-[44px] relative ${
             currentPath === '/cart' ? 'text-[#8A1538]' : 'text-[#6B6258]'
           }`}
@@ -60,12 +60,12 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             )}
           </div>
           <span className="text-[11px] font-semibold text-[#8A1538]">Cart</span>
-        </button>
+        </a>
 
         {/* Profile Item */}
-        <button
-          type="button"
-          onClick={() => onNavigate('/profile')}
+        <a
+          href="/profile"
+          onClick={(e) => handleSpaNavigation(e, '/profile', onNavigate)}
           className={`flex flex-col items-center justify-center gap-1 transition-colors min-h-[44px] ${
             currentPath === '/profile' ? 'text-[#8A1538]' : 'text-[#6B6258]'
           }`}
@@ -74,7 +74,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           <span className="text-[11px] font-semibold">
             {isAuthenticated ? 'Account' : 'Login'}
           </span>
-        </button>
+        </a>
       </div>
     </div>
   );

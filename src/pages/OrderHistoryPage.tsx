@@ -4,6 +4,7 @@ import { useCart } from '../context/CartContext';
 import { useToast } from '../context/ToastContext';
 import { EmptyState } from '../components/common/EmptyState';
 import { formatINR } from '../utils/formatters';
+import { shouldHandleSpaClick } from '../utils/navigation';
 import {
   Package,
   Clock,
@@ -162,6 +163,7 @@ export const OrderHistoryPage: React.FC<OrderHistoryPageProps> = ({
           }
           actionLabel="Explore Sweet Catalog"
           onAction={onGoToStore}
+          actionHref="/catalog"
         />
       ) : (
         <div className="space-y-4">
@@ -177,9 +179,18 @@ export const OrderHistoryPage: React.FC<OrderHistoryPageProps> = ({
               >
                 <div className="space-y-2">
                   <div className="flex items-center gap-3">
-                    <span className="font-mono font-bold text-sm text-[#8A1538]">
+                    <a
+                      href={`/orders/${order.order_number}`}
+                      onClick={(e) => {
+                        if (shouldHandleSpaClick(e)) {
+                          e.preventDefault();
+                          onSelectOrder(order.order_number);
+                        }
+                      }}
+                      className="font-mono font-bold text-sm text-[#8A1538] hover:underline"
+                    >
                       #{order.order_number}
-                    </span>
+                    </a>
 
                     <span
                       className={`text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${
@@ -227,14 +238,19 @@ export const OrderHistoryPage: React.FC<OrderHistoryPageProps> = ({
                     <span>Reorder</span>
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => onSelectOrder(order.order_number)}
+                  <a
+                    href={`/orders/${order.order_number}`}
+                    onClick={(e) => {
+                      if (shouldHandleSpaClick(e)) {
+                        e.preventDefault();
+                        onSelectOrder(order.order_number);
+                      }
+                    }}
                     className="min-h-[40px] px-4 py-1.5 rounded-xl bg-[#8A1538] hover:bg-[#701029] text-white text-xs font-semibold flex items-center gap-1 transition-colors shadow-xs"
                   >
                     <span>Track Order</span>
                     <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
+                  </a>
                 </div>
               </div>
             );

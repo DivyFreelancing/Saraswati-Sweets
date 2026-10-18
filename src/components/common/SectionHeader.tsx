@@ -1,11 +1,13 @@
 import React from 'react';
 import { ArrowRight } from 'lucide-react';
+import { shouldHandleSpaClick } from '../../utils/navigation';
 
 interface SectionHeaderProps {
   title: string;
   subtitle?: string;
   actionText?: string;
   onAction?: () => void;
+  actionHref?: string;
   eyebrow?: string;
   className?: string;
 }
@@ -15,9 +17,19 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({
   subtitle,
   actionText,
   onAction,
+  actionHref,
   eyebrow,
   className = '',
 }) => {
+  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (shouldHandleSpaClick(e)) {
+      if (onAction) {
+        e.preventDefault();
+        onAction();
+      }
+    }
+  };
+
   return (
     <div className={`flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-6 sm:mb-8 ${className}`}>
       <div className="space-y-1">
@@ -36,15 +48,15 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({
         )}
       </div>
 
-      {actionText && onAction && (
-        <button
-          type="button"
-          onClick={onAction}
-          className="group inline-flex items-center gap-1.5 text-sm font-semibold text-[#7A1129] hover:text-[#5E0D20] transition-colors self-start sm:self-auto py-1"
+      {actionText && (actionHref || onAction) && (
+        <a
+          href={actionHref || '#'}
+          onClick={handleClick}
+          className="group inline-flex items-center gap-1.5 text-sm font-semibold text-[#7A1129] hover:text-[#5E0D20] transition-colors self-start sm:self-auto py-1 focus:outline-none focus:underline"
         >
           <span>{actionText}</span>
           <ArrowRight className="w-4 h-4 transition-transform duration-150 group-hover:translate-x-1" />
-        </button>
+        </a>
       )}
     </div>
   );

@@ -15,6 +15,7 @@ import {
   Building,
 } from 'lucide-react';
 import { BUSINESS_INFO } from '../config/businessInfo';
+import { handleSpaNavigation } from '../utils/navigation';
 
 interface TermsPageProps {
   onNavigate?: (path: string) => void;
@@ -52,14 +53,14 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onNavigate }) => {
       {/* Editorial Breadcrumb Bar */}
       <nav aria-label="Breadcrumb" className="bg-[#F5EAD9]/70 border-b border-[#E8DCC8] py-3 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex items-center gap-2 text-xs text-[#6E6259]">
-          <button
-            type="button"
-            onClick={() => onNavigate?.('/')}
+          <a
+            href="/"
+            onClick={(e) => handleSpaNavigation(e, '/', onNavigate)}
             className="hover:text-[#7A1129] transition-colors flex items-center gap-1"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             Home
-          </button>
+          </a>
           <ChevronRight className="w-3.5 h-3.5 text-[#C79A3D]" />
           <span className="text-[#221A14] font-semibold">Terms & Conditions</span>
         </div>
@@ -242,13 +243,13 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onNavigate }) => {
               </p>
               <p className="text-sm sm:text-base text-[#4A4036] leading-relaxed">
                 Delivery is conducted in tamper-evident sealed boxes by our dedicated local fleet. Please review our dedicated{' '}
-                <button
-                  type="button"
-                  onClick={() => onNavigate?.('/shipping-policy')}
+                <a
+                  href="/shipping-policy"
+                  onClick={(e) => handleSpaNavigation(e, '/shipping-policy', onNavigate)}
                   className="text-[#7A1129] font-semibold underline"
                 >
                   Shipping & Delivery Policy
-                </button>{' '}
+                </a>{' '}
                 for full details on serviceable areas, slots, and delivery charges.
               </p>
             </section>
@@ -265,13 +266,13 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onNavigate }) => {
               <p className="text-sm sm:text-base text-[#4A4036] leading-relaxed">
                 In the rare event that an order arrives damaged, tampered, spoiled, or incomplete, please notify us within 2 hours of receipt with photographic proof.
                 We provide immediate free replacements or full refunds to your original payment method. For detailed terms, see our{' '}
-                <button
-                  type="button"
-                  onClick={() => onNavigate?.('/refund-policy')}
+                <a
+                  href="/refund-policy"
+                  onClick={(e) => handleSpaNavigation(e, '/refund-policy', onNavigate)}
                   className="text-[#7A1129] font-semibold underline"
                 >
                   Cancellation & Refund Policy
-                </button>.
+                </a>.
               </p>
             </section>
 
@@ -357,29 +358,29 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onNavigate }) => {
                 © {new Date().getFullYear()} {BUSINESS_INFO.legalName}. All rights reserved.
               </div>
               <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => onNavigate?.('/privacy-policy')}
+                <a
+                  href="/privacy-policy"
+                  onClick={(e) => handleSpaNavigation(e, '/privacy-policy', onNavigate)}
                   className="hover:text-[#7A1129] underline"
                 >
                   Privacy Policy
-                </button>
+                </a>
                 <span>·</span>
-                <button
-                  type="button"
-                  onClick={() => onNavigate?.('/shipping-policy')}
+                <a
+                  href="/shipping-policy"
+                  onClick={(e) => handleSpaNavigation(e, '/shipping-policy', onNavigate)}
                   className="hover:text-[#7A1129] underline"
                 >
                   Shipping Policy
-                </button>
+                </a>
                 <span>·</span>
-                <button
-                  type="button"
-                  onClick={() => onNavigate?.('/refund-policy')}
+                <a
+                  href="/refund-policy"
+                  onClick={(e) => handleSpaNavigation(e, '/refund-policy', onNavigate)}
                   className="hover:text-[#7A1129] underline"
                 >
                   Refund Policy
-                </button>
+                </a>
               </div>
             </div>
           </article>

@@ -13,6 +13,7 @@ import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useToast } from '../context/ToastContext';
 import { formatINR } from '../utils/formatters';
+import { shouldHandleSpaClick } from '../utils/navigation';
 
 interface OrderDetailPageProps {
   orderNumber: string;
@@ -130,13 +131,18 @@ export const OrderDetailPage: React.FC<OrderDetailPageProps> = ({
         <p className="text-sm text-[#6B6258]">
           Could not find details for order #{orderNumber}.
         </p>
-        <button
-          type="button"
-          onClick={onBack}
+        <a
+          href="/orders"
+          onClick={(e) => {
+            if (shouldHandleSpaClick(e)) {
+              e.preventDefault();
+              onBack();
+            }
+          }}
           className="text-xs font-semibold text-[#8A1538] hover:underline"
         >
           ← Return to Orders
-        </button>
+        </a>
       </div>
     );
   }
@@ -161,14 +167,19 @@ export const OrderDetailPage: React.FC<OrderDetailPageProps> = ({
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E8DFD2] pb-4">
         <div>
-          <button
-            type="button"
-            onClick={onBack}
+          <a
+            href="/orders"
+            onClick={(e) => {
+              if (shouldHandleSpaClick(e)) {
+                e.preventDefault();
+                onBack();
+              }
+            }}
             className="inline-flex items-center gap-1 text-xs font-semibold text-[#8A1538] hover:underline mb-1"
           >
             <ChevronLeft className="w-4 h-4" />
             <span>Back to Orders</span>
-          </button>
+          </a>
           <div className="flex items-center gap-3">
             <h1 className="font-display font-bold text-2xl sm:text-3xl text-[#1F1B16]">
               Order #{order.order_number}

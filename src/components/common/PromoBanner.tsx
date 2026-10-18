@@ -3,6 +3,7 @@ import { Banner } from '../../types/database';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { OrnateCardFrame } from './DecorativeBorders';
 import { getOptimizedImageUrl } from '../../utils/imageUtils';
+import { shouldHandleSpaClick } from '../../utils/navigation';
 
 interface PromoBannerProps {
   banner: Banner;
@@ -47,14 +48,19 @@ export const PromoBanner: React.FC<PromoBannerProps> = ({ banner, onCtaClick }) 
           )}
 
           <div className="pt-2">
-            <button
-              type="button"
-              onClick={onCtaClick}
-              className="min-h-[44px] px-8 py-2.5 rounded-full bg-white hover:bg-[#FAF4DE] text-[#7A1129] font-bold text-sm inline-flex items-center gap-2 shadow-sm transition-all duration-150 active:scale-95"
+            <a
+              href={banner.cta_link || '/catalog'}
+              onClick={(e) => {
+                if (shouldHandleSpaClick(e)) {
+                  e.preventDefault();
+                  onCtaClick?.();
+                }
+              }}
+              className="min-h-[44px] px-8 py-2.5 rounded-full bg-white hover:bg-[#FAF4DE] text-[#7A1129] font-bold text-sm inline-flex items-center gap-2 shadow-sm transition-all duration-150 active:scale-95 focus:outline-none focus:ring-2 focus:ring-white"
             >
               <span>{banner.cta_text || 'Explore Sweets'}</span>
               <ArrowRight className="w-4 h-4 text-[#7A1129]" />
-            </button>
+            </a>
           </div>
         </div>
 

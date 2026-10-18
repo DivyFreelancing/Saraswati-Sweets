@@ -13,6 +13,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { BUSINESS_INFO } from '../config/businessInfo';
+import { handleSpaNavigation } from '../utils/navigation';
 
 interface ShippingPolicyPageProps {
   onNavigate?: (path: string) => void;
@@ -36,14 +37,14 @@ export const ShippingPolicyPage: React.FC<ShippingPolicyPageProps> = ({ onNaviga
       {/* Editorial Breadcrumb Bar */}
       <nav aria-label="Breadcrumb" className="bg-[#F5EAD9]/70 border-b border-[#E8DCC8] py-3 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex items-center gap-2 text-xs text-[#6E6259]">
-          <button
-            type="button"
-            onClick={() => onNavigate?.('/')}
+          <a
+            href="/"
+            onClick={(e) => handleSpaNavigation(e, '/', onNavigate)}
             className="hover:text-[#7A1129] transition-colors flex items-center gap-1"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             Home
-          </button>
+          </a>
           <ChevronRight className="w-3.5 h-3.5 text-[#C79A3D]" />
           <span className="text-[#221A14] font-semibold">Shipping & Delivery Policy</span>
         </div>
@@ -199,13 +200,13 @@ export const ShippingPolicyPage: React.FC<ShippingPolicyPageProps> = ({ onNaviga
             </div>
             <p className="text-sm text-[#4A4036] pt-1">
               You can track your order at any time using your Order Number at our{' '}
-              <button
-                type="button"
-                onClick={() => onNavigate?.('/orders')}
+              <a
+                href="/orders"
+                onClick={(e) => handleSpaNavigation(e, '/orders', onNavigate)}
                 className="text-[#7A1129] font-semibold underline"
               >
                 Order Tracking Page
-              </button>.
+              </a>.
             </p>
           </section>
 

@@ -17,6 +17,7 @@ import {
   CertificationDocument,
 } from '../../data/certificationsData';
 import { DocumentViewerModal } from './DocumentViewerModal';
+import { handleSpaNavigation } from '../../utils/navigation';
 
 interface CertificationsSectionProps {
   isPage?: boolean;
@@ -411,14 +412,14 @@ export const CertificationsSection: React.FC<CertificationsSectionProps> = ({
         </p>
         {onNavigate && !isPage && (
           <div className="pt-2">
-            <button
-              type="button"
-              onClick={() => onNavigate('/certifications')}
-              className="text-xs font-bold text-[#7A1129] hover:underline inline-flex items-center gap-1"
+            <a
+              href="/certifications"
+              onClick={(e) => handleSpaNavigation(e, '/certifications', onNavigate)}
+              className="text-xs font-bold text-[#7A1129] hover:underline inline-flex items-center gap-1 focus:outline-none focus:underline"
             >
               <span>Explore Dedicated Legacy & Certifications Page</span>
               <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            </a>
           </div>
         )}
       </div>

@@ -6,6 +6,7 @@ import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
 import { ProductImagePlaceholder } from './ProductImagePlaceholder';
 import { getOptimizedImageUrl } from '../../utils/imageUtils';
+import { shouldHandleSpaClick } from '../../utils/navigation';
 
 interface ProductCardProps {
   product: Product;
@@ -16,6 +17,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenDetail 
   const { addItem } = useCart();
   const { showToast } = useToast();
   const [imageFailed, setImageFailed] = useState(false);
+
+  const productUrl = `/products/${product.slug || product.id}`;
 
   const rawPrimaryImage =
     product.images?.find((i) => i.is_primary)?.image_url ||
@@ -71,7 +74,21 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenDetail 
   const currentMrp = selectedVariant ? selectedVariant.mrp : product.variants[0]?.mrp;
   const hasDiscount = currentMrp && currentMrp > currentPrice;
 
-  const handleCardClick = () => {
+  const handleLinkClick = (e: React.MouseEvent) => {
+    if (shouldHandleSpaClick(e)) {
+      e.preventDefault();
+      if (onOpenDetail) {
+        onOpenDetail(product);
+      }
+    }
+  };
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Only open if click was directly on card background, not inside interactive children
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('a')) {
+      return;
+    }
     if (onOpenDetail) {
       onOpenDetail(product);
     }
@@ -152,9 +169,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenDetail 
         )}
       </div>
 
-      {/* Product Image Frame: Soft rounded corners with breathing room to prevent cutting off product trays */}
+      {/* Product Image Frame: Crawlable anchor tag with SPA behavior */}
       <div className="py-2 flex justify-center">
-        <div className="w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40 aspect-square rounded-2xl p-1 overflow-hidden bg-[#F5EAD9] border-2 border-white shadow-xs ring-1 ring-[#E8DCC8] relative shrink-0 flex items-center justify-center">
+        <a
+          href={productUrl}
+          onClick={handleLinkClick}
+          aria-label={`View details for ${product.name}`}
+          className="w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40 aspect-square rounded-2xl p-1 overflow-hidden bg-[#F5EAD9] border-2 border-white shadow-xs ring-1 ring-[#E8DCC8] relative shrink-0 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#7A1129]"
+        >
           {primaryImage && !imageFailed ? (
             <img
               src={primaryImage}
@@ -175,7 +197,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenDetail 
               className="w-full h-full"
             />
           )}
-        </div>
+        </a>
       </div>
 
       {/* Metadata & Title */}
@@ -189,7 +211,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenDetail 
         </div>
 
         <h3 className="font-display text-base sm:text-lg font-bold text-[#221A14] line-clamp-1 group-hover:text-[#7A1129] transition-colors">
-          {product.name}
+          <a
+            href={productUrl}
+            onClick={handleLinkClick}
+            className="hover:underline focus:outline-none focus:underline"
+          >
+            {product.name}
+          </a>
         </h3>
 
         {/* Dynamic Price Display */}

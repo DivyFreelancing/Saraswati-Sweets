@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { formatINR } from '../utils/formatters';
 import { useAuth } from '../context/AuthContext';
+import { shouldHandleSpaClick } from '../utils/navigation';
 
 interface OrderConfirmationPageProps {
   orderNumber: string;
@@ -493,14 +494,19 @@ export const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
       {/* Action Buttons */}
       <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
         {isAuthenticated ? (
-          <button
-            type="button"
-            onClick={onViewOrders}
+          <a
+            href="/orders"
+            onClick={(e) => {
+              if (shouldHandleSpaClick(e)) {
+                e.preventDefault();
+                onViewOrders();
+              }
+            }}
             className="w-full sm:w-auto min-h-[48px] px-6 py-2.5 rounded-xl bg-[#8A1538] hover:bg-[#701029] text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2 shadow-xs"
           >
             <FileText className="w-4 h-4 text-[#F6E08B]" />
             <span>View All My Orders</span>
-          </button>
+          </a>
         ) : (
           <button
             type="button"
@@ -512,14 +518,19 @@ export const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
           </button>
         )}
 
-        <button
-          type="button"
-          onClick={onContinueShopping}
+        <a
+          href="/catalog"
+          onClick={(e) => {
+            if (shouldHandleSpaClick(e)) {
+              e.preventDefault();
+              onContinueShopping();
+            }
+          }}
           className="w-full sm:w-auto min-h-[48px] px-6 py-2.5 rounded-xl bg-white border border-[#E8DFD2] hover:bg-[#F3EBE0] text-[#1F1B16] text-sm font-semibold transition-colors flex items-center justify-center gap-2"
         >
           <ArrowRight className="w-4 h-4" />
           <span>Back to Sweet Catalog</span>
-        </button>
+        </a>
       </div>
     </div>
   );

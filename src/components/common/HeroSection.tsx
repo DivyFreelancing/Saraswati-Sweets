@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowRight, Sparkles, Gift, ChevronLeft, ChevronRight } from 'lucide-react';
 import { DoubleScallopDivider } from './DecorativeBorders';
+import { shouldHandleSpaClick } from '../../utils/navigation';
 
 interface HeroSectionProps {
   onExploreClick: () => void;
@@ -222,26 +223,44 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
             {activeSlide.description}
           </p>
 
-          {/* Two PILL Buttons side by side — sleek and compact on mobile */}
+          {/* Two PILL Links side by side — sleek and compact on mobile */}
           <div className="flex items-center gap-2.5 sm:gap-3 pt-0.5 sm:pt-1">
-            <button
-              type="button"
-              onClick={activeSlide.onPrimaryClick === 'hampers' ? onGiftingClick : onExploreClick}
-              className="min-h-[36px] sm:min-h-[42px] px-4 sm:px-7 py-1.5 sm:py-2.5 rounded-full bg-[#7A1129] hover:bg-[#5E0D20] text-white font-semibold text-xs sm:text-sm inline-flex items-center justify-center gap-1.5 shadow-[0_4px_16px_rgba(0,0,0,0.4)] border border-[#C79A3D]/40 transition-all duration-150 active:scale-[0.98]"
+            <a
+              href={activeSlide.onPrimaryClick === 'hampers' ? '/hampers' : '/catalog'}
+              onClick={(e) => {
+                if (shouldHandleSpaClick(e)) {
+                  e.preventDefault();
+                  if (activeSlide.onPrimaryClick === 'hampers') {
+                    onGiftingClick();
+                  } else {
+                    onExploreClick();
+                  }
+                }
+              }}
+              className="min-h-[36px] sm:min-h-[42px] px-4 sm:px-7 py-1.5 sm:py-2.5 rounded-full bg-[#7A1129] hover:bg-[#5E0D20] text-white font-semibold text-xs sm:text-sm inline-flex items-center justify-center gap-1.5 shadow-[0_4px_16px_rgba(0,0,0,0.4)] border border-[#C79A3D]/40 transition-all duration-150 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-white"
             >
               <span>{activeSlide.primaryCtaText}</span>
               <ArrowRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#FAF4DE]" />
-            </button>
+            </a>
 
-            <button
-              type="button"
-              onClick={activeSlide.onSecondaryClick === 'hampers' ? onGiftingClick : onExploreClick}
+            <a
+              href={activeSlide.onSecondaryClick === 'hampers' ? '/hampers' : '/catalog'}
+              onClick={(e) => {
+                if (shouldHandleSpaClick(e)) {
+                  e.preventDefault();
+                  if (activeSlide.onSecondaryClick === 'hampers') {
+                    onGiftingClick();
+                  } else {
+                    onExploreClick();
+                  }
+                }
+              }}
               style={{ color: '#FAF4DE', borderColor: '#FAF4DE' }}
-              className="min-h-[36px] sm:min-h-[42px] px-3.5 sm:px-6 py-1.5 sm:py-2.5 rounded-full border border-white/60 sm:border-2 bg-black/25 sm:bg-transparent hover:bg-white hover:text-[#7A1129] font-semibold text-xs sm:text-sm inline-flex items-center justify-center gap-1.5 transition-all duration-150 active:scale-[0.98] shadow-sm backdrop-blur-xs"
+              className="min-h-[36px] sm:min-h-[42px] px-3.5 sm:px-6 py-1.5 sm:py-2.5 rounded-full border border-white/60 sm:border-2 bg-black/25 sm:bg-transparent hover:bg-white hover:text-[#7A1129] font-semibold text-xs sm:text-sm inline-flex items-center justify-center gap-1.5 transition-all duration-150 active:scale-[0.98] shadow-sm backdrop-blur-xs focus:outline-none focus:ring-2 focus:ring-white"
             >
               <Gift className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#C79A3D]" />
               <span>{activeSlide.secondaryCtaText}</span>
-            </button>
+            </a>
           </div>
         </div>
       </div>

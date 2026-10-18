@@ -24,6 +24,7 @@ import { PWAInstallButton } from '../common/PWAInstallButton';
 import { NotificationDrawer } from '../common/NotificationDrawer';
 import { formatINR } from '../../utils/formatters';
 import { BUSINESS_INFO } from '../../config/businessInfo';
+import { handleSpaNavigation } from '../../utils/navigation';
 
 interface HeaderProps {
   currentPath: string;
@@ -224,10 +225,14 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
                     ? currentPath === '/'
                     : currentPath === link.path || currentPath.startsWith(link.path);
                 return (
-                  <button
+                  <a
                     key={link.path}
-                    type="button"
-                    onClick={() => handleLinkClick(link.path)}
+                    href={link.path}
+                    onClick={(e) => {
+                      handleSpaNavigation(e, link.path, onNavigate);
+                      setMobileMenuOpen(false);
+                      setSearchOpen(false);
+                    }}
                     className={`text-sm font-semibold transition-colors py-1 relative flex items-center gap-1.5 whitespace-nowrap ${
                       isActive
                         ? 'text-[#7A1129]'
@@ -239,7 +244,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
                     {isActive && (
                       <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#7A1129] rounded-full" />
                     )}
-                  </button>
+                  </a>
                 );
               })}
             </nav>
@@ -249,8 +254,13 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
               Official Saraswati Sweets Logo prominently in the Middle
           */}
           <div className="flex items-center justify-center shrink-0">
-            <div
-              onClick={() => handleLinkClick('/')}
+            <a
+              href="/"
+              onClick={(e) => {
+                handleSpaNavigation(e, '/', onNavigate);
+                setMobileMenuOpen(false);
+                setSearchOpen(false);
+              }}
               className="flex items-center gap-2 cursor-pointer group select-none py-1"
               title="Saraswati Sweets - Home"
             >
@@ -263,7 +273,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
                 loading="eager"
                 decoding="async"
               />
-            </div>
+            </a>
           </div>
 
           {/* RIGHT ZONE:
@@ -276,10 +286,14 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
               {rightNavLinks.map((link) => {
                 const isActive = currentPath === link.path;
                 return (
-                  <button
+                  <a
                     key={link.path}
-                    type="button"
-                    onClick={() => handleLinkClick(link.path)}
+                    href={link.path}
+                    onClick={(e) => {
+                      handleSpaNavigation(e, link.path, onNavigate);
+                      setMobileMenuOpen(false);
+                      setSearchOpen(false);
+                    }}
                     className={`text-sm font-semibold transition-colors py-1 relative flex items-center gap-1.5 whitespace-nowrap ${
                       isActive
                         ? 'text-[#7A1129]'
@@ -291,7 +305,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
                     {isActive && (
                       <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#7A1129] rounded-full" />
                     )}
-                  </button>
+                  </a>
                 );
               })}
             </nav>
@@ -327,9 +341,13 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
 
             {/* Direct "My Orders" button on desktop when logged in */}
             {isAuthenticated && (
-              <button
-                type="button"
-                onClick={() => handleLinkClick('/orders')}
+              <a
+                href="/orders"
+                onClick={(e) => {
+                  handleSpaNavigation(e, '/orders', onNavigate);
+                  setMobileMenuOpen(false);
+                  setSearchOpen(false);
+                }}
                 className={`hidden md:flex min-h-[40px] px-3.5 py-1.5 rounded-full border text-xs font-semibold items-center gap-1.5 transition-colors shadow-2xs backdrop-blur-xs ${
                   currentPath === '/orders'
                     ? 'border-[#7A1129] bg-[#7A1129] text-white'
@@ -339,7 +357,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
               >
                 <Package className={`w-3.5 h-3.5 ${currentPath === '/orders' ? 'text-white' : 'text-[#7A1129]'}`} />
                 <span>My Orders</span>
-              </button>
+              </a>
             )}
 
             {/* Auth / Account Trigger & Dropdown */}
@@ -383,42 +401,42 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
                     </div>
 
                     <div className="py-1">
-                      <button
-                        type="button"
-                        onClick={() => {
+                      <a
+                        href="/orders"
+                        onClick={(e) => {
                           setAccountMenuOpen(false);
-                          handleLinkClick('/orders');
+                          handleSpaNavigation(e, '/orders', onNavigate);
                         }}
                         className="w-full px-4 py-2.5 text-left text-xs font-semibold text-[#221A14] hover:bg-[#F5EAD9]/60 flex items-center gap-2.5 transition-colors"
                       >
                         <Package className="w-4 h-4 text-[#7A1129]" />
                         <span>My Orders & Tracking</span>
-                      </button>
+                      </a>
 
-                      <button
-                        type="button"
-                        onClick={() => {
+                      <a
+                        href="/profile"
+                        onClick={(e) => {
                           setAccountMenuOpen(false);
-                          handleLinkClick('/profile');
+                          handleSpaNavigation(e, '/profile', onNavigate);
                         }}
                         className="w-full px-4 py-2.5 text-left text-xs font-semibold text-[#221A14] hover:bg-[#F5EAD9]/60 flex items-center gap-2.5 transition-colors"
                       >
                         <MapPin className="w-4 h-4 text-[#7A1129]" />
                         <span>Profile & Addresses</span>
-                      </button>
+                      </a>
 
                       {(user?.role === 'ADMIN' || user?.role === 'STAFF') && (
-                        <button
-                          type="button"
-                          onClick={() => {
+                        <a
+                          href="/admin"
+                          onClick={(e) => {
                             setAccountMenuOpen(false);
-                            handleLinkClick('/admin');
+                            handleSpaNavigation(e, '/admin', onNavigate);
                           }}
                           className="w-full px-4 py-2.5 text-left text-xs font-semibold text-[#2E7D4F] hover:bg-emerald-50 flex items-center gap-2.5 transition-colors"
                         >
                           <ShieldCheck className="w-4 h-4 text-[#2E7D4F]" />
                           <span>Admin Dashboard</span>
-                        </button>
+                        </a>
                       )}
                     </div>
 
@@ -536,22 +554,28 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
               </div>
 
               <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#E8DCC8]/60">
-                <button
-                  type="button"
-                  onClick={() => handleLinkClick('/orders')}
+                <a
+                  href="/orders"
+                  onClick={(e) => {
+                    handleSpaNavigation(e, '/orders', onNavigate);
+                    setMobileMenuOpen(false);
+                  }}
                   className="py-2 px-3 rounded-xl bg-white border border-[#E8DCC8] text-xs font-bold text-[#7A1129] flex items-center justify-center gap-1.5 shadow-2xs hover:bg-[#FBF6EF] transition-colors"
                 >
                   <Package className="w-3.5 h-3.5 text-[#7A1129]" />
                   <span>My Orders</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleLinkClick('/profile')}
+                </a>
+                <a
+                  href="/profile"
+                  onClick={(e) => {
+                    handleSpaNavigation(e, '/profile', onNavigate);
+                    setMobileMenuOpen(false);
+                  }}
                   className="py-2 px-3 rounded-xl bg-white border border-[#E8DCC8] text-xs font-semibold text-[#221A14] flex items-center justify-center gap-1.5 shadow-2xs hover:bg-[#FBF6EF] transition-colors"
                 >
                   <MapPin className="w-3.5 h-3.5 text-[#7A1129]" />
                   <span>Addresses</span>
-                </button>
+                </a>
               </div>
             </div>
           ) : (
@@ -580,10 +604,13 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
                   ? currentPath === '/'
                   : currentPath === link.path || currentPath.startsWith(link.path);
               return (
-                <button
+                <a
                   key={link.path}
-                  type="button"
-                  onClick={() => handleLinkClick(link.path)}
+                  href={link.path}
+                  onClick={(e) => {
+                    handleSpaNavigation(e, link.path, onNavigate);
+                    setMobileMenuOpen(false);
+                  }}
                   className={`w-full min-h-[44px] flex items-center justify-between py-3 text-left font-semibold text-sm ${
                     isActive ? 'text-[#7A1129]' : 'text-[#221A14]'
                   }`}
@@ -593,7 +620,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
                     <span>{link.label}</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-[#6E6259]" />
-                </button>
+                </a>
               );
             })}
           </div>

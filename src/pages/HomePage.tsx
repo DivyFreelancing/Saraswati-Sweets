@@ -20,6 +20,7 @@ import {
 import { Category, Product, GiftHamper, Banner, Review, Offer } from '../types/database';
 import { catalogService } from '../services/catalogService';
 import { SEED_CATEGORIES } from '../data/seedCategories';
+import { shouldHandleSpaClick } from '../utils/navigation';
 
 interface HomePageProps {
   onNavigate: (path: string) => void;
@@ -132,17 +133,19 @@ export const HomePage: React.FC<HomePageProps> = ({
             </span>
             {quickNavItems.map((item) => {
               const isAll = (item as any).isAll;
+              const href = (item as any).isHamperPage
+                ? '/hampers'
+                : isAll
+                ? '/catalog'
+                : `/categories/${item.slug}`;
               return (
-                <button
+                <a
                   key={item.label}
-                  type="button"
-                  onClick={() => {
-                    if ((item as any).isHamperPage) {
-                      onNavigate('/hampers');
-                    } else if (isAll) {
-                      onNavigate('/catalog');
-                    } else {
-                      onNavigate(`/catalog?category=${item.slug}`);
+                  href={href}
+                  onClick={(e) => {
+                    if (shouldHandleSpaClick(e)) {
+                      e.preventDefault();
+                      onNavigate(href);
                     }
                   }}
                   className={`shrink-0 px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full border text-xs sm:text-sm font-semibold transition-all duration-150 shadow-xs flex items-center gap-1.5 active:scale-95 cursor-pointer ${
@@ -153,7 +156,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 >
                   {(item as any).isHamperPage && <Gift className="w-3.5 h-3.5 text-[#C79A3D]" />}
                   <span>{item.label}</span>
-                </button>
+                </a>
               );
             })}
           </div>
@@ -165,6 +168,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             eyebrow="Customer Favorites"
             title="Our Bestselling Mithai"
             actionText="View All Sweets"
+            actionHref="/catalog"
             onAction={() => onNavigate('/catalog')}
           />
 
@@ -181,6 +185,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             eyebrow="Authentic Collections"
             title="Shop by Category"
             actionText="View All Categories"
+            actionHref="/categories"
             onAction={() => onNavigate('/categories')}
           />
 
@@ -196,7 +201,8 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <CategoryCard
                   key={category.id}
                   category={category}
-                  onClick={(slug) => onNavigate(`/catalog?category=${slug}`)}
+                  href={`/categories/${category.slug}`}
+                  onClick={(slug) => onNavigate(`/categories/${slug}`)}
                 />
               ))}
             </div>
@@ -213,8 +219,10 @@ export const HomePage: React.FC<HomePageProps> = ({
         <a
           href="/hampers"
           onClick={(e) => {
-            e.preventDefault();
-            onNavigate('/hampers');
+            if (shouldHandleSpaClick(e)) {
+              e.preventDefault();
+              onNavigate('/hampers');
+            }
           }}
           aria-label="Explore Saraswati Sweets Handcrafted Gift Hampers Collection - Gifting, Made Extraordinary"
           className="group block relative w-full overflow-hidden bg-[#FAF4DE] border-y border-[#C79A3D]/30 shadow-[0_4px_24px_-4px_rgba(74,8,14,0.10)] transition-all duration-300 hover:shadow-[0_12px_36px_-4px_rgba(74,8,14,0.18)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#7A1129]/30 cursor-pointer"
@@ -265,6 +273,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               title="Handcrafted Gift Hampers"
               subtitle="Regal velvet and raw silk keepsake presentation boxes filled with signature mithai and dry fruits."
               actionText="View All Hampers"
+              actionHref="/hampers"
               onAction={() => onNavigate('/hampers')}
             />
 
@@ -411,14 +420,19 @@ export const HomePage: React.FC<HomePageProps> = ({
 
             {/* Pill Button (from Reference Image 3) */}
             <div className="pt-4">
-              <button
-                type="button"
-                onClick={() => onNavigate('/contact')}
+              <a
+                href="/contact"
+                onClick={(e) => {
+                  if (shouldHandleSpaClick(e)) {
+                    e.preventDefault();
+                    onNavigate('/contact');
+                  }
+                }}
                 className="min-h-[44px] px-8 py-2.5 rounded-full bg-white hover:bg-[#FAF4DE] text-[#7A1129] font-bold text-xs sm:text-sm inline-flex items-center gap-2 shadow-md transition-all duration-150 active:scale-95 border border-[#C79A3D]/40"
               >
                 <span>Find Our Store & Directions</span>
                 <ArrowRight className="w-4 h-4 text-[#7A1129]" />
-              </button>
+              </a>
             </div>
           </div>
 
