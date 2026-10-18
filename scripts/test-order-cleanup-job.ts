@@ -40,6 +40,20 @@ async function runOrderCleanupJobTests() {
 
   globalThis.fetch = async (url: any, init?: any) => {
     const urlStr = String(url);
+    if (urlStr.includes('/payments')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => [
+          {
+            cf_payment_id: 'cf_pay_test_paid_123',
+            payment_status: 'SUCCESS',
+            payment_amount: 600,
+            payment_currency: 'INR',
+          },
+        ],
+      } as any;
+    }
     if (urlStr.includes('/orders/')) {
       fetchCallCount++;
       if (simulatedResponse.throws) {

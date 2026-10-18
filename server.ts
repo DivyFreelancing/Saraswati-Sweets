@@ -17,9 +17,10 @@ import adminRoutes from './server/routes/adminRoutes';
 import orderRoutes from './server/routes/orderRoutes';
 import paymentRoutes from './server/routes/paymentRoutes';
 import publicRoutes from './server/routes/publicRoutes';
-import { STORE_SETTINGS, loadStoreState, isOrderCleanupEnabled } from './server/db';
+import { STORE_SETTINGS, loadStoreState, isOrderCleanupEnabled, isStoreLoaded, checkDatabaseHealth } from './server/db';
 import { generateRobotsTxt, generateSitemapXml } from './server/services/seoService';
 import { createSeoInjectMiddleware } from './server/middleware/seoInject';
+import { verifyAdminEmailConfig } from './server/config/emailConfig';
 
 dotenv.config();
 
@@ -27,6 +28,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function startServer() {
+  verifyAdminEmailConfig();
   await loadStoreState();
   const app = express();
   app.set('trust proxy', 1);
@@ -152,10 +154,10 @@ async function startServer() {
 
   const enquiryLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10, // Limit each IP to 10 bulk enquiry submissions per 15 minutes to protect transactional email quotas
+    max: 5, // Limit each IP to 5 bulk enquiry submissions per 15 minutes (real customers submitting 1-2 per day never blocked)
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: 'Too many enquiry requests from this IP, please try again later.' },
+    message: { error: 'Too many enquiry requests from this IP, please try again in a few minutes.' },
   });
 
   app.use('/api/auth', sensitiveLimiter, authRoutes);
@@ -174,10 +176,47 @@ async function startServer() {
     res.json(STORE_SETTINGS);
   });
 
-  // Health check
-  app.get('/api/health', (_req, res) => {
-    res.json({
+  // Health & Readiness check (Distinguishes process liveness from application readiness)
+  app.get('/api/health', async (req, res) => {
+    // 1. Process Liveness probe: Immediate 200 for container orchestrators checking process existence
+    if (req.query.probe === 'liveness') {
+      res.status(200).json({
+        status: 'ok',
+        liveness: true,
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    // 2. Application Startup & Store Hydration Readiness
+    if (!isStoreLoaded()) {
+      res.status(503).json({
+        status: 'initializing',
+        ready: false,
+        timestamp: new Date().toISOString(),
+        error: 'SERVICE_INITIALIZING',
+        message: 'Application store state is still hydrating. Please retry shortly.',
+      });
+      return;
+    }
+
+    // 3. Database Dependency Readiness: Verifies database connectivity with bounded 3s timeout
+    const dbHealth = await checkDatabaseHealth();
+    if (!dbHealth.ok) {
+      console.warn('[HealthCheck] Database readiness failure:', dbHealth.error);
+      res.status(503).json({
+        status: 'unhealthy',
+        ready: false,
+        timestamp: new Date().toISOString(),
+        error: 'DATABASE_UNAVAILABLE',
+        message: 'Database dependency is temporarily unavailable or unreachable.',
+      });
+      return;
+    }
+
+    res.status(200).json({
       status: 'ok',
+      ready: true,
       timestamp: new Date().toISOString(),
       shop: 'Saraswati Sweets (Barabanki, UP)',
     });
@@ -294,19 +333,23 @@ async function startServer() {
         index: false,
         maxAge: '30d',
         setHeaders: (res, filePath) => {
-          if (filePath.endsWith('.html')) {
+          const normalized = filePath.replace(/\\/g, '/');
+          if (normalized.endsWith('/sw.js') || /\/workbox-[^/]+\.js$/.test(normalized)) {
+            // Service worker and workbox runtime files must revalidate immediately so deploys update quickly
+            res.setHeader('Cache-Control', 'no-cache');
+          } else if (normalized.endsWith('.html')) {
             // Never cache index.html to ensure users receive the latest release
             res.setHeader('Cache-Control', 'no-cache');
-          } else if (filePath.includes('/assets/')) {
-            // Cache Vite-hashed assets immutably
+          } else if (normalized.includes('/assets/')) {
+            // Cache Vite-hashed assets immutably for 1 year
             res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-          } else if (/\.(woff2?|ttf|otf|eot)$/i.test(filePath)) {
+          } else if (/\.(woff2?|ttf|otf|eot)$/i.test(normalized)) {
             // Font files are immutable
             res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-          } else if (/\.(webp|png|jpe?g|svg|ico)$/i.test(filePath)) {
+          } else if (/\.(webp|png|jpe?g|svg|ico)$/i.test(normalized)) {
             // Static images, branding assets, and favicons: 30 days cache with stale-while-revalidate
             res.setHeader('Cache-Control', 'public, max-age=2592000, stale-while-revalidate=86400');
-          } else if (filePath.endsWith('.webmanifest')) {
+          } else if (normalized.endsWith('.webmanifest')) {
             // Web app manifest
             res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=86400');
           }

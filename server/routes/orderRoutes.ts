@@ -1089,7 +1089,14 @@ router.patch('/orders/:id/status', requireAuth, async (req: AuthenticatedRequest
   const { id } = req.params;
   const { status: targetStatus, reason } = req.body;
 
-  const order = inMemoryStore.orders.get(id) || Array.from(inMemoryStore.orders.values()).find((o) => o.order_number === id);
+  let order = inMemoryStore.orders.get(id) || Array.from(inMemoryStore.orders.values()).find((o) => o.order_number === id);
+
+  if (!order && isLiveSupabase && supabaseServer) {
+    const { order: dbOrder, error: dbErr } = await findOrderInSupabase(id);
+    if (!dbErr && dbOrder) {
+      order = dbOrder;
+    }
+  }
 
   if (!order) {
     res.status(404).json({ error: 'ORDER_NOT_FOUND', message: 'Order not found' });
@@ -1112,7 +1119,8 @@ router.patch('/orders/:id/status', requireAuth, async (req: AuthenticatedRequest
   // 2. Customer Cancel Rule: Only allowed if status is PLACED or CONFIRMED
   const isCustomer = req.user?.role === 'CUSTOMER';
   if (isCustomer) {
-    if (order.user_id && order.user_id !== req.user?.id) {
+    // Customers can strictly only cancel their own registered orders (must have matching user_id)
+    if (!order.user_id || order.user_id !== req.user?.id) {
       res.status(404).json({ error: 'ORDER_NOT_FOUND', message: 'Order not found' });
       return;
     }

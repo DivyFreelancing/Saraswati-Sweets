@@ -8,6 +8,8 @@ import {
   ServerReview,
   ServerBulkEnquiry,
   ServerNotification,
+  isLiveSupabase,
+  supabaseServer,
 } from '../db';
 import { notifyNewBulkEnquiry } from '../services/notificationService';
 
@@ -386,6 +388,16 @@ router.post(
 // 5. BULK / CORPORATE / WEDDING ENQUIRIES (PUBLIC)
 // ==========================================================
 router.post('/enquiries', async (req, res: Response) => {
+  // 1. Silent rejection for automated bot submissions trapped by honeypot field
+  if (req.body.website && String(req.body.website).trim().length > 0) {
+    const fakeEnquiryNumber = `ENQ-${Math.floor(1000 + Math.random() * 9000)}`;
+    res.status(201).json({
+      success: true,
+      message: `Thank you! Your bulk enquiry (${fakeEnquiryNumber}) has been received. Our team will contact you shortly.`,
+    });
+    return;
+  }
+
   const {
     contact_name,
     organization_name,
@@ -401,15 +413,64 @@ router.post('/enquiries', async (req, res: Response) => {
     notes,
   } = req.body;
 
-  if (!contact_name || !phone || !event_date) {
+  const cleanName = typeof contact_name === 'string' ? contact_name.trim() : '';
+  const cleanPhone = typeof phone === 'string' ? phone.trim().replace(/[\s-]/g, '') : '';
+  const cleanDate = typeof event_date === 'string' ? event_date.trim() : '';
+  const cleanEmail = typeof email === 'string' ? email.trim() : '';
+
+  if (!cleanName || cleanName.length < 2 || cleanName.length > 100) {
     res.status(400).json({
-      error: 'MISSING_FIELDS',
-      message: 'Contact name, phone number, and event date are required.',
+      error: 'INVALID_NAME',
+      message: 'Please provide a valid contact name between 2 and 100 characters.',
     });
     return;
   }
 
-  const cleanPhone = String(phone).trim();
+  // Indian mobile phone validation: optional +91/91/0 prefix followed by 10 digits starting 6-9
+  const indianPhoneRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
+  if (!cleanPhone || !indianPhoneRegex.test(cleanPhone) || cleanPhone.length > 15) {
+    res.status(400).json({
+      error: 'INVALID_PHONE',
+      message: 'Please enter a valid 10-digit Indian mobile number.',
+    });
+    return;
+  }
+
+  if (!cleanDate || cleanDate.length > 30 || isNaN(Date.parse(cleanDate))) {
+    res.status(400).json({
+      error: 'INVALID_DATE',
+      message: 'Please provide a valid event date.',
+    });
+    return;
+  }
+
+  if (cleanEmail) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (cleanEmail.length > 120 || !emailRegex.test(cleanEmail)) {
+      res.status(400).json({
+        error: 'INVALID_EMAIL',
+        message: 'Please provide a valid email address or leave the field empty.',
+      });
+      return;
+    }
+  }
+
+  if (notes && typeof notes === 'string' && notes.length > 2000) {
+    res.status(400).json({
+      error: 'TEXT_TOO_LONG',
+      message: 'Special instructions notes must not exceed 2000 characters.',
+    });
+    return;
+  }
+
+  if (requested_sweets && typeof requested_sweets === 'string' && requested_sweets.length > 1000) {
+    res.status(400).json({
+      error: 'TEXT_TOO_LONG',
+      message: 'Requested sweets specification must not exceed 1000 characters.',
+    });
+    return;
+  }
+
   const id = `enq-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const enquiryNumber = `ENQ-${Math.floor(1000 + Math.random() * 9000)}`;
   const nowIso = new Date().toISOString();
@@ -417,24 +478,32 @@ router.post('/enquiries', async (req, res: Response) => {
   const newEnquiry: ServerBulkEnquiry = {
     id,
     enquiry_number: enquiryNumber,
-    contact_name: String(contact_name).trim(),
-    organization_name: organization_name ? String(organization_name).trim() : undefined,
+    contact_name: cleanName,
+    organization_name: organization_name ? String(organization_name).trim().slice(0, 150) : undefined,
     phone: cleanPhone,
-    email: email ? String(email).trim() : undefined,
-    event_type: event_type || 'WEDDING',
-    event_date: String(event_date),
-    estimated_guests: estimated_guests ? Number(estimated_guests) : undefined,
-    estimated_quantity_kg: estimated_quantity_kg ? Number(estimated_quantity_kg) : undefined,
-    budget_range: budget_range ? String(budget_range) : undefined,
-    delivery_address: delivery_address ? String(delivery_address) : undefined,
-    requested_sweets: requested_sweets ? String(requested_sweets) : undefined,
-    notes: notes ? String(notes) : undefined,
+    email: cleanEmail || undefined,
+    event_type: (['WEDDING', 'CORPORATE', 'FESTIVE_BULK', 'CUSTOM_EVENT'] as const).includes(event_type as any)
+      ? (event_type as ServerBulkEnquiry['event_type'])
+      : 'WEDDING',
+    event_date: cleanDate,
+    estimated_guests: estimated_guests && !isNaN(Number(estimated_guests)) ? Math.min(Math.max(1, Number(estimated_guests)), 50000) : undefined,
+    estimated_quantity_kg: estimated_quantity_kg && !isNaN(Number(estimated_quantity_kg)) ? Math.min(Math.max(1, Number(estimated_quantity_kg)), 10000) : undefined,
+    budget_range: budget_range ? String(budget_range).trim().slice(0, 100) : undefined,
+    delivery_address: delivery_address ? String(delivery_address).trim().slice(0, 500) : undefined,
+    requested_sweets: requested_sweets ? String(requested_sweets).trim().slice(0, 1000) : undefined,
+    notes: notes ? String(notes).trim().slice(0, 2000) : undefined,
     status: 'NEW',
     created_at: nowIso,
     updated_at: nowIso,
   };
 
   inMemoryStore.bulkEnquiries.set(id, newEnquiry);
+
+  // Mask phone in application logs to protect customer privacy
+  const maskedPhone = cleanPhone.length >= 10
+    ? `${cleanPhone.slice(0, 2)}******${cleanPhone.slice(-2)}`
+    : '***';
+  console.log(`[Bulk Enquiry] Received enquiry ${enquiryNumber} (event: ${newEnquiry.event_type}, phone: ${maskedPhone})`);
 
   // Dispatch transactional notification to Store Owner + Confirmation email to customer
   notifyNewBulkEnquiry(newEnquiry).catch((err) =>
@@ -471,14 +540,66 @@ router.get('/notifications', requireAuth, (req: AuthenticatedRequest, res: Respo
   });
 });
 
-router.patch('/notifications/:id/read', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+router.patch('/notifications/:id/read', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const user = req.user!;
+  const isAdmin = user.role === 'ADMIN' || user.role === 'STAFF';
   const { id } = req.params;
-  const notif = inMemoryStore.notifications.find((n) => n.id === id);
 
-  if (notif) {
-    notif.is_read = true;
+  // Single ownership-scoped database update when live Supabase is configured
+  if (isLiveSupabase && supabaseServer) {
+    try {
+      let query = supabaseServer
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('id', id);
+
+      if (!isAdmin) {
+        // Scoped strictly to caller's profile ID
+        query = query.eq('profile_id', user.id);
+      }
+
+      const { data, error } = await query.select('id');
+      if (error) {
+        console.error('[Notifications] Database error updating notification:', error.message);
+        res.status(500).json({ error: 'DATABASE_ERROR', message: 'Failed to update notification status.' });
+        return;
+      }
+
+      // If DB update succeeded, sync memory if present and return success (supports DB-only notifications)
+      if (data && data.length > 0) {
+        const notif = inMemoryStore.notifications.find((n) => n.id === id);
+        if (notif) {
+          notif.is_read = true;
+        }
+        res.json({ success: true, message: 'Notification marked as read.' });
+        return;
+      }
+    } catch (err: any) {
+      console.error('[Notifications] Database exception updating notification:', err.message);
+      res.status(500).json({ error: 'DATABASE_ERROR', message: 'Failed to update notification status.' });
+      return;
+    }
   }
 
+  const notif = inMemoryStore.notifications.find((n) => n.id === id);
+
+  if (!notif) {
+    res.status(404).json({ error: 'NOTIFICATION_NOT_FOUND', message: 'Notification not found.' });
+    return;
+  }
+
+  // Verify ownership: customer owns notification if matched to user.id or user.phone; admin/staff can also mark system alerts
+  const isOwner =
+    notif.user_id === user.id ||
+    (user.phone && notif.user_id === user.phone) ||
+    (isAdmin && (notif.user_id === 'ADMIN' || notif.user_id === 'STORE_OWNER' || notif.user_id === 'ALL'));
+
+  if (!isOwner) {
+    res.status(404).json({ error: 'NOTIFICATION_NOT_FOUND', message: 'Notification not found.' });
+    return;
+  }
+
+  notif.is_read = true;
   res.json({ success: true, message: 'Notification marked as read.' });
 });
 

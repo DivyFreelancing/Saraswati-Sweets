@@ -2668,6 +2668,50 @@ export function isStoreLoaded(): boolean {
   return isStoreReady;
 }
 
+export function _setStoreReadyForTesting(ready: boolean): void {
+  isStoreReady = ready;
+}
+
+let testHealthClientOverride: any = undefined;
+export function _setTestHealthClient(client: any): void {
+  testHealthClientOverride = client;
+}
+
+/**
+ * Lightweight read-only health check query against store_settings table.
+ * Enforces a bounded 3-second timeout to prevent hung requests during database connection exhaustion.
+ * Never leaks database connection strings, credentials, or stack traces.
+ */
+export async function checkDatabaseHealth(): Promise<{ ok: boolean; error?: string }> {
+  const client = testHealthClientOverride !== undefined ? testHealthClientOverride : supabaseServer;
+  if (!isLiveSupabase && testHealthClientOverride === undefined) {
+    return { ok: true };
+  }
+  if (!client) {
+    return { ok: true };
+  }
+
+  try {
+    const pingPromise = client
+      .from('store_settings')
+      .select('id')
+      .limit(1)
+      .maybeSingle();
+
+    const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((_, reject) =>
+      setTimeout(() => reject(new Error('Health check database ping timed out')), 3000)
+    );
+
+    const { error } = await Promise.race([pingPromise, timeoutPromise]);
+    if (error) {
+      return { ok: false, error: 'Database dependency returned an error' };
+    }
+    return { ok: true };
+  } catch (err: any) {
+    return { ok: false, error: 'Database dependency timeout or network failure' };
+  }
+}
+
 export async function loadStoreState(): Promise<void> {
   if (!isLiveSupabase || !supabaseServer) {
     console.warn('[Store] Supabase not configured. Using empty memory state.');

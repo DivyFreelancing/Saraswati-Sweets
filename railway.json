@@ -6,6 +6,8 @@
   },
   "deploy": {
     "startCommand": "node node_modules/tsx/dist/cli.mjs server.ts",
+    "healthcheckPath": "/api/health",
+    "healthcheckTimeout": 30,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
