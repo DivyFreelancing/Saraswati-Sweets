@@ -6,6 +6,7 @@ import {
 import { HeroSection } from '../components/common/HeroSection';
 import { SectionHeader } from '../components/common/SectionHeader';
 import { CategoryCard } from '../components/common/CategoryCard';
+import { ShopByCategoriesSection } from '../components/common/ShopByCategoriesSection';
 import { ProductCarousel } from '../components/common/ProductCarousel';
 import { PromoBanner } from '../components/common/PromoBanner';
 import { HamperCard } from '../components/common/HamperCard';
@@ -178,41 +179,14 @@ export const HomePage: React.FC<HomePageProps> = ({
             onOpenDetail={onOpenProductDetail}
           />
         </section>
-
-        {/* 6. "Shop by Category" Section (Clean Ecommerce) */}
-        <section className="-mt-3 sm:-mt-6">
-          <SectionHeader
-            eyebrow="Authentic Collections"
-            title="Shop by Category"
-            actionText="View All Categories"
-            actionHref="/categories"
-            onAction={() => onNavigate('/categories')}
-          />
-
-          {loading && categories.length === 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <CategoryCardSkeleton key={i} />
-              ))}
-            </div>
-          ) : categories.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6">
-              {categories.map((category) => (
-                <CategoryCard
-                  key={category.id}
-                  category={category}
-                  href={`/categories/${category.slug}`}
-                  onClick={(slug) => onNavigate(`/categories/${slug}`)}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-10 bg-[#F5EAD9]/40 rounded-2xl border border-[#E8DCC8]">
-              <p className="text-[#6E6259] font-medium">No categories available at the moment.</p>
-            </div>
-          )}
-        </section>
       </div>
+
+      {/* 6. "Shop By Categories" Section (Responsive Mobile Single-View + Desktop Horizontal Row) */}
+      <ShopByCategoriesSection
+        categories={categories}
+        loading={loading}
+        onSelectCategory={(slug) => onNavigate(`/categories/${slug}`)}
+      />
 
       {/* 7b. Luxury Gift Hamper Promotional Banner (Full-Width Horizontal Edge-to-Edge) */}
       <section aria-label="Gift Hamper Collections Promotional Banner" className="w-full my-8 sm:my-14 content-visibility-auto">

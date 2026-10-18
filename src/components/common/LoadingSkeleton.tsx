@@ -38,10 +38,9 @@ export const ProductCardSkeleton: React.FC = () => {
 
 export const CategoryCardSkeleton: React.FC = () => {
   return (
-    <div className="relative flex flex-col items-center p-3.5 sm:p-4 rounded-t-[60px] sm:rounded-t-[80px] rounded-b-xl bg-[#F5EAD9] border border-[#E8DCC8] animate-pulse">
-      <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-white/70 border border-[#E8DCC8]" />
-      <div className="mt-3 h-4 w-3/4 bg-[#E8DCC8] rounded-md" />
-      <div className="mt-1 h-3 w-1/2 bg-[#E8DCC8]/60 rounded-xs" />
+    <div className="flex flex-col items-center shrink-0 w-20 md:w-24 lg:w-28 animate-pulse p-1">
+      <div className="w-20 h-20 md:w-24 md:h-24 lg:w-[96px] lg:h-[96px] rounded-full bg-[#E8DCC8]/60 border-2 border-[#E8DCC8]" />
+      <div className="mt-2 h-3.5 w-16 bg-[#E8DCC8]/80 rounded-md" />
     </div>
   );
 };

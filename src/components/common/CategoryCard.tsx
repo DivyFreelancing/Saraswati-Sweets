@@ -3,32 +3,49 @@ import { Category } from '../../types/database';
 import { getOptimizedImageUrl } from '../../utils/imageUtils';
 import { shouldHandleSpaClick } from '../../utils/navigation';
 
-interface CategoryCardProps {
+export interface CategoryCardProps {
   category: Category;
   onClick: (slug: string) => void;
   isSelected?: boolean;
   href?: string;
+  size?: 'sm' | 'md' | 'lg';
 }
 
-const CATEGORY_IMAGE_FALLBACKS: Record<string, string> = {
-  'meva': 'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=400&q=80',
-  'bengali': 'https://images.unsplash.com/photo-1541832676-9b763b0239ab?auto=format&fit=crop&w=400&q=80',
-  'ghee': 'https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?auto=format&fit=crop&w=400&q=80',
-  'khoya': 'https://images.unsplash.com/photo-1505253758473-96b7015fcd40?auto=format&fit=crop&w=400&q=80',
-  'namkeen': 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=400&q=80',
-  'desi-ghee-sweets': 'https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?auto=format&fit=crop&w=400&q=80',
-  'traditional-sweets': 'https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?auto=format&fit=crop&w=400&q=80',
-  'kaju-dry-fruits': 'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=400&q=80',
-  'dry-fruit-sweets': 'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=400&q=80',
-  'chhena-syrupy': 'https://images.unsplash.com/photo-1541832676-9b763b0239ab?auto=format&fit=crop&w=400&q=80',
-  'specialty-sweets': 'https://images.unsplash.com/photo-1541832676-9b763b0239ab?auto=format&fit=crop&w=400&q=80',
-  'khoya-mawa': 'https://images.unsplash.com/photo-1505253758473-96b7015fcd40?auto=format&fit=crop&w=400&q=80',
-  'namkeen-savories': 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=400&q=80',
-  'namkeen-snacks': 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=400&q=80',
-  'savory-namkeen': 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=400&q=80',
-  'gift-hampers': 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=400&q=80',
-  'hampers': 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=400&q=80',
+export const CATEGORY_IMAGE_FALLBACKS: Record<string, string> = {
+  'meva': '/images/categories/meva.webp',
+  'bengali': '/images/categories/bengali.webp',
+  'ghee': '/images/categories/ghee.webp',
+  'khoya': '/images/categories/khoya.webp',
+  'namkeen': '/images/categories/namkeen.webp',
+  'desi-ghee-sweets': '/images/categories/ghee.webp',
+  'traditional-sweets': '/images/categories/ghee.webp',
+  'kaju-dry-fruits': '/images/categories/meva.webp',
+  'dry-fruit-sweets': '/images/categories/meva.webp',
+  'chhena-syrupy': '/images/categories/bengali.webp',
+  'specialty-sweets': '/images/categories/bengali.webp',
+  'khoya-mawa': '/images/categories/khoya.webp',
+  'namkeen-savories': '/images/categories/namkeen.webp',
+  'namkeen-snacks': '/images/categories/namkeen.webp',
+  'savory-namkeen': '/images/categories/namkeen.webp',
+  'gift-hampers': '/images/gift-hamper-banner.webp',
+  'hampers': '/images/gift-hamper-banner.webp',
 };
+
+export function getCategoryResolvedImageUrl(category: Category, targetWidth = 320): string {
+  const isInvalidPlaceholder =
+    !category.image_url ||
+    category.image_url.includes('1541781774459') ||
+    category.image_url.includes('1668236543090') ||
+    category.image_url.includes('1626082927389') ||
+    category.image_url.includes('placeholder') ||
+    category.image_url.includes('unsplash');
+
+  const resolvedImageUrl = isInvalidPlaceholder
+    ? CATEGORY_IMAGE_FALLBACKS[category.slug] || '/images/categories/meva.webp'
+    : category.image_url;
+
+  return getOptimizedImageUrl(resolvedImageUrl, targetWidth, 85);
+}
 
 export const CategoryCard: React.FC<CategoryCardProps> = ({
   category,
@@ -36,17 +53,7 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
   isSelected = false,
   href,
 }) => {
-  // Guard against irrelevant placeholder images (e.g. cat photo 1541781774459)
-  const isInvalidPlaceholder =
-    !category.image_url ||
-    category.image_url.includes('1541781774459') ||
-    category.image_url.includes('placeholder');
-
-  const resolvedImageUrl = isInvalidPlaceholder
-    ? CATEGORY_IMAGE_FALLBACKS[category.slug] || 'https://images.unsplash.com/photo-1505253758473-96b7015fcd40'
-    : category.image_url;
-
-  const optimizedImage = getOptimizedImageUrl(resolvedImageUrl, 160, 75);
+  const optimizedImage = getCategoryResolvedImageUrl(category, 200);
   const targetHref = href || `/categories/${category.slug}`;
 
   const handleClick = (e: React.MouseEvent) => {
@@ -60,49 +67,41 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
     <a
       href={targetHref}
       onClick={handleClick}
-      className={`group relative flex flex-col items-center justify-between min-h-[195px] sm:min-h-[220px] text-center pt-6 pb-4 px-3 sm:px-4 transition-all duration-200 border w-full cursor-pointer rounded-t-full rounded-b-xl focus:outline-none focus:ring-2 focus:ring-[#7A1129] ${
-        isSelected
-          ? 'bg-[#7A1129] text-white border-[#7A1129] shadow-md'
-          : 'bg-[#F5EAD9] hover:bg-[#ebdcc7] text-[#221A14] border-[#E8DCC8] hover:border-[#7A1129]/40 shadow-[0_2px_12px_-2px_rgba(34,26,20,0.05),0_1px_3px_0_rgba(34,26,20,0.03)] hover:shadow-[0_6px_20px_-3px_rgba(122,17,41,0.08)]'
-      }`}
+      aria-label={`Shop ${category.name} collection`}
+      className="group flex flex-col items-center shrink-0 w-20 md:w-24 lg:w-28 text-center cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7A1129] rounded-2xl p-1 transition-all"
     >
-      {/* Centered Circular Product / Category Photo inside Arch */}
-      <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden bg-white mb-2 sm:mb-3 border-2 border-white shadow-xs shrink-0 ring-1 ring-[#E8DCC8]/60 transition-transform duration-300 group-hover:scale-105">
+      {/* Small Circular Category Image for Desktop/Expanded View (80-100px diameter) */}
+      <div
+        className={`relative w-20 h-20 md:w-24 md:h-24 lg:w-[96px] lg:h-[96px] rounded-full overflow-hidden bg-[#FAF4DE] transition-all duration-300 ease-out border-2 ${
+          isSelected
+            ? 'border-[#7A1129] ring-3 ring-[#7A1129]/30 shadow-md'
+            : 'border-[#E8DCC8] group-hover:border-[#C79A3D] shadow-xs group-hover:shadow-[0_6px_18px_-3px_rgba(122,17,41,0.14)]'
+        }`}
+      >
         <img
           src={optimizedImage}
           alt={category.name}
-          width="96"
-          height="96"
+          width={96}
+          height={96}
           loading="lazy"
           decoding="async"
-          className="w-full h-full object-cover"
+          className="w-full h-full object-cover rounded-full transition-transform duration-300 ease-out group-hover:scale-108"
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).src = '/images/categories/meva.webp';
+          }}
         />
       </div>
 
-      <div className="flex flex-col items-center w-full">
-        {/* Category Name Label */}
-        <span
-          className={`font-display font-bold text-xs sm:text-sm line-clamp-1 transition-colors ${
-            isSelected ? 'text-white' : 'text-[#221A14] group-hover:text-[#7A1129]'
-          }`}
-        >
-          {category.name}
-        </span>
-
-        {category.description ? (
-          <span
-            className={`mt-1 text-xs line-clamp-1 hidden sm:block ${
-              isSelected ? 'text-white/80' : 'text-[#6E6259]'
-            }`}
-          >
-            {category.description}
-          </span>
-        ) : (
-          <span className="mt-1 text-xs invisible hidden sm:block">
-            &nbsp;
-          </span>
-        )}
-      </div>
+      {/* Compact Category Label Underneath */}
+      <span
+        className={`mt-2 font-display font-semibold text-xs md:text-sm leading-tight text-center max-w-[88px] md:max-w-[96px] line-clamp-2 transition-colors duration-200 ${
+          isSelected
+            ? 'text-[#7A1129]'
+            : 'text-[#221A14] group-hover:text-[#7A1129]'
+        }`}
+      >
+        {category.name}
+      </span>
     </a>
   );
 };
