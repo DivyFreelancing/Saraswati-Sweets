@@ -1,14 +1,57 @@
 import { inMemoryStore } from '../db';
 
-export const SITE_DOMAIN = 'https://saraswatisweetsbarabanki.com';
+let hasLoggedConfigWarning = false;
 
 /**
- * Generates the robots.txt content with proper permissions and sitemap link
+ * Resolves the canonical base website URL strictly from environment configuration.
+ * Prioritizes PUBLIC_SITE_URL.
+ * In production: if PUBLIC_SITE_URL is missing, empty, or contains localhost, logs a loud
+ * error and returns empty string so that canonical and og:url tags are suppressed.
  */
-export function generateRobotsTxt(): string {
-  return [
+export function getBaseSiteUrl(): string {
+  const isProduction = process.env.NODE_ENV === 'production' || Boolean(process.env.RAILWAY_ENVIRONMENT);
+  const rawPublicUrl = (process.env.PUBLIC_SITE_URL || '').trim();
+
+  if (isProduction) {
+    const isMissingOrLocalhost =
+      !rawPublicUrl ||
+      rawPublicUrl.includes('localhost') ||
+      rawPublicUrl.includes('127.0.0.1');
+
+    if (isMissingOrLocalhost) {
+      if (!hasLoggedConfigWarning) {
+        hasLoggedConfigWarning = true;
+        console.error('****************************************************************');
+        console.error('[SEO CRITICAL CONFIG ERROR] PUBLIC_SITE_URL is missing, empty, or contains localhost in production!');
+        console.error('Canonical tags, og:url, og:image, twitter:image, and sitemap loc will be suppressed.');
+        console.error('Set PUBLIC_SITE_URL=https://saraswatisweetsbarabanki.com in environment variables.');
+        console.error('****************************************************************');
+      }
+      return '';
+    }
+
+    const clean = rawPublicUrl.replace(/\/$/, '');
+    return clean.startsWith('http://') || clean.startsWith('https://') ? clean : `https://${clean}`;
+  }
+
+  // Development fallback
+  const rawUrl = (
+    rawPublicUrl ||
+    process.env.APP_URL ||
+    `http://localhost:${process.env.PORT || 3000}`
+  ).trim().replace(/\/$/, '');
+
+  return rawUrl.startsWith('http://') || rawUrl.startsWith('https://') ? rawUrl : `http://${rawUrl}`;
+}
+
+/**
+ * Generates the robots.txt content with strict permissions and dynamic sitemap link
+ */
+export function generateRobotsTxt(siteUrl?: string): string {
+  const baseUrl = (siteUrl || getBaseSiteUrl()).replace(/\/$/, '');
+  const lines = [
     '# Robots.txt for Saraswati Sweets (Barabanki)',
-    `# Production Website: ${SITE_DOMAIN}/`,
+    ...(baseUrl ? [`# Production Website: ${baseUrl}/`] : []),
     '',
     'User-agent: *',
     '# Disallow private, administrative, and checkout transaction paths',
@@ -23,9 +66,13 @@ export function generateRobotsTxt(): string {
     'Disallow: /api/',
     'Allow: /',
     '',
-    `Sitemap: ${SITE_DOMAIN}/sitemap.xml`,
-    '',
-  ].join('\n');
+  ];
+
+  if (baseUrl) {
+    lines.push(`Sitemap: ${baseUrl}/sitemap.xml`, '');
+  }
+
+  return lines.join('\n');
 }
 
 /**
@@ -64,15 +111,36 @@ function escapeXml(unsafe: string): string {
   });
 }
 
+// In-memory cache for sitemap.xml with 1 hour TTL (3,600,000 ms)
+interface SitemapCache {
+  xml: string;
+  generatedAt: number;
+  siteUrl: string;
+}
+
+let cachedSitemap: SitemapCache | null = null;
+const SITEMAP_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
 /**
- * Generates sitemap.xml dynamically from current store catalog
+ * Generates sitemap.xml dynamically from current store catalog, cached for 1 hour.
  */
-export function generateSitemapXml(): string {
+export function generateSitemapXml(siteUrl?: string, forceRefresh = false): string {
+  const baseUrl = (siteUrl || getBaseSiteUrl()).replace(/\/$/, '');
+  const now = Date.now();
+
+  if (!baseUrl) {
+    return '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n</urlset>\n';
+  }
+
+  if (!forceRefresh && cachedSitemap && (now - cachedSitemap.generatedAt < SITEMAP_CACHE_TTL_MS) && cachedSitemap.siteUrl === baseUrl) {
+    return cachedSitemap.xml;
+  }
+
   const urls: Array<{ loc: string; lastmod?: string | null }> = [];
   const seenUrls = new Set<string>();
 
   const addUrl = (path: string, lastmod?: string | null) => {
-    const loc = `${SITE_DOMAIN}${path}`;
+    const loc = `${baseUrl}${path}`;
     if (seenUrls.has(loc)) return;
     seenUrls.add(loc);
     urls.push({ loc, lastmod: formatDate(lastmod) });
@@ -83,6 +151,7 @@ export function generateSitemapXml(): string {
   addUrl('/catalog', null);
   addUrl('/categories', null);
   addUrl('/hampers', null);
+  addUrl('/offers', null);
   addUrl('/bulk-enquiry', null);
   addUrl('/contact', null);
   addUrl('/certifications', null);
@@ -91,9 +160,9 @@ export function generateSitemapXml(): string {
   addUrl('/refund-policy', null);
   addUrl('/privacy-policy', null);
 
-  // 2. Active Public Categories
+  // 2. Active Public Categories (excluding inactive or soft-deleted)
   const categories = Array.from(inMemoryStore.categories.values())
-    .filter((c: any) => c.is_active && c.slug)
+    .filter((c: any) => Boolean(c.is_active) && !c.deleted_at && c.slug)
     .sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0));
 
   for (const cat of categories) {
@@ -101,9 +170,9 @@ export function generateSitemapXml(): string {
     addUrl(`/categories/${cat.slug}`, catDate);
   }
 
-  // 3. Active Public Products
+  // 3. Active Public Products (excluding inactive or soft-deleted)
   const products = Array.from(inMemoryStore.products.values())
-    .filter((p: any) => p.is_active && p.slug)
+    .filter((p: any) => Boolean(p.is_active) && !p.deleted_at && p.slug)
     .sort((a: any, b: any) => a.slug.localeCompare(b.slug));
 
   for (const prod of products) {
@@ -129,5 +198,12 @@ export function generateSitemapXml(): string {
   xmlLines.push('</urlset>');
   xmlLines.push('');
 
-  return xmlLines.join('\n');
+  const resultXml = xmlLines.join('\n');
+  cachedSitemap = {
+    xml: resultXml,
+    generatedAt: now,
+    siteUrl: baseUrl,
+  };
+
+  return resultXml;
 }

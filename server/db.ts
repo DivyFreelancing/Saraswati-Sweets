@@ -2663,9 +2663,15 @@ export async function checkAndReserveSlotCapacity(
 // ==========================================================
 // PERSISTENCE ENGINE (Supabase Postgres)
 // ==========================================================
+export let isStoreReady = false;
+export function isStoreLoaded(): boolean {
+  return isStoreReady;
+}
+
 export async function loadStoreState(): Promise<void> {
   if (!isLiveSupabase || !supabaseServer) {
     console.warn('[Store] Supabase not configured. Using empty memory state.');
+    isStoreReady = true;
     return;
   }
 
@@ -2942,6 +2948,7 @@ export async function loadStoreState(): Promise<void> {
     }
 
     console.log(`[Store] Loaded persistent state from Postgres (${inMemoryStore.products.size} products, ${inMemoryStore.orders.size} orders).`);
+    isStoreReady = true;
   } catch (err) {
     console.error('Failed to load store state from Postgres:', err);
   }

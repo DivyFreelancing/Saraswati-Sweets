@@ -35,6 +35,7 @@ const PrivacyPolicyPage = React.lazy(() => import('./pages/PrivacyPolicyPage').t
 const TermsPage = React.lazy(() => import('./pages/TermsPage').then(m => ({ default: m.TermsPage })));
 const ShippingPolicyPage = React.lazy(() => import('./pages/ShippingPolicyPage').then(m => ({ default: m.ShippingPolicyPage })));
 const RefundPolicyPage = React.lazy(() => import('./pages/RefundPolicyPage').then(m => ({ default: m.RefundPolicyPage })));
+const NotFoundPage = React.lazy(() => import('./pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })));
 
 import { Product } from './types/database';
 
@@ -142,6 +143,7 @@ function AppContent() {
         <CatalogPage
           initialCategorySlug={categorySlug}
           onOpenProductDetail={handleOpenProductDetail}
+          onNavigate={navigateTo}
         />
       );
     }
@@ -153,6 +155,7 @@ function AppContent() {
         <CatalogPage
           initialProductSlug={productSlug}
           onOpenProductDetail={handleOpenProductDetail}
+          onNavigate={navigateTo}
         />
       );
     }
@@ -163,6 +166,7 @@ function AppContent() {
           <CatalogPage
             initialCategorySlug={activeCategorySlug}
             onOpenProductDetail={handleOpenProductDetail}
+            onNavigate={navigateTo}
           />
         );
       case '/categories':
@@ -245,13 +249,14 @@ function AppContent() {
           />
         );
       case '/':
-      default:
         return (
           <HomePage
             onNavigate={navigateTo}
             onOpenProductDetail={handleOpenProductDetail}
           />
         );
+      default:
+        return <NotFoundPage onNavigate={navigateTo} />;
     }
   };
 

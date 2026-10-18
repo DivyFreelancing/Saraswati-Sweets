@@ -3,17 +3,20 @@ import { Search, Sparkles, Check, X, RotateCcw } from 'lucide-react';
 import { ProductGrid } from '../components/common/ProductGrid';
 import { Product, Category } from '../types/database';
 import { catalogService } from '../services/catalogService';
+import { NotFoundPage } from './NotFoundPage';
 
 interface CatalogPageProps {
   initialCategorySlug?: string;
   initialProductSlug?: string;
   onOpenProductDetail: (product: Product) => void;
+  onNavigate?: (path: string) => void;
 }
 
 export const CatalogPage: React.FC<CatalogPageProps> = ({
   initialCategorySlug = '',
   initialProductSlug = '',
   onOpenProductDetail,
+  onNavigate,
 }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -135,6 +138,22 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
   const hasActiveFilters = Boolean(
     searchTerm || selectedCategory || pureGheeOnly || bestsellerOnly || sortBy !== 'featured'
   );
+
+  // If a specific category slug was requested in URL but does not exist after loading -> 404
+  if (!loading && initialCategorySlug && categories.length > 0) {
+    const categoryExists = categories.some((c) => c.slug === initialCategorySlug);
+    if (!categoryExists) {
+      return <NotFoundPage onNavigate={onNavigate} />;
+    }
+  }
+
+  // If a specific product slug was requested in URL but does not exist after loading -> 404
+  if (!loading && initialProductSlug && products.length > 0) {
+    const productExists = products.some((p) => p.slug === initialProductSlug || p.id === initialProductSlug);
+    if (!productExists) {
+      return <NotFoundPage onNavigate={onNavigate} />;
+    }
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">

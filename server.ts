@@ -19,6 +19,7 @@ import paymentRoutes from './server/routes/paymentRoutes';
 import publicRoutes from './server/routes/publicRoutes';
 import { STORE_SETTINGS, loadStoreState, isOrderCleanupEnabled } from './server/db';
 import { generateRobotsTxt, generateSitemapXml } from './server/services/seoService';
+import { createSeoInjectMiddleware } from './server/middleware/seoInject';
 
 dotenv.config();
 
@@ -192,14 +193,7 @@ async function startServer() {
   // Robust Sitemap Endpoints & Aliases:
   // Handles /sitemap.xml, /sitemap, /sitemap_index.xml, and accidental full-domain prefixes from GSC
   const handleSitemapRequest = (_req: express.Request, res: express.Response) => {
-    let xml = generateSitemapXml();
-    // Safety fallback: if dynamic generation produced too few URLs, use public/sitemap.xml static file
-    if (!xml || xml.length < 500) {
-      const fallbackPath = path.resolve(__dirname, 'public', 'sitemap.xml');
-      if (fs.existsSync(fallbackPath)) {
-        xml = fs.readFileSync(fallbackPath, 'utf8');
-      }
-    }
+    const xml = generateSitemapXml();
     const buf = Buffer.from(xml, 'utf-8');
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -294,9 +288,10 @@ async function startServer() {
       res.status(404).json({ error: 'NotFound', message: 'API route not found' });
     });
 
-    // In production, serve static files from dist
+    // In production, serve static asset files from dist (do not serve raw index.html on root)
     app.use(
       express.static(distDir, {
+        index: false,
         maxAge: '30d',
         setHeaders: (res, filePath) => {
           if (filePath.endsWith('.html')) {
@@ -318,6 +313,9 @@ async function startServer() {
         },
       })
     );
+
+    // Server-side SEO Meta Injection & 404 handling middleware
+    app.use(createSeoInjectMiddleware(distDir));
 
     // SPA wildcard fallback: serve index.html for all non-API paths
     app.get('*', (_req, res) => {
