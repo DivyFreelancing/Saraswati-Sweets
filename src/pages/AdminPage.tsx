@@ -50,6 +50,7 @@ import { AdminHampersTab } from '../components/admin/AdminHampersTab';
 import { AdminMarketingTab } from '../components/admin/AdminMarketingTab';
 import { AdminReviewsTab } from '../components/admin/AdminReviewsTab';
 import { AdminEnquiriesTab } from '../components/admin/AdminEnquiriesTab';
+import { AdminGrievancesTab } from '../components/admin/AdminGrievancesTab';
 import { AdminNotificationsTab } from '../components/admin/AdminNotificationsTab';
 import { AdminCouponUsageModal } from '../components/admin/AdminCouponUsageModal';
 import { StoreOperationsCard } from '../components/admin/StoreOperationsCard';
@@ -91,6 +92,7 @@ type AdminTab =
   | 'marketing'
   | 'reviews'
   | 'enquiries'
+  | 'grievances'
   | 'notifications'
   | 'settings'
   | 'coupons'
@@ -108,6 +110,7 @@ const tabTitles: Record<AdminTab, string> = {
   marketing: 'Offers & Banners',
   reviews: 'Reviews',
   enquiries: 'Bulk Enquiries',
+  grievances: 'Grievance Desk',
   notifications: 'Notifications',
   settings: 'Store Settings',
   coupons: 'Coupons',
@@ -148,6 +151,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
   const [banners, setBanners] = useState<any[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
   const [enquiries, setEnquiries] = useState<any[]>([]);
+  const [grievances, setGrievances] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [selectedCouponForUsage, setSelectedCouponForUsage] = useState<any | null>(null);
 
@@ -275,6 +279,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
         reviewsRes,
         enquiriesRes,
         notificationsRes,
+        privacyRes,
       ] = await Promise.all([
         fetch('/api/admin/overview', { headers }),
         fetch('/api/orders', { headers }),
@@ -289,17 +294,29 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
         fetch('/api/admin/reviews', { headers }),
         fetch('/api/admin/enquiries', { headers }),
         fetch('/api/admin/notifications', { headers }),
+        fetch('/api/admin/privacy-requests', { headers }),
       ]);
 
-      if (overviewRes.ok) {
-        const data = await overviewRes.json();
-        setMetrics(data.metrics);
-        setStoreSettings(data.storeSettings);
+      const parseJsonSafe = async (res: Response) => {
+        if (!res.ok) return null;
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) return null;
+        try {
+          return await res.json();
+        } catch {
+          return null;
+        }
+      };
+
+      const overviewData = await parseJsonSafe(overviewRes);
+      if (overviewData) {
+        setMetrics(overviewData.metrics);
+        setStoreSettings(overviewData.storeSettings);
       }
 
-      if (ordersRes.ok) {
-        const data = await ordersRes.json();
-        const fetchedOrders = data.orders || [];
+      const ordersData = await parseJsonSafe(ordersRes);
+      if (ordersData) {
+        const fetchedOrders = ordersData.orders || [];
         setOrders(fetchedOrders);
         // Mark existing orders as seen so they do not trigger alert chimes
         fetchedOrders.forEach((o: any) => {
@@ -307,59 +324,64 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
         });
       }
 
-      if (productsRes.ok) {
-        const data = await productsRes.json();
-        setProducts(data.products || []);
+      const productsData = await parseJsonSafe(productsRes);
+      if (productsData) {
+        setProducts(productsData.products || []);
       }
 
-      if (categoriesRes.ok) {
-        const data = await categoriesRes.json();
-        setCategories(data.categories || []);
+      const categoriesData = await parseJsonSafe(categoriesRes);
+      if (categoriesData) {
+        setCategories(categoriesData.categories || []);
       }
 
-      if (partnersRes.ok) {
-        const data = await partnersRes.json();
-        setDeliveryPartners(data.partners || []);
+      const partnersData = await parseJsonSafe(partnersRes);
+      if (partnersData) {
+        setDeliveryPartners(partnersData.partners || []);
       }
 
-      if (settingsRes.ok) {
-        const data = await settingsRes.json();
-        setStoreSettings(data.settings);
+      const settingsData = await parseJsonSafe(settingsRes);
+      if (settingsData) {
+        setStoreSettings(settingsData.settings);
       }
 
-      if (couponsRes.ok) {
-        const data = await couponsRes.json();
-        setCoupons(data.coupons || []);
+      const couponsData = await parseJsonSafe(couponsRes);
+      if (couponsData) {
+        setCoupons(couponsData.coupons || []);
       }
 
-      if (hampersRes.ok) {
-        const data = await hampersRes.json();
-        setHampers(data.hampers || []);
+      const hampersData = await parseJsonSafe(hampersRes);
+      if (hampersData) {
+        setHampers(hampersData.hampers || []);
       }
 
-      if (offersRes.ok) {
-        const data = await offersRes.json();
-        setOffers(data.offers || []);
+      const offersData = await parseJsonSafe(offersRes);
+      if (offersData) {
+        setOffers(offersData.offers || []);
       }
 
-      if (bannersRes.ok) {
-        const data = await bannersRes.json();
-        setBanners(data.banners || []);
+      const bannersData = await parseJsonSafe(bannersRes);
+      if (bannersData) {
+        setBanners(bannersData.banners || []);
       }
 
-      if (reviewsRes.ok) {
-        const data = await reviewsRes.json();
-        setReviews(data.reviews || []);
+      const reviewsData = await parseJsonSafe(reviewsRes);
+      if (reviewsData) {
+        setReviews(reviewsData.reviews || []);
       }
 
-      if (enquiriesRes.ok) {
-        const data = await enquiriesRes.json();
-        setEnquiries(data.enquiries || []);
+      const enquiriesData = await parseJsonSafe(enquiriesRes);
+      if (enquiriesData) {
+        setEnquiries(enquiriesData.enquiries || []);
       }
 
-      if (notificationsRes.ok) {
-        const data = await notificationsRes.json();
-        setNotifications(data.notifications || []);
+      const notificationsData = await parseJsonSafe(notificationsRes);
+      if (notificationsData) {
+        setNotifications(notificationsData.notifications || []);
+      }
+
+      const privacyData = await parseJsonSafe(privacyRes);
+      if (privacyData) {
+        setGrievances(privacyData.requests || []);
       }
 
       // If ADMIN, also load audit logs & customers
@@ -368,13 +390,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
           fetch('/api/admin/audit-logs', { headers }),
           fetch('/api/admin/customers', { headers }),
         ]);
-        if (auditRes.ok) {
-          const d = await auditRes.json();
-          setAuditLogs(d.auditLogs || []);
+        const auditData = await parseJsonSafe(auditRes);
+        if (auditData) {
+          setAuditLogs(auditData.auditLogs || []);
         }
-        if (custRes.ok) {
-          const d = await custRes.json();
-          setCustomers(d.customers || []);
+        const custData = await parseJsonSafe(custRes);
+        if (custData) {
+          setCustomers(custData.customers || []);
         }
       }
     } catch (err: any) {
@@ -1335,6 +1357,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
           marketing: offers.length + banners.length,
           reviews: reviews.filter((r) => !r.is_approved).length > 0 ? `${reviews.filter((r) => !r.is_approved).length} new` : reviews.length,
           enquiries: enquiries.filter((e) => e.status === 'NEW').length > 0 ? `${enquiries.filter((e) => e.status === 'NEW').length} new` : enquiries.length,
+          grievances: grievances.filter((g) => g.status === 'RECEIVED').length > 0 ? `${grievances.filter((g) => g.status === 'RECEIVED').length} new` : grievances.length,
           notifications: notifications.filter((n) => !n.is_read).length > 0 ? `${notifications.filter((n) => !n.is_read).length} unread` : notifications.length,
           customers: customers.length,
           delivery: deliveryPartners.length,
@@ -2916,6 +2939,19 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
       {activeTab === 'enquiries' && (
         <AdminEnquiriesTab
           enquiries={enquiries}
+          isAdmin={isAdmin}
+          getAuthHeaders={getAuthHeaders}
+          onRefresh={loadAllAdminData}
+          showToast={showToast}
+        />
+      )}
+
+      {/* ==================================================== */}
+      {/* TAB M2: GRIEVANCES & STATUTORY PRIVACY DESK          */}
+      {/* ==================================================== */}
+      {activeTab === 'grievances' && (
+        <AdminGrievancesTab
+          requests={grievances}
           isAdmin={isAdmin}
           getAuthHeaders={getAuthHeaders}
           onRefresh={loadAllAdminData}

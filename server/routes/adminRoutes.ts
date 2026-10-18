@@ -25,6 +25,8 @@ import {
   checkAutoReopen,
   syncStoreSettingsToSupabase,
   getStalePendingOrdersForReview,
+  fetchPrivacyRequestsServer,
+  updatePrivacyRequestStatusServer,
 } from '../db';
 import { createCashfreeRefund, fetchCashfreeRefund } from '../services/cashfreeService';
 import { adminOrderEvents, AdminOrderNotificationPayload, emailProvider, getAdminNotificationRecipient } from '../services/notificationService';
@@ -169,37 +171,84 @@ router.get('/reports/analytics', (req: AuthenticatedRequest, res: Response) => {
 // ==========================================================
 // 2. IMAGE UPLOAD
 // ==========================================================
+function detectImageMimeType(buf: Buffer): 'image/jpeg' | 'image/png' | 'image/webp' | null {
+  if (buf.length < 12) return null;
+  // JPEG: 0xFF, 0xD8, 0xFF
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  // PNG: 0x89, 0x50, 0x4E, 0x47
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
+    return 'image/png';
+  }
+  // WebP: 'RIFF' .... 'WEBP'
+  if (
+    buf.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    buf.subarray(8, 12).toString('ascii') === 'WEBP'
+  ) {
+    return 'image/webp';
+  }
+  return null;
+}
+
 router.post('/upload-image', async (req: AuthenticatedRequest, res: Response) => {
   if (!assertSupabase(res)) return;
-  const { dataUrl, fileName = 'mithai-image.jpg', fileType = 'image/jpeg', fileSize = 0, path } = req.body;
+  const { dataUrl, fileName = 'mithai-image.jpg', path } = req.body;
 
-  if (!dataUrl) {
+  if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.trim()) {
     res.status(400).json({ error: 'MISSING_DATA', message: 'No image data provided.' });
     return;
   }
 
-  const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
-  if (!allowedMimeTypes.includes(fileType.toLowerCase())) {
-    res.status(400).json({
-      error: 'INVALID_FILE_TYPE',
-      message: 'Only JPEG, PNG, and WebP images are allowed.',
-      allowedTypes: allowedMimeTypes,
-    });
-    return;
-  }
+  const MAX_SIZE = 5 * 1024 * 1024; // 5MB limit
+  const MAX_BASE64_STRING_LENGTH = 10 * 1024 * 1024; // String size guard for resource limits
 
-  const MAX_SIZE = 5 * 1024 * 1024;
-  if (fileSize > MAX_SIZE) {
+  if (dataUrl.length > MAX_BASE64_STRING_LENGTH) {
     res.status(400).json({
       error: 'FILE_TOO_LARGE',
-      message: 'Image size exceeds maximum limit of 5MB.',
+      message: 'Image payload exceeds maximum limit of 5MB.',
       maxBytes: MAX_SIZE,
     });
     return;
   }
 
-  const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+  const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, '').trim();
+  if (!base64Data) {
+    res.status(400).json({ error: 'EMPTY_IMAGE', message: 'Decoded image data is empty.' });
+    return;
+  }
+
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(base64Data)) {
+    res.status(400).json({ error: 'INVALID_BASE64', message: 'Image data is not valid base64.' });
+    return;
+  }
+
   const buffer = Buffer.from(base64Data, 'base64');
+  if (buffer.length === 0) {
+    res.status(400).json({ error: 'EMPTY_IMAGE', message: 'Decoded image data is empty.' });
+    return;
+  }
+
+  if (buffer.length > MAX_SIZE) {
+    res.status(400).json({
+      error: 'FILE_TOO_LARGE',
+      message: 'Decoded image size exceeds maximum limit of 5MB.',
+      maxBytes: MAX_SIZE,
+      actualBytes: buffer.length,
+    });
+    return;
+  }
+
+  const detectedMime = detectImageMimeType(buffer);
+  if (!detectedMime) {
+    res.status(400).json({
+      error: 'INVALID_FILE_TYPE',
+      message: 'File content does not match a valid JPEG, PNG, or WebP image signature.',
+      allowedTypes: ['image/jpeg', 'image/png', 'image/webp'],
+    });
+    return;
+  }
+
   let uploadPath: string;
   if (typeof path === 'string' && path.trim()) {
     const cleaned = path.trim().replace(/\\/g, '/');
@@ -221,7 +270,7 @@ router.post('/upload-image', async (req: AuthenticatedRequest, res: Response) =>
     const { data, error } = await supabaseServer.storage
       .from('product-images')
       .upload(uploadPath, buffer, {
-        contentType: fileType,
+        contentType: detectedMime,
         upsert: true
       });
 
@@ -239,8 +288,8 @@ router.post('/upload-image', async (req: AuthenticatedRequest, res: Response) =>
 
   logAuditEvent(req.user, 'PRODUCT_IMAGE_UPLOADED', 'PRODUCT', 'media', {
     fileName,
-    fileType,
-    fileSize,
+    fileType: detectedMime,
+    fileSize: buffer.length,
     publicUrl
   });
 
@@ -2484,6 +2533,50 @@ router.post('/notifications/test-email', requireRole(['ADMIN']), async (req: Aut
 // ==========================================================
 router.get('/audit-logs', requireRole(['ADMIN']), (_req: AuthenticatedRequest, res: Response) => {
   res.json({ auditLogs: inMemoryStore.auditLogs.slice(0, 100) });
+});
+
+// ==========================================================
+// 18. GRIEVANCES & PRIVACY REQUESTS
+// ==========================================================
+router.get('/privacy-requests', requireRole(['ADMIN', 'STAFF']), async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    const list = await fetchPrivacyRequestsServer();
+    res.json({ success: true, count: list.length, requests: list });
+  } catch (err: any) {
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: err?.message || 'Failed to fetch privacy requests' });
+  }
+});
+
+router.put('/privacy-requests/:id/status', requireRole(['ADMIN', 'STAFF']), async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const { status, resolution_notes } = req.body;
+
+  const validStatuses = ['RECEIVED', 'IN_REVIEW', 'RESOLVED', 'REJECTED'];
+  if (!status || !validStatuses.includes(status)) {
+    res.status(400).json({
+      error: 'INVALID_STATUS',
+      message: `Status must be one of: ${validStatuses.join(', ')}`,
+    });
+    return;
+  }
+
+  try {
+    const updated = await updatePrivacyRequestStatusServer(id, status, resolution_notes);
+    if (!updated) {
+      res.status(404).json({ error: 'NOT_FOUND', message: 'Privacy request / grievance not found' });
+      return;
+    }
+
+    logAuditEvent(req.user, 'PRIVACY_REQUEST_UPDATED', 'AUDIT', id, {
+      ticketNumber: updated.ticketNumber,
+      status,
+      resolutionNotes: resolution_notes,
+    });
+
+    res.json({ success: true, request: updated });
+  } catch (err: any) {
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: err?.message || 'Failed to update request status' });
+  }
 });
 
 export default router;

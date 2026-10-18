@@ -1315,6 +1315,26 @@ export async function recordPrivacyRequest(entry: {
 
   inMemoryStore.privacyRequests.set(req.id, req);
 
+  // Sync to Supabase public.privacy_requests if live database is connected
+  if (isLiveSupabase && supabaseServer) {
+    try {
+      await supabaseServer.from('privacy_requests').insert({
+        id: req.id,
+        ticket_number: req.ticketNumber,
+        user_id: req.userId,
+        customer_name: req.customerName,
+        customer_email: req.customerEmail,
+        customer_phone: req.customerPhone || null,
+        request_type: req.requestType,
+        details: req.details,
+        status: req.status,
+        created_at: req.createdAt,
+      });
+    } catch (dbErr) {
+      console.warn('[PrivacyRequest] DB insert warning:', dbErr);
+    }
+  }
+
   // Also log the submission in the consent audit trail
   await logConsentRecord({
     userId: entry.userId,
@@ -1326,6 +1346,98 @@ export async function recordPrivacyRequest(entry: {
   });
 
   return req;
+}
+
+/**
+ * Fetches all customer grievances and privacy requests, ordered newest first.
+ */
+export async function fetchPrivacyRequestsServer(): Promise<ServerPrivacyRequest[]> {
+  if (isLiveSupabase && supabaseServer) {
+    try {
+      const { data, error } = await supabaseServer
+        .from('privacy_requests')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && Array.isArray(data)) {
+        return data.map((row: any) => ({
+          id: row.id,
+          ticketNumber: row.ticket_number || row.ticketNumber,
+          userId: row.user_id || row.userId,
+          customerName: row.customer_name || row.customerName,
+          customerEmail: row.customer_email || row.customerEmail,
+          customerPhone: row.customer_phone || row.customerPhone,
+          requestType: row.request_type || row.requestType,
+          details: row.details,
+          status: row.status,
+          resolutionNotes: row.resolution_notes || row.resolutionNotes,
+          createdAt: row.created_at || row.createdAt,
+          updatedAt: row.resolved_at || row.updated_at || row.created_at,
+        }));
+      }
+    } catch (err) {
+      console.warn('[PrivacyRequest] DB fetch error, falling back to memory:', err);
+    }
+  }
+
+  return Array.from(inMemoryStore.privacyRequests.values()).sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+}
+
+/**
+ * Updates a grievance / privacy request status and optional resolution notes.
+ */
+export async function updatePrivacyRequestStatusServer(
+  id: string,
+  status: ServerPrivacyRequest['status'],
+  resolutionNotes?: string
+): Promise<ServerPrivacyRequest | null> {
+  const req = inMemoryStore.privacyRequests.get(id);
+  const now = new Date().toISOString();
+  if (req) {
+    req.status = status;
+    req.resolutionNotes = resolutionNotes;
+    req.updatedAt = now;
+  }
+
+  if (isLiveSupabase && supabaseServer) {
+    try {
+      const { data, error } = await supabaseServer
+        .from('privacy_requests')
+        .update({
+          status,
+          resolution_notes: resolutionNotes,
+          resolved_at: status === 'RESOLVED' || status === 'REJECTED' ? now : null,
+        })
+        .eq('id', id)
+        .select('*')
+        .maybeSingle();
+
+      if (!error && data) {
+        const mapped: ServerPrivacyRequest = {
+          id: data.id,
+          ticketNumber: data.ticket_number,
+          userId: data.user_id,
+          customerName: data.customer_name,
+          customerEmail: data.customer_email,
+          customerPhone: data.customer_phone,
+          requestType: data.request_type,
+          details: data.details,
+          status: data.status,
+          resolutionNotes: data.resolution_notes,
+          createdAt: data.created_at,
+          updatedAt: data.resolved_at || now,
+        };
+        inMemoryStore.privacyRequests.set(mapped.id, mapped);
+        return mapped;
+      }
+    } catch (err) {
+      console.warn('[PrivacyRequest] DB update error:', err);
+    }
+  }
+
+  return req || null;
 }
 
 /**

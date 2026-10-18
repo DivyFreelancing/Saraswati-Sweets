@@ -15,6 +15,7 @@ import {
   Settings,
   ShieldCheck,
   LogOut,
+  LifeBuoy,
   LucideIcon,
 } from 'lucide-react';
 
@@ -30,6 +31,7 @@ export type AdminTab =
   | 'marketing'
   | 'reviews'
   | 'enquiries'
+  | 'grievances'
   | 'notifications'
   | 'settings'
   | 'coupons'
@@ -59,6 +61,7 @@ interface AdminSidebarProps {
     marketing: number;
     reviews: number | string;
     enquiries: number | string;
+    grievances: number | string;
     notifications: number | string;
     customers: number;
     delivery: number;
@@ -87,6 +90,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     { key: 'marketing', label: 'Offers & Banners', count: counts.marketing, icon: Tag },
     { key: 'reviews', label: 'Reviews', count: counts.reviews, icon: Star },
     { key: 'enquiries', label: 'Bulk Enquiries', count: counts.enquiries, icon: Building2 },
+    { key: 'grievances', label: 'Grievance Desk', count: counts.grievances, icon: LifeBuoy },
     { key: 'notifications', label: 'Notifications', count: counts.notifications, icon: Bell },
     { key: 'customers', label: 'Customers', count: counts.customers, icon: Users, adminOnly: true },
     { key: 'delivery', label: 'Delivery & Fleet', count: counts.delivery, icon: Bike },

@@ -833,13 +833,44 @@ router.get('/checkout/order-status/:orderId', requireAuth, async (req: Authentic
     return;
   }
 
-  // Authorize order ownership if user is customer
+  // Authorize order ownership if user is customer (strictly verify registered ownership or matching phone)
   if (req.user && req.user.role === 'CUSTOMER') {
-    if (order.user_id && order.user_id !== req.user.id) {
+    const isOwner = Boolean(order.user_id && order.user_id === req.user.id);
+    const userCleanPhone = req.user.phone ? req.user.phone.replace(/\D/g, '').slice(-10) : '';
+    const guestPhone = (order.guest_phone || '').replace(/\D/g, '').slice(-10);
+    const recipientPhone = (order.address_snapshot?.recipient_phone || '').replace(/\D/g, '').slice(-10);
+    const isPhoneMatch = Boolean(
+      userCleanPhone &&
+      userCleanPhone.length === 10 &&
+      (guestPhone === userCleanPhone || recipientPhone === userCleanPhone)
+    );
+
+    if (!isOwner && !isPhoneMatch) {
       res.status(404).json({ error: 'ORDER_NOT_FOUND', message: 'Order not found' });
       return;
     }
   }
+
+  // Format order to mask PII on guest checkout orders
+  const formatSafeOrder = (ord: ServerOrder): ServerOrder => {
+    if (ord.user_id) return ord;
+    const rawGuestPhone = ord.guest_phone || '';
+    const rawRecipientPhone = ord.address_snapshot?.recipient_phone || '';
+    const mask = (p: string) => {
+      const digits = p.replace(/\D/g, '');
+      return digits.length >= 4 ? `******${digits.slice(-4)}` : '******';
+    };
+    return {
+      ...ord,
+      guest_phone: rawGuestPhone ? mask(rawGuestPhone) : undefined,
+      address_snapshot: ord.address_snapshot
+        ? {
+            ...ord.address_snapshot,
+            recipient_phone: mask(rawRecipientPhone),
+          }
+        : ord.address_snapshot,
+    };
+  };
 
   // If already confirmed & captured, return immediately
   if (order.payment_status === 'CAPTURED' && order.status !== 'PENDING_PAYMENT') {
@@ -847,7 +878,7 @@ router.get('/checkout/order-status/:orderId', requireAuth, async (req: Authentic
       success: true,
       status: order.status,
       payment_status: order.payment_status,
-      order,
+      order: formatSafeOrder(order),
     });
     return;
   }
@@ -878,7 +909,7 @@ router.get('/checkout/order-status/:orderId', requireAuth, async (req: Authentic
             status: confirmResult.order.status,
             payment_status: confirmResult.order.payment_status,
             reconciled: true,
-            order: confirmResult.order,
+            order: formatSafeOrder(confirmResult.order),
           });
           return;
         }
@@ -890,7 +921,7 @@ router.get('/checkout/order-status/:orderId', requireAuth, async (req: Authentic
         status: order.status,
         payment_status: order.payment_status,
         message: 'Payment verification is still pending on Cashfree gateway.',
-        order,
+        order: formatSafeOrder(order),
       });
       return;
     }
@@ -900,7 +931,7 @@ router.get('/checkout/order-status/:orderId', requireAuth, async (req: Authentic
     success: order.status === 'PLACED',
     status: order.status,
     payment_status: order.payment_status,
-    order,
+    order: formatSafeOrder(order),
   });
 });
 

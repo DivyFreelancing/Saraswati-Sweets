@@ -455,13 +455,44 @@ CREATE POLICY "Public store settings are viewable by everyone" ON public.store_s
 
 -- Profile policies
 CREATE POLICY "Users can view their own profile" ON public.profiles FOR SELECT USING (auth.uid() = id OR public.is_admin_or_staff());
-CREATE POLICY "Users can update their own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Users can update their own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+
+-- Prevent ordinary authenticated users from escalating role or changing account status via direct client updates
+CREATE OR REPLACE FUNCTION public.prevent_profile_role_escalation()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    IF (NEW.role IS DISTINCT FROM OLD.role OR NEW.is_active IS DISTINCT FROM OLD.is_active OR NEW.id IS DISTINCT FROM OLD.id) THEN
+        IF pg_catalog.current_setting('request.jwt.claim.role', true) = 'authenticated' THEN
+            RAISE EXCEPTION 'Modifying user role, account status, or ID is not permitted.';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+-- Secure execution permissions
+REVOKE ALL ON FUNCTION public.prevent_profile_role_escalation() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.prevent_profile_role_escalation() TO authenticated, service_role;
+
+DROP TRIGGER IF EXISTS tr_prevent_profile_role_escalation ON public.profiles;
+CREATE TRIGGER tr_prevent_profile_role_escalation
+BEFORE UPDATE ON public.profiles
+FOR EACH ROW
+EXECUTE FUNCTION public.prevent_profile_role_escalation();
+
+-- Column-level privilege restriction for authenticated users
+REVOKE UPDATE ON public.profiles FROM authenticated, anon;
+GRANT UPDATE (full_name, phone, fcm_token, notif_promotional_opt_in, updated_at) ON public.profiles TO authenticated;
 
 -- Address policies
-CREATE POLICY "Users can view their own addresses" ON public.addresses FOR SELECT USING (auth.uid() = profile_id OR public.is_admin_or_staff());
-CREATE POLICY "Users can insert their own addresses" ON public.addresses FOR INSERT WITH CHECK (auth.uid() = profile_id);
-CREATE POLICY "Users can update their own addresses" ON public.addresses FOR UPDATE USING (auth.uid() = profile_id);
-CREATE POLICY "Users can delete their own addresses" ON public.addresses FOR DELETE USING (auth.uid() = profile_id);
+CREATE POLICY "Users can view their own addresses" ON public.addresses FOR SELECT USING (auth.uid() = user_id OR public.is_admin_or_staff());
+CREATE POLICY "Users can insert their own addresses" ON public.addresses FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update their own addresses" ON public.addresses FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete their own addresses" ON public.addresses FOR DELETE USING (auth.uid() = user_id);
 
 -- Cart policies
 CREATE POLICY "Users can manage their own carts" ON public.carts FOR ALL USING (auth.uid() = profile_id);
@@ -470,9 +501,9 @@ CREATE POLICY "Users can manage cart items" ON public.cart_items FOR ALL USING (
 );
 
 -- Order policies: customers see their orders, staff/admins see all
-CREATE POLICY "Users can view their own orders" ON public.orders FOR SELECT USING (auth.uid() = profile_id OR public.is_admin_or_staff());
+CREATE POLICY "Users can view their own orders" ON public.orders FOR SELECT USING (auth.uid() = user_id OR public.is_admin_or_staff());
 CREATE POLICY "Users can view their order items" ON public.order_items FOR SELECT USING (
-    EXISTS (SELECT 1 FROM public.orders WHERE orders.id = order_items.order_id AND (orders.profile_id = auth.uid() OR public.is_admin_or_staff()))
+    EXISTS (SELECT 1 FROM public.orders WHERE orders.id = order_items.order_id AND (orders.user_id = auth.uid() OR public.is_admin_or_staff()))
 );
 
 -- Bulk enquiries: anyone can insert, only admin/staff can read/update

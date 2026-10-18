@@ -21,3 +21,8 @@ export const supabase: SupabaseClient | null = isSupabaseConfigured()
       },
     })
   : null;
+
+// Expose client on window in development mode for authorized console testing & security verification
+if (typeof window !== 'undefined' && import.meta.env.DEV && supabase) {
+  (window as any).supabase = supabase;
+}

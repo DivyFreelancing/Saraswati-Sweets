@@ -235,7 +235,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
           details: privacyDetails.trim(),
         }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
         setPrivacySuccessTicket(data.ticketNumber);
         setPrivacyDetails('');

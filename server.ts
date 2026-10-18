@@ -309,6 +309,11 @@ async function startServer() {
     }
   });
 
+  // Fallback 404 for unmatched /api routes so unknown API requests always return JSON 404 instead of SPA index.html
+  app.all('/api/*', (_req, res) => {
+    res.status(404).json({ error: 'NotFound', message: 'API route not found' });
+  });
+
   // --- Vite Dev Server Middleware vs Static Production ---
   if (isDev) {
     const vite = await createViteServer({
@@ -321,11 +326,6 @@ async function startServer() {
     if (!hasDist) {
       console.warn(`[Saraswati Sweets Server] WARNING: 'dist/index.html' not found at ${distIndexHtml}. Ensure 'npm run build' was executed during build phase.`);
     }
-
-    // Fallback 404 for unmatched /api routes so unknown API requests return JSON 404 instead of SPA index.html
-    app.all('/api/*', (_req, res) => {
-      res.status(404).json({ error: 'NotFound', message: 'API route not found' });
-    });
 
     // In production, serve static asset files from dist (do not serve raw index.html on root)
     app.use(
