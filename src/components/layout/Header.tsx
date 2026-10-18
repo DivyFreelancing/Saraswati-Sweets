@@ -265,11 +265,13 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate, onOpenC
               title="Saraswati Sweets - Home"
             >
               <img
-                src="/images/logo.webp"
+                src="/images/logo-mobile.webp"
+                srcSet="/images/logo-mobile.webp 170w, /images/logo.webp 256w"
+                sizes="(max-width: 640px) 85px, 128px"
                 alt="Saraswati Sweets Since 1989"
-                width="240"
-                height="96"
-                className="h-16 sm:h-20 md:h-22 lg:h-24 w-auto object-contain group-hover:scale-105 transition-transform duration-200 drop-shadow-sm"
+                width={256}
+                height={192}
+                className="h-16 sm:h-20 md:h-22 lg:h-24 w-auto aspect-[4/3] object-contain group-hover:scale-105 transition-transform duration-200 drop-shadow-sm"
                 loading="eager"
                 decoding="async"
               />

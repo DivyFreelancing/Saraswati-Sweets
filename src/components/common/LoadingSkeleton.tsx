@@ -138,3 +138,43 @@ export const OrderConfirmationSkeleton: React.FC = () => {
     </div>
   );
 };
+
+export const CatalogPageSkeleton: React.FC = () => {
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 min-h-[calc(100vh-80px)]">
+      {/* Header with static text to immediately render LCP content */}
+      <div>
+        <h1 className="font-display font-bold text-3xl sm:text-4xl text-[#221A14] tracking-tight">
+          All Sweets &amp; Namkeen
+        </h1>
+        <p className="mt-1 text-sm sm:text-base text-[#6E6259]">
+          Pure ingredients, certified edible silver foil, and authentic slow-cooking taste from Barabanki.
+        </p>
+      </div>
+
+      {/* Search and Sort Toolbar Skeleton */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center bg-white p-3 sm:p-4 rounded-2xl border border-[#E8DCC8] shadow-[0_2px_12px_-2px_rgba(34,26,20,0.04)] animate-pulse">
+        <div className="md:col-span-7 h-10 bg-[#FBF6EF] rounded-xl border border-[#E8DCC8]" />
+        <div className="md:col-span-5 h-10 bg-[#FBF6EF] rounded-xl border border-[#E8DCC8]" />
+      </div>
+
+      {/* Category Pills Skeleton */}
+      <div className="space-y-3 animate-pulse">
+        <div className="flex gap-2 overflow-hidden py-1">
+          <div className="h-9 w-24 rounded-xl bg-[#7A1129]/20 shrink-0" />
+          <div className="h-9 w-20 rounded-xl bg-[#E8DCC8]/50 shrink-0" />
+          <div className="h-9 w-20 rounded-xl bg-[#E8DCC8]/50 shrink-0" />
+          <div className="h-9 w-20 rounded-xl bg-[#E8DCC8]/50 shrink-0" />
+          <div className="h-9 w-20 rounded-xl bg-[#E8DCC8]/50 shrink-0" />
+        </div>
+      </div>
+
+      {/* Product Grid Skeleton */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
+        {Array.from({ length: 8 }).map((_, idx) => (
+          <ProductCardSkeleton key={idx} />
+        ))}
+      </div>
+    </div>
+  );
+};

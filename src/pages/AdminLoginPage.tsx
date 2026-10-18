@@ -129,9 +129,9 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
             <img
               src="/images/logo.webp"
               alt="Saraswati Sweets"
-              width="240"
-              height="64"
-              className="h-16 w-auto object-contain drop-shadow-xs select-none"
+              width={256}
+              height={192}
+              className="h-16 w-auto aspect-[4/3] object-contain drop-shadow-xs select-none"
             />
           </div>
           <h1 className="font-display font-bold text-2xl text-[#1F1B16]">

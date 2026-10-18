@@ -162,9 +162,10 @@ export function injectSeoIntoHtml(
     isNotFound?: boolean;
     isPrivate?: boolean;
     productSchema?: any;
+    catalogChunk?: string | null;
   }
 ): string {
-  const { siteUrl, pathname, meta, isNotFound, isPrivate, productSchema } = options;
+  const { siteUrl, pathname, meta, isNotFound, isPrivate, productSchema, catalogChunk } = options;
   const isProduction = process.env.NODE_ENV === 'production' || Boolean(process.env.RAILWAY_ENVIRONMENT);
   const hasValidSiteUrl = Boolean(siteUrl && !siteUrl.includes('localhost') && !siteUrl.includes('127.0.0.1'));
   const shouldInjectUrl = hasValidSiteUrl || !isProduction;
@@ -295,6 +296,14 @@ export function injectSeoIntoHtml(
     tagsToInject.push(`  <script type="application/ld+json">\n${escapeJsonLd(productSchema)}\n  </script>`);
   }
 
+  // 7. Route-specific preloads: Preload hero carousel image strictly on homepage, avoiding wasteful downloads on /catalog
+  if (pathname === '/') {
+    tagsToInject.push('  <link rel="preload" as="image" href="/images/1-mobile.webp" media="(max-width: 640px)" type="image/webp" fetchpriority="high" />');
+    tagsToInject.push('  <link rel="preload" as="image" href="/images/1.webp" media="(min-width: 641px)" type="image/webp" fetchpriority="high" />');
+  } else if (pathname === '/catalog' && catalogChunk) {
+    tagsToInject.push(`  <link rel="modulepreload" crossorigin href="/assets/${catalogChunk}" />`);
+  }
+
   if (tagsToInject.length > 0) {
     html = html.replace('</head>', `${tagsToInject.join('\n')}\n</head>`);
   }
@@ -334,6 +343,23 @@ export function createSeoInjectMiddleware(distDir: string) {
   } catch (err) {
     console.error('[SeoInject] Failed to read index.html template at startup:', err);
   }
+
+  let catalogChunk: string | null = null;
+  const findCatalogChunk = (): string | null => {
+    if (catalogChunk) return catalogChunk;
+    try {
+      const assetsDir = path.resolve(distDir, 'assets');
+      if (fs.existsSync(assetsDir)) {
+        const files = fs.readdirSync(assetsDir);
+        const match = files.find((f) => f.startsWith('CatalogPage-') && f.endsWith('.js'));
+        if (match) {
+          catalogChunk = match;
+          return catalogChunk;
+        }
+      }
+    } catch {}
+    return null;
+  };
 
   return (req: express.Request, res: express.Response, next: express.NextFunction) => {
     // Only handle GET and HEAD requests for HTML pages
@@ -391,6 +417,7 @@ export function createSeoInjectMiddleware(distDir: string) {
           siteUrl,
           pathname,
           meta,
+          catalogChunk: pathname === '/catalog' ? findCatalogChunk() : undefined,
         });
         return res.status(200).type('html').send(html);
       }

@@ -55,11 +55,21 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
 
   const selectedTabRef = useRef<HTMLButtonElement>(null);
 
+  // Scroll selected category tab into view only when a non-empty category is active,
+  // deferred with requestAnimationFrame to prevent forced synchronous reflow during initial page render.
   useEffect(() => {
-    if (selectedTabRef.current) {
-      selectedTabRef.current.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-    }
-  }, [selectedCategory, categories.length]);
+    if (!selectedCategory || !selectedTabRef.current) return;
+
+    const frameId = requestAnimationFrame(() => {
+      selectedTabRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        inline: 'center',
+        block: 'nearest',
+      });
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, [selectedCategory]);
 
   useEffect(() => {
     async function loadData() {
@@ -156,11 +166,11 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 min-h-[calc(100vh-80px)]">
       {/* Header */}
       <div>
         <h1 className="font-display font-bold text-3xl sm:text-4xl text-[#221A14] tracking-tight">
-          All Sweets & Namkeen
+          All Sweets &amp; Namkeen
         </h1>
         <p className="mt-1 text-sm sm:text-base text-[#6E6259]">
           Pure ingredients, certified edible silver foil, and authentic slow-cooking taste from Barabanki.
@@ -211,7 +221,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
       {/* Category and Quick Filter Chips */}
       <div className="space-y-3">
         {/* Category Pills */}
-        <div className="flex flex-nowrap gap-2 overflow-x-auto pb-2 no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden overscroll-x-contain">
+        <div className="flex flex-nowrap gap-2 overflow-x-auto pb-2 no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden overscroll-x-contain min-h-[46px] items-center">
           <button
             type="button"
             ref={!selectedCategory ? selectedTabRef : null}
@@ -222,24 +232,33 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
                 : 'bg-white text-[#221A14] border-[#E8DCC8] hover:bg-[#F5EAD9]'
             }`}
           >
-            All Items ({products.length})
+            All Items <span className="tabular-nums">({products.length})</span>
           </button>
 
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              type="button"
-              ref={selectedCategory === cat.slug ? selectedTabRef : null}
-              onClick={() => setSelectedCategory(selectedCategory === cat.slug ? '' : cat.slug)}
-              className={`shrink-0 min-h-[38px] px-4 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors border ${
-                selectedCategory === cat.slug
-                  ? 'bg-[#7A1129] text-white border-[#7A1129]'
-                  : 'bg-white text-[#221A14] border-[#E8DCC8] hover:bg-[#F5EAD9]'
-              }`}
-            >
-              {cat.name}
-            </button>
-          ))}
+          {categories.length === 0 ? (
+            <>
+              <div className="h-[38px] w-20 rounded-xl bg-[#E8DCC8]/50 animate-pulse shrink-0" />
+              <div className="h-[38px] w-20 rounded-xl bg-[#E8DCC8]/50 animate-pulse shrink-0" />
+              <div className="h-[38px] w-20 rounded-xl bg-[#E8DCC8]/50 animate-pulse shrink-0" />
+              <div className="h-[38px] w-20 rounded-xl bg-[#E8DCC8]/50 animate-pulse shrink-0" />
+            </>
+          ) : (
+            categories.map((cat) => (
+              <button
+                key={cat.id}
+                type="button"
+                ref={selectedCategory === cat.slug ? selectedTabRef : null}
+                onClick={() => setSelectedCategory(selectedCategory === cat.slug ? '' : cat.slug)}
+                className={`shrink-0 min-h-[38px] px-4 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors border ${
+                  selectedCategory === cat.slug
+                    ? 'bg-[#7A1129] text-white border-[#7A1129]'
+                    : 'bg-white text-[#221A14] border-[#E8DCC8] hover:bg-[#F5EAD9]'
+                }`}
+              >
+                {cat.name}
+              </button>
+            ))
+          )}
         </div>
 
         {/* Dietary & Highlight toggles */}

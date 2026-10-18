@@ -186,9 +186,9 @@ export const AuthModal: React.FC = () => {
                 <img
                   src="/images/logo.webp"
                   alt="Saraswati Sweets"
-                  width="240"
-                  height="80"
-                  className="h-16 sm:h-20 w-auto object-contain drop-shadow-sm select-none"
+                  width={256}
+                  height={192}
+                  className="h-16 sm:h-20 w-auto aspect-[4/3] object-contain drop-shadow-sm select-none"
                 />
               </div>
 

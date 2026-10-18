@@ -13,6 +13,7 @@ const ProductDetailModal = React.lazy(() => import('./components/catalog/Product
 const AuthModal = React.lazy(() => import('./components/auth/AuthModal').then(m => ({ default: m.AuthModal })));
 import { ToastContainer } from './components/common/Toast';
 import { OfflineIndicator } from './components/common/OfflineIndicator';
+import { CatalogPageSkeleton } from './components/common/LoadingSkeleton';
 
 import { HomePage } from './pages/HomePage';
 
@@ -299,8 +300,20 @@ function AppContent() {
       />
 
       {/* Main Page Body */}
-      <main className="flex-1">
-        <React.Suspense fallback={<div className="min-h-[50vh] flex items-center justify-center text-xs text-[#6E6259]">Loading...</div>}>
+      <main className="flex-1 min-h-[calc(100vh-80px)]">
+        <React.Suspense
+          fallback={
+            currentPath.startsWith('/catalog') ||
+            currentPath.startsWith('/categories') ||
+            currentPath.startsWith('/products') ? (
+              <CatalogPageSkeleton />
+            ) : (
+              <div className="min-h-[calc(100vh-80px)] flex items-center justify-center text-xs text-[#6E6259]">
+                Loading...
+              </div>
+            )
+          }
+        >
           {renderCurrentPage()}
         </React.Suspense>
       </main>

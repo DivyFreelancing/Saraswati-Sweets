@@ -250,11 +250,13 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               title="Saraswati Sweets Since 1989"
             >
               <img
-                src="/images/logo.webp"
+                src="/images/logo-mobile.webp"
+                srcSet="/images/logo-mobile.webp 170w, /images/logo.webp 256w"
+                sizes="(max-width: 640px) 75px, 120px"
                 alt="Saraswati Sweets Since 1989"
-                width="180"
-                height="64"
-                className="h-14 sm:h-16 w-auto mx-auto object-contain group-hover:scale-105 transition-transform drop-shadow-xs"
+                width={256}
+                height={192}
+                className="h-14 sm:h-16 w-auto aspect-[4/3] mx-auto object-contain group-hover:scale-105 transition-transform drop-shadow-xs"
                 loading="lazy"
                 decoding="async"
               />
@@ -416,15 +418,26 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.15) 10%, rgba(0,0,0,0.6) 24%, rgba(0,0,0,0.95) 42%, black 60%, black 100%)',
             }}
           >
-            <img
-              src="/images/bottom_banner.webp"
-              alt="Historic Barabanki Ghantaghar & Saraswati Sweets Landmark Panorama - Mithas Ki Purani Dukan"
-              width="1920"
-              height="640"
-              className="w-full h-auto min-h-[160px] sm:min-h-[220px] md:min-h-[280px] lg:min-h-[360px] xl:min-h-[420px] max-h-[520px] object-cover object-bottom aspect-[3/1]"
-              loading="lazy"
-              decoding="async"
-            />
+            <picture>
+              <source
+                media="(max-width: 640px)"
+                srcSet="/images/bottom_banner-mobile.webp"
+                width={800}
+                height={267}
+                type="image/webp"
+              />
+              <img
+                src="/images/bottom_banner.webp"
+                srcSet="/images/bottom_banner-mobile.webp 800w, /images/bottom_banner.webp 1920w"
+                sizes="(max-width: 640px) 100vw, 1920px"
+                alt="Historic Barabanki Ghantaghar & Saraswati Sweets Landmark Panorama - Mithas Ki Purani Dukan"
+                width={1920}
+                height={640}
+                className="w-full h-auto min-h-[160px] sm:min-h-[220px] md:min-h-[280px] lg:min-h-[360px] xl:min-h-[420px] max-h-[520px] object-cover object-bottom aspect-[3/1]"
+                loading="lazy"
+                decoding="async"
+              />
+            </picture>
           </div>
 
           {/* Smooth watercolor blur overlay blending the sky seamlessly into the website's background color #FBF6EF */}

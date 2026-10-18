@@ -10,10 +10,17 @@ import { shouldHandleSpaClick } from '../../utils/navigation';
 
 interface ProductCardProps {
   product: Product;
+  index?: number;
+  isPriority?: boolean;
   onOpenDetail?: (product: Product) => void;
 }
 
-export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenDetail }) => {
+export const ProductCard: React.FC<ProductCardProps> = ({
+  product,
+  index = 0,
+  isPriority = false,
+  onOpenDetail,
+}) => {
   const { addItem } = useCart();
   const { showToast } = useToast();
   const [imageFailed, setImageFailed] = useState(false);
@@ -137,6 +144,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenDetail 
   return (
     <article
       onClick={handleCardClick}
+      style={isPriority ? undefined : { contentVisibility: 'auto', containIntrinsicSize: '0 450px' }}
       className={`group relative flex flex-col bg-white rounded-2xl border border-[#E8DCC8] p-4 sm:p-5 transition-all duration-200 cursor-pointer shadow-[0_2px_12px_-2px_rgba(34,26,20,0.05),0_1px_3px_0_rgba(34,26,20,0.03)] hover:shadow-[0_8px_24px_-4px_rgba(122,17,41,0.08)] hover:border-[#7A1129]/35 ${
         isAllOutOfStock ? 'opacity-90' : ''
       }`}
@@ -183,10 +191,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenDetail 
               alt={product.name}
               width="160"
               height="160"
-              loading="lazy"
+              loading={isPriority ? 'eager' : 'lazy'}
+              fetchPriority={index === 0 ? 'high' : 'auto'}
               decoding="async"
               onError={() => setImageFailed(true)}
-              className={`w-full h-full object-contain object-center rounded-xl transition-transform duration-500 ease-out group-hover:scale-105 ${
+              className={`w-full h-full object-contain object-center rounded-xl transition-transform duration-500 ease-out group-hover:scale-105 aspect-square ${
                 isAllOutOfStock ? 'opacity-70 contrast-90 grayscale-[25%]' : ''
               }`}
             />

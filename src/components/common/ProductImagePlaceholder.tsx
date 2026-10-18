@@ -70,7 +70,7 @@ export const ProductImagePlaceholder: React.FC<ProductImagePlaceholderProps> = (
 
       {/* Subtle Caption */}
       {shouldShowText && (
-        <div className="relative px-2 z-10 flex flex-col items-center">
+        <div className="relative px-2 z-10 flex flex-col items-center justify-center min-h-[32px]">
           <span className="font-serif text-[10px] sm:text-[11px] font-bold text-[#7A1129] tracking-wider uppercase leading-tight">
             Photo Coming Soon
           </span>
