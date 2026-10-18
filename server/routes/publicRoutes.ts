@@ -158,7 +158,21 @@ router.get('/hampers', (_req, res: Response) => {
   res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
   const hampers = Array.from(inMemoryStore.giftHampers.values())
     .filter((h) => h.is_active)
-    .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+    .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+    .map((h: any) => {
+      const price = typeof h.price === 'number' && !isNaN(h.price) && h.price > 0
+        ? h.price
+        : typeof h.hamper_price === 'number' && !isNaN(h.hamper_price) && h.hamper_price > 0
+        ? h.hamper_price
+        : Number(h.price ?? h.hamper_price ?? 0);
+      const mrp = typeof h.mrp === 'number' && !isNaN(h.mrp) && h.mrp > 0 ? h.mrp : price;
+      return {
+        ...h,
+        price,
+        hamper_price: price,
+        mrp,
+      };
+    });
 
   res.json({ hampers });
 });
@@ -177,7 +191,22 @@ router.get('/hampers/:idOrSlug', (req, res: Response) => {
     return;
   }
 
-  res.json({ hamper });
+  const h = hamper as any;
+  const price = typeof h.price === 'number' && !isNaN(h.price) && h.price > 0
+    ? h.price
+    : typeof h.hamper_price === 'number' && !isNaN(h.hamper_price) && h.hamper_price > 0
+    ? h.hamper_price
+    : Number(h.price ?? h.hamper_price ?? 0);
+  const mrp = typeof h.mrp === 'number' && !isNaN(h.mrp) && h.mrp > 0 ? h.mrp : price;
+
+  res.json({
+    hamper: {
+      ...h,
+      price,
+      hamper_price: price,
+      mrp,
+    },
+  });
 });
 
 // ==========================================================

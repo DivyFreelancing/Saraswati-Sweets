@@ -2734,7 +2734,23 @@ export async function loadStoreState(): Promise<void> {
 
     if (offs.data) { inMemoryStore.offers.clear(); offs.data.forEach(x => inMemoryStore.offers.set(x.id, x)); }
     if (bans.data) { inMemoryStore.banners.clear(); bans.data.forEach(x => inMemoryStore.banners.set(x.id, x)); }
-    if (hampers.data) { inMemoryStore.giftHampers.clear(); hampers.data.forEach(x => inMemoryStore.giftHampers.set(x.id, x)); }
+    if (hampers.data) {
+      inMemoryStore.giftHampers.clear();
+      hampers.data.forEach((x: any) => {
+        const price = typeof x.price === 'number' && !isNaN(x.price) && x.price > 0
+          ? x.price
+          : typeof x.hamper_price === 'number' && !isNaN(x.hamper_price) && x.hamper_price > 0
+          ? x.hamper_price
+          : Number(x.price ?? x.hamper_price ?? 0);
+        const mrp = typeof x.mrp === 'number' && !isNaN(x.mrp) && x.mrp > 0 ? x.mrp : price;
+        inMemoryStore.giftHampers.set(x.id, {
+          ...x,
+          price,
+          hamper_price: price,
+          mrp,
+        });
+      });
+    }
 
     const PRODUCT_NAME_CATEGORY_REMAP: Record<string, string> = {
       'Gulab Jamun': '284272ed-691e-4720-ba2b-11a711478638',

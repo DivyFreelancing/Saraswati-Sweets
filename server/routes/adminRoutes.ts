@@ -203,34 +203,39 @@ router.post('/upload-image', async (req: AuthenticatedRequest, res: Response) =>
   let uploadPath: string;
   if (typeof path === 'string' && path.trim()) {
     const cleaned = path.trim().replace(/\\/g, '/');
-    if (cleaned.includes('..') || cleaned.startsWith('/') || !cleaned.startsWith('products/')) {
+    if (cleaned.includes('..') || cleaned.startsWith('/') || (!cleaned.startsWith('products/') && !cleaned.startsWith('hampers/'))) {
       res.status(400).json({
         error: 'INVALID_PATH',
-        message: 'Upload path must start with products/ and cannot contain directory traversal characters.'
+        message: 'Upload path must start with products/ or hampers/ and cannot contain directory traversal characters.'
       });
       return;
     }
     uploadPath = cleaned;
   } else {
-    uploadPath = `products/${Date.now()}-${fileName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+    const folder = req.body.folder === 'hampers' ? 'hampers' : 'products';
+    uploadPath = `${folder}/${Date.now()}-${fileName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
   }
 
-  const { data, error } = await supabaseServer!.storage
-    .from('product-images')
-    .upload(uploadPath, buffer, {
-      contentType: fileType,
-      upsert: true
-    });
+  let publicUrl = `https://mock-storage.supabase.co/storage/v1/object/public/product-images/${uploadPath}`;
+  if (supabaseServer) {
+    const { data, error } = await supabaseServer.storage
+      .from('product-images')
+      .upload(uploadPath, buffer, {
+        contentType: fileType,
+        upsert: true
+      });
 
-  if (error) {
-    console.error('Storage upload error:', error);
-    res.status(500).json({ error: 'UPLOAD_FAILED', message: error.message });
-    return;
+    if (error) {
+      console.error('Storage upload error:', error);
+      res.status(500).json({ error: 'UPLOAD_FAILED', message: error.message });
+      return;
+    }
+
+    const { data: pubData } = supabaseServer.storage
+      .from('product-images')
+      .getPublicUrl(uploadPath);
+    publicUrl = pubData.publicUrl;
   }
-
-  const { data: { publicUrl } } = supabaseServer!.storage
-    .from('product-images')
-    .getPublicUrl(uploadPath);
 
   logAuditEvent(req.user, 'PRODUCT_IMAGE_UPLOADED', 'PRODUCT', 'media', {
     fileName,
@@ -241,14 +246,14 @@ router.post('/upload-image', async (req: AuthenticatedRequest, res: Response) =>
 
   res.json({
     success: true,
-    message: 'Primary sweet image uploaded successfully.',
+    message: 'Image uploaded successfully.',
     imageUrl: publicUrl,
     fileName,
   });
 });
 
 router.post('/signed-upload-url', (req: AuthenticatedRequest, res: Response) => {
-  const { fileName = 'image.webp', fileType = 'image/webp', fileSize = 0 } = req.body;
+  const { fileName = 'image.webp', fileType = 'image/webp', fileSize = 0, folder = 'products' } = req.body;
 
   const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
   if (!allowedMimeTypes.includes(fileType.toLowerCase())) {
@@ -260,8 +265,9 @@ router.post('/signed-upload-url', (req: AuthenticatedRequest, res: Response) => 
     return;
   }
 
+  const cleanFolder = folder === 'hampers' ? 'hampers' : 'products';
   const cleanName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
-  const path = `products/${Date.now()}-${cleanName}`;
+  const path = `${cleanFolder}/${Date.now()}-${cleanName}`;
   res.json({ success: true, path, uploadUrl: '/api/admin/upload-image', token: `signed_token_${Date.now()}`, expiresIn: 3600 });
 });
 
@@ -2021,20 +2027,78 @@ router.delete('/banners/:id', requireRole(['ADMIN']), async (req: AuthenticatedR
 // 14. GIFT HAMPERS
 // ==========================================================
 router.get('/hampers', (_req: AuthenticatedRequest, res: Response) => {
-  const hampers = Array.from(inMemoryStore.giftHampers.values()).sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+  const hampers = Array.from(inMemoryStore.giftHampers.values())
+    .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+    .map((h: any) => {
+      const price = typeof h.price === 'number' && !isNaN(h.price) && h.price > 0
+        ? h.price
+        : typeof h.hamper_price === 'number' && !isNaN(h.hamper_price) && h.hamper_price > 0
+        ? h.hamper_price
+        : Number(h.price ?? h.hamper_price ?? 0);
+      const mrp = typeof h.mrp === 'number' && !isNaN(h.mrp) && h.mrp > 0 ? h.mrp : price;
+      return {
+        ...h,
+        price,
+        hamper_price: price,
+        mrp,
+      };
+    });
   res.json({ hampers });
 });
 
 router.post('/hampers', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
   if (!assertSupabase(res)) return;
 
-  const { name, description = '', image_url, box_type = 'Royal Velvet Trunk', hamper_price, mrp, is_featured = false, is_active = true, display_order = 1, items_included = [] } = req.body;
-  if (!name || !hamper_price || !image_url) {
-    res.status(400).json({ error: 'MISSING_FIELDS', message: 'Hamper name, price, and image URL are required.' });
+  const {
+    name,
+    description = '',
+    image_url,
+    box_type = 'Royal Velvet Trunk',
+    price,
+    hamper_price,
+    mrp,
+    is_featured = false,
+    is_active = true,
+    display_order = 1,
+    items_included = []
+  } = req.body;
+
+  // Field-specific validations
+  if (!name || !String(name).trim()) {
+    res.status(400).json({ error: 'MISSING_NAME', message: 'Hamper name is required.' });
     return;
   }
 
-  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  const rawPrice = price !== undefined ? price : hamper_price;
+  const numPrice = Number(rawPrice);
+  if (rawPrice === undefined || rawPrice === null || rawPrice === '' || isNaN(numPrice) || numPrice <= 0) {
+    res.status(400).json({ error: 'INVALID_PRICE', message: 'Selling price must be a valid positive amount.' });
+    return;
+  }
+
+  const rawMrp = mrp !== undefined && mrp !== null && mrp !== '' ? Number(mrp) : numPrice;
+  if (isNaN(rawMrp) || rawMrp <= 0) {
+    res.status(400).json({ error: 'INVALID_MRP', message: 'MRP must be a valid positive amount.' });
+    return;
+  }
+  if (rawMrp < numPrice) {
+    res.status(400).json({ error: 'INVALID_MRP', message: 'MRP cannot be less than selling price.' });
+    return;
+  }
+
+  if (!image_url || !String(image_url).trim()) {
+    res.status(400).json({ error: 'MISSING_IMAGE', message: 'Hamper image is required.' });
+    return;
+  }
+
+  const baseSlug = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'gift-hamper';
+  let slug = baseSlug;
+  let counter = 1;
+  const existingSlugs = new Set(Array.from(inMemoryStore.giftHampers.values()).map((h: any) => h.slug));
+  while (existingSlugs.has(slug)) {
+    slug = `${baseSlug}-${counter++}`;
+  }
+
   const id = randomUUID();
   const nowIso = new Date().toISOString();
 
@@ -2043,24 +2107,26 @@ router.post('/hampers', requireRole(['ADMIN']), async (req: AuthenticatedRequest
     name: String(name).trim(),
     slug,
     description: String(description).trim(),
-    image_url,
+    image_url: String(image_url).trim(),
     box_type: String(box_type).trim(),
-    price: Number(hamper_price),
-    mrp: Number(mrp) || Number(hamper_price),
+    price: numPrice,
+    mrp: rawMrp,
     is_featured: Boolean(is_featured),
     is_active: Boolean(is_active),
   };
 
-  const { error } = await supabaseServer!.from('gift_hampers').insert([row]);
-  if (error) {
-    console.error('[Admin] Hamper insert failed:', error);
-    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
-    return;
+  if (supabaseServer) {
+    const { error } = await supabaseServer.from('gift_hampers').insert([row]);
+    if (error) {
+      console.error('[Admin] Hamper insert failed:', error);
+      res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+      return;
+    }
   }
 
   const formattedItems = Array.isArray(items_included)
-    ? items_included.map((it: any, idx: number) => ({
-        id: randomUUID(),
+    ? items_included.map((it: any) => ({
+        id: it.id || randomUUID(),
         product_id: it.product_id || '',
         product_name: it.product_name || 'Artisanal Mithai',
         variant_label: it.variant_label || '250g',
@@ -2068,17 +2134,49 @@ router.post('/hampers', requireRole(['ADMIN']), async (req: AuthenticatedRequest
       }))
     : [];
 
+  if (formattedItems.length > 0 && supabaseServer) {
+    const dbItems = formattedItems.map((it: any, idx: number) => ({
+      hamper_id: id,
+      item_name: it.product_name,
+      item_quantity: it.variant_label ? `${it.variant_label} x ${it.quantity}` : `${it.quantity} pack`,
+      display_order: idx + 1,
+    }));
+    try {
+      await supabaseServer.from('gift_hamper_items').insert(dbItems);
+    } catch (itemsErr: any) {
+      console.warn('[Admin] Hamper items insert warning:', itemsErr?.message);
+    }
+  }
+
   const newHamper: ServerGiftHamper = {
-    id, name: row.name, slug, description: row.description,
-    image_url, box_type: row.box_type, price: row.price, mrp: row.mrp,
-    is_featured: row.is_featured, is_active: row.is_active,
+    id,
+    name: row.name,
+    slug,
+    description: row.description,
+    image_url: row.image_url,
+    box_type: row.box_type,
+    price: row.price,
+    mrp: row.mrp,
+    is_featured: row.is_featured,
+    is_active: row.is_active,
     display_order: Number(display_order) || 1,
-    items_included: formattedItems, created_at: nowIso, updated_at: nowIso,
+    items_included: formattedItems,
+    created_at: nowIso,
+    updated_at: nowIso,
   };
   Map.prototype.set.call(inMemoryStore.giftHampers, id, newHamper);
 
   logAuditEvent(req.user, 'HAMPER_CREATED', 'GIFT_HAMPER', id, { name: row.name, price: row.price, itemsCount: formattedItems.length });
-  res.status(201).json({ success: true, hamper: newHamper });
+  res.status(201).json({
+    success: true,
+    hamper: {
+      ...newHamper,
+      price: row.price,
+      hamper_price: row.price,
+      mrp: row.mrp,
+    },
+  });
+  loadStoreState().catch((err) => console.error('[Cache Refresh Error]', err));
 });
 
 router.put('/hampers/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
@@ -2091,40 +2189,100 @@ router.put('/hampers/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequ
     return;
   }
 
-  const { name, description, image_url, box_type, hamper_price, mrp, is_featured, is_active, display_order, items_included } = req.body;
+  const { name, description, image_url, box_type, hamper_price, price, mrp, is_featured, is_active, display_order, items_included } = req.body;
   const updates: Record<string, any> = {};
-  if (name !== undefined) updates.name = String(name).trim();
+  if (name !== undefined) {
+    if (!String(name).trim()) {
+      res.status(400).json({ error: 'INVALID_NAME', message: 'Hamper name cannot be empty.' });
+      return;
+    }
+    updates.name = String(name).trim();
+  }
   if (description !== undefined) updates.description = String(description).trim();
-  if (image_url !== undefined) updates.image_url = image_url;
+  if (image_url !== undefined) {
+    if (!String(image_url).trim()) {
+      res.status(400).json({ error: 'INVALID_IMAGE', message: 'Hamper image URL cannot be empty.' });
+      return;
+    }
+    updates.image_url = String(image_url).trim();
+  }
   if (box_type !== undefined) updates.box_type = String(box_type).trim();
-  if (hamper_price !== undefined) updates.hamper_price = Number(hamper_price);
-  if (mrp !== undefined) updates.mrp = Number(mrp);
+
+  const rawPrice = price !== undefined ? price : hamper_price;
+  if (rawPrice !== undefined) {
+    const numPrice = Number(rawPrice);
+    if (isNaN(numPrice) || numPrice <= 0) {
+      res.status(400).json({ error: 'INVALID_PRICE', message: 'Selling price must be a valid positive amount.' });
+      return;
+    }
+    updates.price = numPrice;
+  }
+
+  if (mrp !== undefined) {
+    const numMrp = Number(mrp);
+    const effectivePrice = updates.price !== undefined ? updates.price : hamper.price;
+    if (isNaN(numMrp) || numMrp < effectivePrice) {
+      res.status(400).json({ error: 'INVALID_MRP', message: 'MRP cannot be less than selling price.' });
+      return;
+    }
+    updates.mrp = numMrp;
+  }
+
   if (is_featured !== undefined) updates.is_featured = Boolean(is_featured);
   if (is_active !== undefined) updates.is_active = Boolean(is_active);
 
-  const { error } = await supabaseServer!.from('gift_hampers').update(updates).eq('id', id);
-  if (error) {
-    console.error('[Admin] Hamper update failed:', error);
-    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
-    return;
+  if (supabaseServer && Object.keys(updates).length > 0) {
+    const { error } = await supabaseServer.from('gift_hampers').update(updates).eq('id', id);
+    if (error) {
+      console.error('[Admin] Hamper update failed:', error);
+      res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+      return;
+    }
   }
 
   Object.assign(hamper, updates);
   if (display_order !== undefined) hamper.display_order = Number(display_order);
   if (Array.isArray(items_included)) {
-    hamper.items_included = items_included.map((it: any, idx: number) => ({
+    hamper.items_included = items_included.map((it: any) => ({
       id: it.id || randomUUID(),
       product_id: it.product_id || '',
       product_name: it.product_name || 'Artisanal Mithai',
       variant_label: it.variant_label || '250g',
       quantity: Math.max(1, Number(it.quantity) || 1),
     }));
+
+    // Update gift_hamper_items table in Supabase
+    if (supabaseServer) {
+      try {
+        await supabaseServer.from('gift_hamper_items').delete().eq('hamper_id', id);
+        if (hamper.items_included.length > 0) {
+          const dbItems = hamper.items_included.map((it: any, idx: number) => ({
+            hamper_id: id,
+            item_name: it.product_name,
+            item_quantity: it.variant_label ? `${it.variant_label} x ${it.quantity}` : `${it.quantity} pack`,
+            display_order: idx + 1,
+          }));
+          await supabaseServer.from('gift_hamper_items').insert(dbItems);
+        }
+      } catch (itemsErr: any) {
+        console.warn('[Admin] Failed to sync updated hamper items:', itemsErr?.message);
+      }
+    }
   }
   hamper.updated_at = new Date().toISOString();
   Map.prototype.set.call(inMemoryStore.giftHampers, id, hamper);
 
-  logAuditEvent(req.user, 'HAMPER_UPDATED', 'GIFT_HAMPER', id, { name: updates.name, price: updates.hamper_price, is_active: updates.is_active });
-  res.json({ success: true, hamper });
+  logAuditEvent(req.user, 'HAMPER_UPDATED', 'GIFT_HAMPER', id, { name: updates.name, price: updates.price, is_active: updates.is_active });
+  res.json({
+    success: true,
+    hamper: {
+      ...hamper,
+      price: hamper.price,
+      hamper_price: hamper.price,
+      mrp: hamper.mrp,
+    },
+  });
+  loadStoreState().catch((err) => console.error('[Cache Refresh Error]', err));
 });
 
 router.delete('/hampers/:id', requireRole(['ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
@@ -2137,16 +2295,19 @@ router.delete('/hampers/:id', requireRole(['ADMIN']), async (req: AuthenticatedR
     return;
   }
 
-  const { error } = await supabaseServer!.from('gift_hampers').delete().eq('id', id);
-  if (error) {
-    console.error('[Admin] Hamper delete failed:', error);
-    res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
-    return;
+  if (supabaseServer) {
+    const { error } = await supabaseServer.from('gift_hampers').delete().eq('id', id);
+    if (error) {
+      console.error('[Admin] Hamper delete failed:', error);
+      res.status(500).json({ error: 'DB_WRITE_FAILED', message: error.message });
+      return;
+    }
   }
 
   Map.prototype.delete.call(inMemoryStore.giftHampers, id);
   logAuditEvent(req.user, 'HAMPER_DELETED', 'GIFT_HAMPER', id, { name: hamper.name });
   res.json({ success: true, message: `Gift hamper '${hamper.name}' deleted.` });
+  loadStoreState().catch((err) => console.error('[Cache Refresh Error]', err));
 });
 
 // ==========================================================

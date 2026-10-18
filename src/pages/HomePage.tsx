@@ -1,23 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Sparkles,
-  ShieldCheck,
-  Clock,
-  HeartHandshake,
   ArrowRight,
-  Building2,
   Gift,
-  CheckCircle2,
-  Calendar,
-  Truck,
-  Leaf,
-  Layers,
-  ChevronRight,
 } from 'lucide-react';
 import { HeroSection } from '../components/common/HeroSection';
 import { SectionHeader } from '../components/common/SectionHeader';
 import { CategoryCard } from '../components/common/CategoryCard';
-import { ProductGrid } from '../components/common/ProductGrid';
 import { ProductCarousel } from '../components/common/ProductCarousel';
 import { PromoBanner } from '../components/common/PromoBanner';
 import { HamperCard } from '../components/common/HamperCard';
@@ -96,6 +84,17 @@ export const HomePage: React.FC<HomePageProps> = ({
     }
 
     loadHomeData();
+
+    // Smooth scroll to #gift-hampers if URL contains hash on mount
+    if (typeof window !== 'undefined' && window.location.hash === '#gift-hampers') {
+      const timer = setTimeout(() => {
+        const el = document.getElementById('gift-hampers');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 250);
+      return () => clearTimeout(timer);
+    }
   }, []);
 
   // Quick navigation categories mapped to actual catalogue slugs
@@ -207,201 +206,45 @@ export const HomePage: React.FC<HomePageProps> = ({
             </div>
           )}
         </section>
+      </div>
 
-        {/* 7. Heritage Maroon: "The Saraswati Promise / Made With Tradition. Served With Care." */}
-        <section
-          id="promise"
-          aria-label="The Saraswati Promise"
-          className="relative rounded-3xl overflow-hidden shadow-[0_12px_40px_-6px_rgba(74,8,14,0.35)] border border-[#C79A3D]/40 text-white content-visibility-auto"
-          style={{ backgroundColor: '#4a080e' }}
+      {/* 7b. Luxury Gift Hamper Promotional Banner (Full-Width Horizontal Edge-to-Edge) */}
+      <section aria-label="Gift Hamper Collections Promotional Banner" className="w-full my-8 sm:my-14 content-visibility-auto">
+        <a
+          href="/hampers"
+          onClick={(e) => {
+            e.preventDefault();
+            onNavigate('/hampers');
+          }}
+          aria-label="Explore Saraswati Sweets Handcrafted Gift Hampers Collection - Gifting, Made Extraordinary"
+          className="group block relative w-full overflow-hidden bg-[#FAF4DE] border-y border-[#C79A3D]/30 shadow-[0_4px_24px_-4px_rgba(74,8,14,0.10)] transition-all duration-300 hover:shadow-[0_12px_36px_-4px_rgba(74,8,14,0.18)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#7A1129]/30 cursor-pointer"
         >
-          {/* Top Scalloped Border Trim (from Reference Image 3) */}
-          <div className="absolute top-0 left-0 right-0 z-20 pointer-events-none">
-            <ScallopTrim position="top" fillColor="#FBF6EF" accentColor="#C79A3D" />
-          </div>
+          <picture className="w-full block">
+            <source
+              media="(min-width: 1025px)"
+              srcSet="/images/gift-hamper-banner-2x.webp"
+              type="image/webp"
+            />
+            <source srcSet="/images/gift-hamper-banner.webp" type="image/webp" />
+            <img
+              src="/images/gift-hamper-banner.jpg"
+              alt="Saraswati Sweets - Gifting, Made Extraordinary. Thoughtfully curated luxury gift hampers for celebrations, businesses, and weddings. Click to explore gift collections."
+              width={2048}
+              height={1142}
+              loading="lazy"
+              decoding="async"
+              className="w-full h-auto block aspect-[1024/571] object-cover transition-transform duration-500 ease-out group-hover:scale-[1.004]"
+            />
+          </picture>
+        </a>
+      </section>
 
-          {/* Bottom Ornamental Heritage Border (Decorating only the bottom ~35% of the sweets box) */}
-          <div
-            className="absolute inset-x-0 bottom-0 h-36 sm:h-48 md:h-56 lg:h-64 pointer-events-none select-none"
-            style={{
-              backgroundImage: `url('/images/saraswati-heritage-border.webp')`,
-              backgroundPosition: 'center bottom',
-              backgroundSize: 'cover',
-              backgroundRepeat: 'no-repeat',
-            }}
-          />
-
-          {/* Subtle gradient overlay to merge upper clean wine with the floral pattern */}
-          <div
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              background:
-                'linear-gradient(to bottom, rgba(74, 8, 14, 0.98) 0%, rgba(74, 8, 14, 0.85) 50%, rgba(74, 8, 14, 0.2) 75%, transparent 100%)',
-            }}
-          />
-
-          {/* Content Layer (Kept strictly in the clean upper zone with generous buffer above the bottom border) */}
-          <div className="relative z-10 px-6 sm:px-10 lg:px-14 pt-14 sm:pt-20 pb-40 sm:pb-52 md:pb-64 text-center max-w-5xl mx-auto space-y-8 sm:space-y-10">
-            <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#C79A3D]/25 border border-[#C79A3D]/60 text-[#F6E08B] text-xs font-semibold backdrop-blur-xs shadow-xs">
-                <Sparkles className="w-3.5 h-3.5 text-[#F6E08B]" />
-                <span>The Saraswati Promise</span>
-              </div>
-
-              <h2 className="font-display font-bold text-2xl sm:text-3xl md:text-4xl lg:text-5xl text-white tracking-tight leading-tight drop-shadow-xs">
-                Made With Tradition. Served With Care.
-              </h2>
-
-              <p className="text-sm sm:text-base text-white/95 leading-relaxed max-w-2xl mx-auto font-normal drop-shadow-2xs">
-                Since 1989 at Indira Market near Chaya Chauraha, every batch of our mithai is crafted with sacred halwai devotion — slow-cooked in pure cow bilona ghee, prepared without chemical preservatives, and served fresh daily across Barabanki.
-              </p>
-            </div>
-
-            {/* 4 Pillars: Clean white typography with restrained antique-gold accents */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8 pt-4 sm:pt-6 text-left border-t border-[#C79A3D]/30">
-              {/* Pillar 1 */}
-              <div className="space-y-2">
-                <div className="w-10 h-10 rounded-full bg-[#C79A3D]/20 border border-[#C79A3D]/50 flex items-center justify-center text-[#F6E08B] shadow-xs">
-                  <Sparkles className="w-5 h-5 text-[#F6E08B]" />
-                </div>
-                <h3 className="font-display font-bold text-base sm:text-lg text-white">
-                  100% Pure Cow Ghee
-                </h3>
-                <p className="text-xs sm:text-sm text-white/90 leading-relaxed font-normal">
-                  Traditional slow-cooked bilona ghee preparations with zero vanaspati, palm oil, or additives.
-                </p>
-              </div>
-
-              {/* Pillar 2 */}
-              <div className="space-y-2">
-                <div className="w-10 h-10 rounded-full bg-[#C79A3D]/20 border border-[#C79A3D]/50 flex items-center justify-center text-[#F6E08B] shadow-xs">
-                  <Clock className="w-5 h-5 text-[#F6E08B]" />
-                </div>
-                <h3 className="font-display font-bold text-base sm:text-lg text-white">
-                  Fresh Daily Batches
-                </h3>
-                <p className="text-xs sm:text-sm text-white/90 leading-relaxed font-normal">
-                  Cooked every morning at dawn using fresh local milk chhena and genuine ground spices.
-                </p>
-              </div>
-
-              {/* Pillar 3 */}
-              <div className="space-y-2">
-                <div className="w-10 h-10 rounded-full bg-[#C79A3D]/20 border border-[#C79A3D]/50 flex items-center justify-center text-[#F6E08B] shadow-xs">
-                  <Leaf className="w-5 h-5 text-[#F6E08B]" />
-                </div>
-                <h3 className="font-display font-bold text-base sm:text-lg text-white">
-                  100% Vegetarian
-                </h3>
-                <p className="text-xs sm:text-sm text-white/90 leading-relaxed font-normal">
-                  Strict satvik kitchen discipline with certified 100% cruelty-free vegetarian silver vark.
-                </p>
-              </div>
-
-              {/* Pillar 4 */}
-              <div className="space-y-2">
-                <div className="w-10 h-10 rounded-full bg-[#C79A3D]/20 border border-[#C79A3D]/50 flex items-center justify-center text-[#F6E08B] shadow-xs">
-                  <Truck className="w-5 h-5 text-[#F6E08B]" />
-                </div>
-                <h3 className="font-display font-bold text-base sm:text-lg text-white">
-                  Barabanki Delivery
-                </h3>
-                <p className="text-xs sm:text-sm text-white/90 leading-relaxed font-normal">
-                  Dispatched fresh from our Indira Market store directly to your doorstep with prompt local delivery.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* 8. "Order Now or Plan Ahead" — Two-Card Split Section */}
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-6 content-visibility-auto">
-          {/* Card A: Order for Today (Retail Fast Checkout) */}
-          <div className="bg-white rounded-2xl border border-[#E8DCC8] p-6 sm:p-8 flex flex-col justify-between shadow-[0_2px_12px_-2px_rgba(34,26,20,0.04)] relative overflow-hidden group">
-            <div className="space-y-3">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FAF4DE] text-[#7A1129] text-xs font-bold uppercase tracking-wider border border-[#C79A3D]/30">
-                <Truck className="w-3.5 h-3.5 text-[#C79A3D]" />
-                <span>Order for Today</span>
-              </div>
-
-              <h3 className="font-display font-bold text-2xl text-[#221A14]">
-                Craving Fresh Mithai Tonight?
-              </h3>
-
-              <p className="text-sm text-[#6E6259] leading-relaxed">
-                Order our freshly prepared sweets, hot gulab jamun, and crispy namkeen for same-day delivery right to your doorstep anywhere in Barabanki.
-              </p>
-
-              <ul className="space-y-1.5 pt-2 text-xs text-[#221A14] font-medium">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-[#2E7D4F]" />
-                  <span>Fast same-day delivery across Barabanki</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-[#2E7D4F]" />
-                  <span>Flat ₹50 delivery across Barabanki</span>
-                </li>
-              </ul>
-            </div>
-
-            <div className="pt-6">
-              <button
-                type="button"
-                onClick={() => onNavigate('/catalog')}
-                className="w-full sm:w-auto min-h-[46px] px-8 py-3 rounded-full bg-[#7A1129] hover:bg-[#5E0D20] text-white text-sm font-semibold transition-all duration-150 inline-flex items-center justify-center gap-2 shadow-xs active:scale-[0.98]"
-              >
-                <span>Browse & Order Now</span>
-                <ArrowRight className="w-4 h-4 text-[#FAF4DE]" />
-              </button>
-            </div>
-          </div>
-
-          {/* Card B: Planning a Wedding or Bulk Order? (Enquiry-based, no payment) */}
-          <div className="bg-[#F5EAD9]/70 rounded-2xl border border-[#E8DCC8] p-6 sm:p-8 flex flex-col justify-between shadow-[0_2px_12px_-2px_rgba(34,26,20,0.04)] relative overflow-hidden">
-            <div className="space-y-3">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-[#7A1129] text-xs font-bold uppercase tracking-wider border border-[#E8DCC8]">
-                <Building2 className="w-3.5 h-3.5 text-[#C79A3D]" />
-                <span>Weddings & Ceremonies</span>
-              </div>
-
-              <h3 className="font-display font-bold text-2xl text-[#221A14]">
-                Planning a Wedding or Bulk Order?
-              </h3>
-
-              <p className="text-sm text-[#6E6259] leading-relaxed">
-                Elevate your special celebrations with customized sweet boxes, embossed gift trays, and wholesale volume pricing. We coordinate delivery directly to your venue.
-              </p>
-
-              <ul className="space-y-1.5 pt-2 text-xs text-[#221A14] font-medium">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-[#2E7D4F]" />
-                  <span>Custom box printing & auspicious gift tags</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-[#2E7D4F]" />
-                  <span>No upfront payment required — submit enquiry for custom quote</span>
-                </li>
-              </ul>
-            </div>
-
-            <div className="pt-6">
-              <button
-                type="button"
-                onClick={() => onNavigate('/bulk-enquiry')}
-                className="w-full sm:w-auto min-h-[46px] px-8 py-3 rounded-full border-2 border-[#7A1129] bg-white hover:bg-[#FAF4DE] text-[#7A1129] text-sm font-semibold transition-all duration-150 inline-flex items-center justify-center gap-2 shadow-xs active:scale-[0.98]"
-              >
-                <span>Request Custom Bulk Quote</span>
-                <ArrowRight className="w-4 h-4 text-[#7A1129]" />
-              </button>
-            </div>
-          </div>
-        </section>
-
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 sm:space-y-14">
         {/* 9. Heritage Gifting: "Handcrafted Gift Hampers" Section */}
         <section
           id="gift-hampers"
           aria-label="Handcrafted Gift Hampers"
-          className="relative rounded-3xl overflow-hidden border border-[#E8DCC8] bg-[#F5EAD9]/70 shadow-[0_4px_24px_-4px_rgba(34,26,20,0.04)] content-visibility-auto"
+          className="relative rounded-3xl overflow-hidden border border-[#E8DCC8] bg-[#F5EAD9]/70 shadow-[0_4px_24px_-4px_rgba(34,26,20,0.04)] content-visibility-auto scroll-mt-28 sm:scroll-mt-32"
         >
           {/* Subtle heritage background decorative border positioned at center bottom */}
           <div

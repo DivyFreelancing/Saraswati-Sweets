@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Gift,
   Plus,
@@ -10,6 +10,11 @@ import {
   Sparkles,
   IndianRupee,
   Layers,
+  Upload,
+  Image as ImageIcon,
+  RefreshCw,
+  AlertCircle,
+  Loader2,
 } from 'lucide-react';
 import { formatINR } from '../../utils/formatters';
 
@@ -59,14 +64,27 @@ export const AdminHampersTab: React.FC<AdminHampersTabProps> = ({
   // Form State
   const [name, setName] = useState('');
   const [boxType, setBoxType] = useState('Royal Velvet Trunk');
-  const [price, setPrice] = useState(1500);
-  const [mrp, setMrp] = useState(1750);
+  const [price, setPrice] = useState<number | string>(1250);
+  const [mrp, setMrp] = useState<number | string>(1400);
   const [imageUrl, setImageUrl] = useState('');
   const [description, setDescription] = useState('');
   const [displayOrder, setDisplayOrder] = useState(1);
   const [isActive, setIsActive] = useState(true);
   const [isFeatured, setIsFeatured] = useState(false);
   const [compositionItems, setCompositionItems] = useState<HamperItem[]>([]);
+
+  // Image Upload State
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [showUrlFallback, setShowUrlFallback] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Submission & Validation State
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [serverError, setServerError] = useState<string | null>(null);
 
   // Open modal for creating new hamper
   const handleOpenCreate = () => {
@@ -75,7 +93,13 @@ export const AdminHampersTab: React.FC<AdminHampersTabProps> = ({
     setBoxType('Royal Velvet Trunk');
     setPrice(1250);
     setMrp(1400);
-    setImageUrl('https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=800&q=80');
+    setImageUrl('');
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    setUploadError(null);
+    setShowUrlFallback(false);
+    setFieldErrors({});
+    setServerError(null);
     setDescription('Handcrafted luxury presentation box filled with fresh Awadhi sweets.');
     setDisplayOrder(hampers.length + 1);
     setIsActive(true);
@@ -101,12 +125,24 @@ export const AdminHampersTab: React.FC<AdminHampersTabProps> = ({
   const handleOpenEdit = (hamper: GiftHamper) => {
     setEditingHamper(hamper);
     setName(hamper.name);
-    setBoxType(hamper.box_type);
-    setPrice(hamper.price);
-    setMrp(hamper.mrp);
-    setImageUrl(hamper.image_url);
-    setDescription(hamper.description);
-    setDisplayOrder(hamper.display_order);
+    setBoxType(hamper.box_type || 'Royal Velvet Trunk');
+    const effectivePrice =
+      typeof hamper.price === 'number' && !isNaN(hamper.price) && hamper.price > 0
+        ? hamper.price
+        : typeof (hamper as any).hamper_price === 'number' && !isNaN((hamper as any).hamper_price) && (hamper as any).hamper_price > 0
+        ? (hamper as any).hamper_price
+        : '';
+    setPrice(effectivePrice);
+    setMrp(hamper.mrp || effectivePrice);
+    setImageUrl(hamper.image_url || '');
+    setSelectedFile(null);
+    setPreviewUrl(hamper.image_url || null);
+    setUploadError(null);
+    setShowUrlFallback(false);
+    setFieldErrors({});
+    setServerError(null);
+    setDescription(hamper.description || '');
+    setDisplayOrder(hamper.display_order || 1);
     setIsActive(hamper.is_active);
     setIsFeatured(hamper.is_featured);
     setCompositionItems(
@@ -115,6 +151,94 @@ export const AdminHampersTab: React.FC<AdminHampersTabProps> = ({
         : []
     );
     setIsModalOpen(true);
+  };
+
+  // Handle local file selection
+  const handleImageFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadError(null);
+    setFieldErrors((prev) => ({ ...prev, image: '' }));
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type.toLowerCase())) {
+      setUploadError('Only JPEG, PNG, and WebP image formats are supported.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError(`Image size (${(file.size / (1024 * 1024)).toFixed(1)}MB) exceeds 5MB limit.`);
+      return;
+    }
+
+    setSelectedFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+  };
+
+  const handleClearImage = () => {
+    if (previewUrl && previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    setImageUrl('');
+    setUploadError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Upload image to server/Supabase Storage
+  const uploadHamperImage = async (file: File): Promise<string> => {
+    const base64Data = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error('Failed to read image file'));
+      reader.readAsDataURL(file);
+    });
+
+    const signRes = await fetch('/api/admin/signed-upload-url', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        folder: 'hampers',
+      }),
+    });
+    const signData = await signRes.json();
+    if (!signRes.ok) {
+      throw new Error(signData.message || 'Failed to authorize storage upload');
+    }
+
+    const res = await fetch(signData.uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({
+        dataUrl: base64Data,
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        token: signData.token,
+        path: signData.path,
+        folder: 'hampers',
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || 'Image upload failed');
+    }
+    return data.imageUrl;
   };
 
   // Composition Builder: Add Item
@@ -158,27 +282,85 @@ export const AdminHampersTab: React.FC<AdminHampersTabProps> = ({
   // Save Hamper
   const handleSaveHamper = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     if (!isAdmin) {
       showToast('Admin privilege required.', 'error');
       return;
     }
 
-    if (!name.trim() || !imageUrl.trim() || price <= 0) {
-      showToast('Please fill all required fields.', 'warning');
+    // Field-specific validations
+    const errors: Record<string, string> = {};
+    setServerError(null);
+
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      errors.name = 'Hamper name is required.';
+    }
+
+    const trimmedBoxType = boxType.trim();
+    if (!trimmedBoxType) {
+      errors.boxType = 'Box / packaging type is required.';
+    }
+
+    const numPrice = Number(price);
+    if (price === '' || price === undefined || price === null || isNaN(numPrice) || numPrice <= 0) {
+      errors.price = 'Selling price must be greater than ₹0.';
+    }
+
+    const numMrp = mrp === '' || mrp === undefined || mrp === null ? numPrice : Number(mrp);
+    if (isNaN(numMrp) || numMrp <= 0) {
+      errors.mrp = 'MRP must be a valid positive amount.';
+    } else if (numPrice > 0 && numMrp < numPrice) {
+      errors.mrp = 'MRP cannot be less than selling price.';
+    }
+
+    const hasImage = Boolean(selectedFile || (previewUrl && previewUrl.trim()) || imageUrl.trim());
+    if (!hasImage) {
+      errors.image = 'Hamper image is required. Please upload an image.';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      showToast('Please fix the highlighted form errors.', 'warning');
       return;
     }
 
+    setFieldErrors({});
+    setIsSubmitting(true);
+
     try {
+      let finalImageUrl = imageUrl.trim();
+
+      // If a new local file was selected, upload it first
+      if (selectedFile) {
+        setIsUploading(true);
+        try {
+          finalImageUrl = await uploadHamperImage(selectedFile);
+          setImageUrl(finalImageUrl);
+        } catch (uploadErr: any) {
+          const msg = uploadErr.message || 'Image upload failed. Please try again.';
+          setUploadError(msg);
+          showToast(msg, 'error');
+          setIsSubmitting(false);
+          setIsUploading(false);
+          return;
+        } finally {
+          setIsUploading(false);
+        }
+      }
+
       const isEdit = Boolean(editingHamper);
       const url = isEdit ? `/api/admin/hampers/${editingHamper!.id}` : '/api/admin/hampers';
       const method = isEdit ? 'PUT' : 'POST';
 
       const payload = {
-        name: name.trim(),
-        box_type: boxType.trim(),
-        price: Number(price),
-        mrp: Number(mrp) || Number(price),
-        image_url: imageUrl.trim(),
+        name: trimmedName,
+        box_type: trimmedBoxType,
+        price: numPrice,
+        hamper_price: numPrice, // Both price and hamper_price provided for 100% backend compatibility
+        mrp: numMrp,
+        image_url: finalImageUrl,
         description: description.trim(),
         display_order: Number(displayOrder) || 1,
         is_active: Boolean(isActive),
@@ -198,10 +380,16 @@ export const AdminHampersTab: React.FC<AdminHampersTabProps> = ({
         setIsModalOpen(false);
         onRefresh();
       } else {
-        showToast(data.message || 'Failed to save gift hamper', 'error');
+        const errorMsg = data.message || data.error || 'Failed to save gift hamper';
+        setServerError(errorMsg);
+        showToast(errorMsg, 'error');
       }
-    } catch {
-      showToast('Network error saving hamper', 'error');
+    } catch (netErr: any) {
+      const errorMsg = netErr.message || 'Network error saving hamper';
+      setServerError(errorMsg);
+      showToast(errorMsg, 'error');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -331,9 +519,9 @@ export const AdminHampersTab: React.FC<AdminHampersTabProps> = ({
               <div className="pt-3 border-t border-[#E9E2D8] flex items-center justify-between">
                 <div>
                   <span className="font-extrabold text-lg text-[#7A1129] tabular-nums">
-                    {formatINR(hamper.price)}
+                    {formatINR(hamper.price ?? (hamper as any).hamper_price ?? 0)}
                   </span>
-                  {hamper.mrp > hamper.price && (
+                  {(hamper.mrp || 0) > (hamper.price ?? (hamper as any).hamper_price ?? 0) && (
                     <span className="text-xs text-[#6B5F55] line-through ml-1.5 tabular-nums">
                       {formatINR(hamper.mrp)}
                     </span>
@@ -384,67 +572,225 @@ export const AdminHampersTab: React.FC<AdminHampersTabProps> = ({
               </button>
             </div>
 
+            {/* Server Error Alert */}
+            {serverError && (
+              <div className="p-3 rounded-[10px] bg-[#FDE8E8] border border-[#A8261E]/30 text-[#A8261E] flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-xs">Failed to save gift hamper</p>
+                  <p className="text-[11px] mt-0.5">{serverError}</p>
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleSaveHamper} className="space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Hamper Name */}
                 <div>
                   <label className="block font-bold text-[#241C17] mb-1">Hamper Name *</label>
                   <input
                     type="text"
-                    required
                     placeholder="e.g. Shahi Nawabi Gifting Trunk"
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      if (fieldErrors.name) setFieldErrors((prev) => ({ ...prev, name: '' }));
+                    }}
+                    className={`w-full px-3 py-2 rounded-[10px] border text-[#241C17] focus:bg-white focus:outline-hidden ${
+                      fieldErrors.name ? 'border-[#A8261E] bg-[#FDE8E8]/30' : 'border-[#E9E2D8] bg-[#F7F4EF]'
+                    }`}
                   />
+                  {fieldErrors.name && (
+                    <p className="text-[#A8261E] text-[11px] font-medium mt-1">{fieldErrors.name}</p>
+                  )}
                 </div>
 
+                {/* Box / Packaging Type */}
                 <div>
                   <label className="block font-bold text-[#241C17] mb-1">Box / Packaging Type *</label>
                   <input
                     type="text"
-                    required
                     placeholder="e.g. Royal Velvet Trunk, Gold Embossed Box"
                     value={boxType}
-                    onChange={(e) => setBoxType(e.target.value)}
-                    className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
+                    onChange={(e) => {
+                      setBoxType(e.target.value);
+                      if (fieldErrors.boxType) setFieldErrors((prev) => ({ ...prev, boxType: '' }));
+                    }}
+                    className={`w-full px-3 py-2 rounded-[10px] border text-[#241C17] focus:bg-white focus:outline-hidden ${
+                      fieldErrors.boxType ? 'border-[#A8261E] bg-[#FDE8E8]/30' : 'border-[#E9E2D8] bg-[#F7F4EF]'
+                    }`}
                   />
+                  {fieldErrors.boxType && (
+                    <p className="text-[#A8261E] text-[11px] font-medium mt-1">{fieldErrors.boxType}</p>
+                  )}
                 </div>
 
+                {/* Selling Price */}
                 <div>
                   <label className="block font-bold text-[#241C17] mb-1">Selling Price (₹) *</label>
                   <input
                     type="number"
-                    required
                     min={1}
                     value={price}
-                    onChange={(e) => setPrice(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
+                    onChange={(e) => {
+                      setPrice(e.target.value === '' ? '' : Number(e.target.value));
+                      if (fieldErrors.price) setFieldErrors((prev) => ({ ...prev, price: '' }));
+                    }}
+                    className={`w-full px-3 py-2 rounded-[10px] border text-[#241C17] focus:bg-white focus:outline-hidden ${
+                      fieldErrors.price ? 'border-[#A8261E] bg-[#FDE8E8]/30' : 'border-[#E9E2D8] bg-[#F7F4EF]'
+                    }`}
                   />
+                  {fieldErrors.price && (
+                    <p className="text-[#A8261E] text-[11px] font-medium mt-1">{fieldErrors.price}</p>
+                  )}
                 </div>
 
+                {/* MRP */}
                 <div>
-                  <label className="block font-bold text-[#241C17] mb-1">MRP (₹) *</label>
+                  <label className="block font-bold text-[#241C17] mb-1">
+                    MRP (₹) <span className="font-normal text-[#6B5F55]">(Optional — defaults to price)</span>
+                  </label>
                   <input
                     type="number"
-                    required
                     min={1}
                     value={mrp}
-                    onChange={(e) => setMrp(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
+                    placeholder={price ? String(price) : '1400'}
+                    onChange={(e) => {
+                      setMrp(e.target.value === '' ? '' : Number(e.target.value));
+                      if (fieldErrors.mrp) setFieldErrors((prev) => ({ ...prev, mrp: '' }));
+                    }}
+                    className={`w-full px-3 py-2 rounded-[10px] border text-[#241C17] focus:bg-white focus:outline-hidden ${
+                      fieldErrors.mrp ? 'border-[#A8261E] bg-[#FDE8E8]/30' : 'border-[#E9E2D8] bg-[#F7F4EF]'
+                    }`}
                   />
+                  {fieldErrors.mrp && (
+                    <p className="text-[#A8261E] text-[11px] font-medium mt-1">{fieldErrors.mrp}</p>
+                  )}
                 </div>
               </div>
 
-              <div>
-                <label className="block font-bold text-[#241C17] mb-1">Primary Image URL *</label>
+              {/* IMAGE UPLOAD & PREVIEW SECTION */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-[#241C17]">Hamper Image *</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowUrlFallback(!showUrlFallback)}
+                    className="text-[11px] text-[#7A1129] hover:underline font-semibold cursor-pointer"
+                  >
+                    {showUrlFallback ? '← Back to Image Upload' : 'Enter Image URL Instead'}
+                  </button>
+                </div>
+
+                {/* Hidden File Picker */}
                 <input
-                  type="url"
-                  required
-                  placeholder="https://..."
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleImageFileSelect}
+                  className="hidden"
                 />
+
+                {/* Image Preview Box (If image chosen or existing hamper image loaded) */}
+                {(previewUrl || imageUrl) && !showUrlFallback ? (
+                  <div className="rounded-[12px] border border-[#E9E2D8] bg-[#FAF8F5] p-3 flex flex-col sm:flex-row items-center gap-4">
+                    <div className="relative w-36 h-24 rounded-[8px] overflow-hidden bg-stone-100 shrink-0 border border-[#E9E2D8]">
+                      <img
+                        src={previewUrl || imageUrl}
+                        alt="Hamper preview"
+                        className="w-full h-full object-cover"
+                      />
+                      {selectedFile && (
+                        <span className="absolute bottom-1 right-1 bg-[#17663E] text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-xs">
+                          New
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex-1 min-w-0 space-y-1 text-left w-full sm:w-auto">
+                      <div className="flex items-center gap-1.5">
+                        <ImageIcon className="w-4 h-4 text-[#7A1129] shrink-0" />
+                        <span className="font-bold text-xs text-[#241C17] truncate">
+                          {selectedFile ? selectedFile.name : (editingHamper ? 'Current Hamper Photo' : 'Selected Photo')}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#6B5F55]">
+                        {selectedFile
+                          ? `${(selectedFile.size / 1024).toFixed(0)} KB · ${selectedFile.type.replace('image/', '').toUpperCase()}`
+                          : 'Saved to secure storage'}
+                      </p>
+
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isSubmitting || isUploading}
+                          className="px-3 py-1 rounded-[8px] border border-[#E9E2D8] bg-white hover:bg-[#F7F4EF] text-xs font-semibold text-[#241C17] transition-colors cursor-pointer inline-flex items-center gap-1 shadow-2xs disabled:opacity-50"
+                        >
+                          <RefreshCw className="w-3 h-3 text-[#7A1129]" />
+                          <span>Replace Image</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleClearImage}
+                          disabled={isSubmitting || isUploading}
+                          className="px-2.5 py-1 rounded-[8px] text-xs font-semibold text-[#A8261E] hover:bg-[#FDE8E8] transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : !showUrlFallback ? (
+                  /* Upload Dropzone */
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-[12px] p-6 text-center transition-colors cursor-pointer flex flex-col items-center justify-center gap-2 ${
+                      fieldErrors.image
+                        ? 'border-[#A8261E] bg-[#FDE8E8]/20 hover:bg-[#FDE8E8]/30'
+                        : 'border-[#C79A3D]/40 bg-[#FAF8F5] hover:bg-[#F5EFE6] hover:border-[#7A1129]'
+                    }`}
+                  >
+                    <div className="w-12 h-12 rounded-full bg-[#FAF4DE] border border-[#C79A3D]/40 flex items-center justify-center text-[#7A1129] shadow-2xs">
+                      <Upload className="w-6 h-6 text-[#7A1129]" />
+                    </div>
+                    <div>
+                      <span className="font-bold text-sm text-[#7A1129]">Click to Upload Hamper Image</span>
+                      <p className="text-xs text-[#6B5F55] mt-0.5">
+                        Supports JPEG, PNG, or WebP up to 5MB
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  /* Fallback URL Input */
+                  <div className="space-y-1">
+                    <input
+                      type="url"
+                      placeholder="https://..."
+                      value={imageUrl}
+                      onChange={(e) => {
+                        setImageUrl(e.target.value);
+                        setPreviewUrl(e.target.value);
+                        if (fieldErrors.image) setFieldErrors((prev) => ({ ...prev, image: '' }));
+                      }}
+                      className="w-full px-3 py-2 rounded-[10px] border border-[#E9E2D8] bg-[#F7F4EF] text-[#241C17] focus:bg-white focus:outline-hidden focus:border-[#7A1129]"
+                    />
+                    <p className="text-[11px] text-[#6B5F55]">
+                      Paste an image URL for this gift hamper.
+                    </p>
+                  </div>
+                )}
+
+                {/* Upload Error / Validation Message */}
+                {uploadError && (
+                  <div className="flex items-center gap-1.5 text-[#A8261E] text-xs font-medium">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{uploadError}</span>
+                  </div>
+                )}
+                {fieldErrors.image && !uploadError && (
+                  <p className="text-[#A8261E] text-[11px] font-medium">{fieldErrors.image}</p>
+                )}
               </div>
 
               <div>
@@ -589,15 +935,22 @@ export const AdminHampersTab: React.FC<AdminHampersTabProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="min-h-[44px] px-4 py-2 rounded-[10px] text-[#6B5F55] hover:bg-[#E9E2D8]/40 font-semibold cursor-pointer"
+                  disabled={isSubmitting || isUploading}
+                  className="min-h-[44px] px-4 py-2 rounded-[10px] text-[#6B5F55] hover:bg-[#E9E2D8]/40 font-semibold cursor-pointer disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="min-h-[44px] px-5 py-2 rounded-[10px] bg-[#7A1129] text-white font-bold hover:bg-[#5E0D20] shadow-xs cursor-pointer"
+                  disabled={isSubmitting || isUploading}
+                  className="min-h-[44px] px-5 py-2 rounded-[10px] bg-[#7A1129] text-white font-bold hover:bg-[#5E0D20] shadow-xs cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                  {editingHamper ? 'Save Changes' : 'Create Hamper'}
+                  {isSubmitting && <Loader2 className="w-4 h-4 animate-spin text-[#F6E08B]" />}
+                  <span>
+                    {isSubmitting
+                      ? (isUploading ? 'Uploading Image...' : 'Saving Hamper...')
+                      : (editingHamper ? 'Save Changes' : 'Create Hamper')}
+                  </span>
                 </button>
               </div>
             </form>

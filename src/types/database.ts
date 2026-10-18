@@ -66,13 +66,18 @@ export interface GiftHamper {
   name: string;
   slug: string;
   description: string;
-  hamper_price: number;
+  price: number;
+  hamper_price?: number;
   mrp: number;
   image_url: string;
   box_type: string;
   is_featured: boolean;
   is_active: boolean;
   items?: GiftHamperItem[];
+  items_included?: any[];
+  display_order?: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Offer {

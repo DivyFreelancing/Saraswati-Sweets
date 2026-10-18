@@ -218,18 +218,31 @@ export const catalogService = {
       if (res.ok) {
         const data = await res.json();
         if (data.hampers && data.hampers.length > 0) {
-          result = data.hampers.map((h: any) => ({
-            ...h,
-            items: h.items_included
-              ? h.items_included.map((i: any) => ({
-                  id: i.id,
-                  hamper_id: h.id,
-                  item_name: i.product_name,
-                  item_quantity: i.variant_label,
-                  display_order: 1,
-                }))
-              : [],
-          }));
+          result = data.hampers.map((h: any) => {
+            const price = typeof h.price === 'number' && !isNaN(h.price) && h.price > 0
+              ? h.price
+              : typeof h.hamper_price === 'number' && !isNaN(h.hamper_price) && h.hamper_price > 0
+              ? h.hamper_price
+              : Number(h.price ?? h.hamper_price ?? 0);
+            const mrp = typeof h.mrp === 'number' && !isNaN(h.mrp) && h.mrp > 0 ? h.mrp : price;
+            return {
+              ...h,
+              price,
+              hamper_price: price,
+              mrp,
+              items: Array.isArray(h.items) && h.items.length > 0
+                ? h.items
+                : Array.isArray(h.items_included)
+                ? h.items_included.map((i: any) => ({
+                    id: i.id,
+                    hamper_id: h.id,
+                    item_name: i.product_name || i.item_name || 'Artisanal Mithai',
+                    item_quantity: i.variant_label || i.item_quantity || 'Pack',
+                    display_order: i.display_order || 1,
+                  }))
+                : [],
+            };
+          });
         }
       }
     } catch (e) {
@@ -244,7 +257,21 @@ export const catalogService = {
           .eq('is_active', true);
 
         if (!error && data && data.length > 0) {
-          result = data as GiftHamper[];
+          result = data.map((h: any) => {
+            const price = typeof h.price === 'number' && !isNaN(h.price) && h.price > 0
+              ? h.price
+              : typeof h.hamper_price === 'number' && !isNaN(h.hamper_price) && h.hamper_price > 0
+              ? h.hamper_price
+              : Number(h.price ?? h.hamper_price ?? 0);
+            const mrp = typeof h.mrp === 'number' && !isNaN(h.mrp) && h.mrp > 0 ? h.mrp : price;
+            return {
+              ...h,
+              price,
+              hamper_price: price,
+              mrp,
+              items: h.items || [],
+            };
+          });
         }
       } catch (err) {
         console.warn('Supabase fetch gift hampers failed:', err);
@@ -263,15 +290,26 @@ export const catalogService = {
         const data = await res.json();
         if (data.hamper) {
           const h = data.hamper;
+          const price = typeof h.price === 'number' && !isNaN(h.price) && h.price > 0
+            ? h.price
+            : typeof h.hamper_price === 'number' && !isNaN(h.hamper_price) && h.hamper_price > 0
+            ? h.hamper_price
+            : Number(h.price ?? h.hamper_price ?? 0);
+          const mrp = typeof h.mrp === 'number' && !isNaN(h.mrp) && h.mrp > 0 ? h.mrp : price;
           return {
             ...h,
-            items: h.items_included
+            price,
+            hamper_price: price,
+            mrp,
+            items: Array.isArray(h.items) && h.items.length > 0
+              ? h.items
+              : Array.isArray(h.items_included)
               ? h.items_included.map((i: any) => ({
                   id: i.id,
                   hamper_id: h.id,
-                  item_name: i.product_name,
-                  item_quantity: i.variant_label,
-                  display_order: 1,
+                  item_name: i.product_name || i.item_name || 'Artisanal Mithai',
+                  item_quantity: i.variant_label || i.item_quantity || 'Pack',
+                  display_order: i.display_order || 1,
                 }))
               : [],
           };
@@ -290,7 +328,20 @@ export const catalogService = {
           .single();
 
         if (!error && data) {
-          return data as GiftHamper;
+          const h = data;
+          const price = typeof h.price === 'number' && !isNaN(h.price) && h.price > 0
+            ? h.price
+            : typeof h.hamper_price === 'number' && !isNaN(h.hamper_price) && h.hamper_price > 0
+            ? h.hamper_price
+            : Number(h.price ?? h.hamper_price ?? 0);
+          const mrp = typeof h.mrp === 'number' && !isNaN(h.mrp) && h.mrp > 0 ? h.mrp : price;
+          return {
+            ...h,
+            price,
+            hamper_price: price,
+            mrp,
+            items: h.items || [],
+          };
         }
       } catch (err) {
         console.warn('Supabase fetch hamper by slug failed:', err);
