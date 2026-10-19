@@ -3,6 +3,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import express, { Request, Response } from 'express';
+import sharp from 'sharp';
 import { inMemoryStore, ServerOrder, ServerProfile } from '../server/db';
 import { authenticateToken, requireRole } from '../server/authMiddleware';
 import orderRoutes from '../server/routes/orderRoutes';
@@ -432,9 +433,10 @@ async function runAuditFixesVerification() {
     pass('Decoded buffer exceeding 5MB is strictly rejected despite client claiming fileSize=100 (HTTP 400 FILE_TOO_LARGE)');
 
     // 4.6 Valid JPEG image accepted
-    const validJpegHeader = Buffer.from([
-      0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x01, 0x00, 0x60
-    ]);
+    const validJpegBuffer = await sharp({
+      create: { width: 10, height: 10, channels: 3, background: { r: 255, g: 0, b: 0 } },
+    }).jpeg().toBuffer();
+
     const validJpegRes = await fetch(`${baseUrl}/api/admin/upload-image`, {
       method: 'POST',
       headers: {
@@ -442,7 +444,7 @@ async function runAuditFixesVerification() {
         Authorization: `Bearer ${adminToken}`,
       },
       body: JSON.stringify({
-        dataUrl: `data:image/jpeg;base64,${validJpegHeader.toString('base64')}`,
+        dataUrl: `data:image/jpeg;base64,${validJpegBuffer.toString('base64')}`,
         fileName: 'test-mithai.jpg',
       }),
     });
@@ -452,9 +454,10 @@ async function runAuditFixesVerification() {
     pass('Valid JPEG image with correct magic bytes is accepted (HTTP 200 OK)');
 
     // 4.7 Valid PNG image accepted
-    const validPngHeader = Buffer.from([
-      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52
-    ]);
+    const validPngBuffer = await sharp({
+      create: { width: 10, height: 10, channels: 4, background: { r: 0, g: 255, b: 0, alpha: 0.5 } },
+    }).png().toBuffer();
+
     const validPngRes = await fetch(`${baseUrl}/api/admin/upload-image`, {
       method: 'POST',
       headers: {
@@ -462,7 +465,7 @@ async function runAuditFixesVerification() {
         Authorization: `Bearer ${adminToken}`,
       },
       body: JSON.stringify({
-        dataUrl: `data:image/png;base64,${validPngHeader.toString('base64')}`,
+        dataUrl: `data:image/png;base64,${validPngBuffer.toString('base64')}`,
         fileName: 'test-namkeen.png',
       }),
     });
@@ -472,7 +475,10 @@ async function runAuditFixesVerification() {
     pass('Valid PNG image with correct magic bytes is accepted (HTTP 200 OK)');
 
     // 4.8 Valid WebP image accepted
-    const validWebpHeader = Buffer.from('RIFF\x24\x00\x00\x00WEBPVP8 \x18\x00\x00\x00', 'binary');
+    const validWebpBuffer = await sharp({
+      create: { width: 10, height: 10, channels: 3, background: { r: 0, g: 0, b: 255 } },
+    }).webp().toBuffer();
+
     const validWebpRes = await fetch(`${baseUrl}/api/admin/upload-image`, {
       method: 'POST',
       headers: {
@@ -480,7 +486,7 @@ async function runAuditFixesVerification() {
         Authorization: `Bearer ${adminToken}`,
       },
       body: JSON.stringify({
-        dataUrl: `data:image/webp;base64,${validWebpHeader.toString('base64')}`,
+        dataUrl: `data:image/webp;base64,${validWebpBuffer.toString('base64')}`,
         fileName: 'test-kaju.webp',
       }),
     });
@@ -492,6 +498,7 @@ async function runAuditFixesVerification() {
     console.log('\n======================================================================');
     console.log(`ALL AUDIT FIX REGRESSION TESTS PASSED: ${passed} Passed, 0 Failed`);
     console.log('======================================================================\n');
+    process.exit(0);
   } finally {
     server.close();
   }

@@ -5,6 +5,7 @@ import { formatINR } from '../../utils/formatters';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
 import { ProductImagePlaceholder } from './ProductImagePlaceholder';
+import { OrnamentalCircleFrame } from './OrnamentalCircleFrame';
 import { getOptimizedImageUrl } from '../../utils/imageUtils';
 import { shouldHandleSpaClick } from '../../utils/navigation';
 
@@ -12,6 +13,7 @@ interface ProductCardProps {
   product: Product;
   index?: number;
   isPriority?: boolean;
+  imageShape?: 'circle' | 'square';
   onOpenDetail?: (product: Product) => void;
 }
 
@@ -19,6 +21,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   product,
   index = 0,
   isPriority = false,
+  imageShape = 'square',
   onOpenDetail,
 }) => {
   const { addItem } = useCart();
@@ -179,34 +182,73 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
       {/* Product Image Frame: Crawlable anchor tag with SPA behavior */}
       <div className="py-2 flex justify-center">
-        <a
-          href={productUrl}
-          onClick={handleLinkClick}
-          aria-label={`View details for ${product.name}`}
-          className="w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40 aspect-square rounded-2xl p-1 overflow-hidden bg-[#F5EAD9] border-2 border-white shadow-xs ring-1 ring-[#E8DCC8] relative shrink-0 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#7A1129]"
-        >
-          {primaryImage && !imageFailed ? (
-            <img
-              src={primaryImage}
-              alt={product.name}
-              width="160"
-              height="160"
-              loading={isPriority ? 'eager' : 'lazy'}
-              fetchPriority={index === 0 ? 'high' : 'auto'}
-              decoding="async"
-              onError={() => setImageFailed(true)}
-              className={`w-full h-full object-contain object-center rounded-xl transition-transform duration-500 ease-out group-hover:scale-105 aspect-square ${
-                isAllOutOfStock ? 'opacity-70 contrast-90 grayscale-[25%]' : ''
-              }`}
-            />
-          ) : (
-            <ProductImagePlaceholder
-              aspect="square"
-              productName={product.name}
-              className="w-full h-full"
-            />
-          )}
-        </a>
+        {imageShape === 'circle' ? (
+          <a
+            href={productUrl}
+            onClick={handleLinkClick}
+            aria-label={`View details for ${product.name}`}
+            style={{ borderRadius: '50%', aspectRatio: '1 / 1' }}
+            className="relative w-36 h-36 sm:w-40 sm:h-40 aspect-square rounded-full shrink-0 flex items-center justify-center focus:outline-hidden focus:ring-2 focus:ring-[#7A1129] focus:ring-offset-2"
+          >
+            <OrnamentalCircleFrame />
+            <div
+              style={{ borderRadius: '50%', aspectRatio: '1 / 1' }}
+              className="w-24 h-24 sm:w-28 sm:h-28 aspect-square rounded-full overflow-hidden shrink-0 relative flex items-center justify-center"
+            >
+              {primaryImage && !imageFailed ? (
+                <img
+                  src={primaryImage}
+                  alt={product.name}
+                  width="112"
+                  height="112"
+                  loading={isPriority ? 'eager' : 'lazy'}
+                  fetchPriority={index === 0 ? 'high' : 'auto'}
+                  decoding="async"
+                  onError={() => setImageFailed(true)}
+                  style={{ borderRadius: '50%', aspectRatio: '1 / 1', objectFit: 'cover' }}
+                  className={`w-full h-full object-cover object-center rounded-full transition-transform duration-500 ease-out group-hover:scale-105 aspect-square ${
+                    isAllOutOfStock ? 'opacity-70 contrast-90 grayscale-[25%]' : ''
+                  }`}
+                />
+              ) : (
+                <ProductImagePlaceholder
+                  aspect="circle"
+                  productName={product.name}
+                  className="w-full h-full"
+                />
+              )}
+            </div>
+          </a>
+        ) : (
+          <a
+            href={productUrl}
+            onClick={handleLinkClick}
+            aria-label={`View details for ${product.name}`}
+            className="w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40 aspect-square rounded-2xl p-1 overflow-hidden bg-[#F5EAD9] border-2 border-white shadow-xs ring-1 ring-[#E8DCC8] relative shrink-0 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#7A1129]"
+          >
+            {primaryImage && !imageFailed ? (
+              <img
+                src={primaryImage}
+                alt={product.name}
+                width="160"
+                height="160"
+                loading={isPriority ? 'eager' : 'lazy'}
+                fetchPriority={index === 0 ? 'high' : 'auto'}
+                decoding="async"
+                onError={() => setImageFailed(true)}
+                className={`w-full h-full object-contain object-center rounded-xl transition-transform duration-500 ease-out group-hover:scale-105 aspect-square ${
+                  isAllOutOfStock ? 'opacity-70 contrast-90 grayscale-[25%]' : ''
+                }`}
+              />
+            ) : (
+              <ProductImagePlaceholder
+                aspect="square"
+                productName={product.name}
+                className="w-full h-full"
+              />
+            )}
+          </a>
+        )}
       </div>
 
       {/* Metadata & Title */}

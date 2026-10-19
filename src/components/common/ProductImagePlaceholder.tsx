@@ -25,21 +25,22 @@ export const ProductImagePlaceholder: React.FC<ProductImagePlaceholderProps> = (
     <div
       role="img"
       aria-label={productName ? `Placeholder image for ${productName}` : 'Product photograph coming soon'}
+      style={isCircle ? { borderRadius: '50%', aspectRatio: '1 / 1' } : undefined}
       className={`relative flex flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-[#FAF4DE] via-[#F5EAD9] to-[#EEDEC7] select-none text-center ${
-        isCircle ? 'rounded-full' : 'rounded-2xl'
+        isCircle ? 'rounded-full aspect-square' : 'rounded-2xl'
       } ${className}`}
     >
-      {/* Decorative concentric subtle ring */}
-      <div
-        className={`absolute inset-2 border border-[#C79A3D]/25 ${
-          isCircle ? 'rounded-full border-dashed' : 'rounded-xl border-dashed'
-        } pointer-events-none`}
-      />
+      {/* Decorative concentric subtle ring for square placeholder */}
+      {!isCircle && (
+        <div
+          className="absolute inset-2 border border-[#C79A3D]/25 rounded-xl border-dashed pointer-events-none"
+        />
+      )}
 
       {/* Cloche / Sweet Dome Icon */}
       <svg
         viewBox="0 0 100 100"
-        className={`${isSmall ? 'w-7 h-7' : 'w-14 h-14 sm:w-16 sm:h-16'} text-[#7A1129] shrink-0 mb-0.5`}
+        className={`${isSmall ? 'w-7 h-7' : isCircle ? 'w-10 h-10 sm:w-12 sm:h-12' : 'w-14 h-14 sm:w-16 sm:h-16'} text-[#7A1129] shrink-0 mb-0.5`}
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
       >
@@ -70,13 +71,15 @@ export const ProductImagePlaceholder: React.FC<ProductImagePlaceholderProps> = (
 
       {/* Subtle Caption */}
       {shouldShowText && (
-        <div className="relative px-2 z-10 flex flex-col items-center justify-center min-h-[32px]">
-          <span className="font-serif text-[10px] sm:text-[11px] font-bold text-[#7A1129] tracking-wider uppercase leading-tight">
+        <div className="relative px-2 z-10 flex flex-col items-center justify-center min-h-[22px]">
+          <span className="font-serif text-[9px] sm:text-[10px] font-bold text-[#7A1129] tracking-wider uppercase leading-tight">
             Photo Coming Soon
           </span>
-          <span className="text-[8px] sm:text-[9px] font-sans font-medium text-[#6E6259] tracking-wide mt-0.5">
-            Fresh Artisanal Batch
-          </span>
+          {!isCircle && (
+            <span className="text-[8px] sm:text-[9px] font-sans font-medium text-[#6E6259] tracking-wide mt-0.5">
+              Fresh Artisanal Batch
+            </span>
+          )}
         </div>
       )}
     </div>

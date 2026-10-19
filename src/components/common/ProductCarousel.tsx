@@ -105,7 +105,7 @@ export const ProductCarousel: React.FC<ProductCarouselProps> = ({
       <div className="flex gap-4 sm:gap-6 lg:gap-8 overflow-hidden">
         {Array.from({ length: 4 }).map((_, idx) => (
           <div key={idx} className="w-[85vw] sm:w-[45vw] md:w-[30vw] lg:w-[23vw] shrink-0">
-            <ProductCardSkeleton />
+            <ProductCardSkeleton imageShape="circle" />
           </div>
         ))}
       </div>
@@ -142,6 +142,8 @@ export const ProductCarousel: React.FC<ProductCarouselProps> = ({
             >
               <ProductCard
                 product={product}
+                index={idx}
+                imageShape="circle"
                 onOpenDetail={onOpenDetail}
               />
             </div>

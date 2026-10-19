@@ -162,15 +162,37 @@ export const HomePage: React.FC<HomePageProps> = ({
             })}
           </div>
         </section>
+      </div>
 
-        {/* 5. "Our Bestsellers" Section */}
-        <section>
+      {/* 5. "Our Bestsellers" Festive Section */}
+      <section
+        aria-label="Our Bestselling Mithai"
+        className="relative w-full my-8 sm:my-14 py-12 sm:py-16 overflow-hidden bg-[#EE807F]"
+      >
+        {/* Festive Background Image Layer */}
+        <div
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
+          style={{ backgroundImage: `url('/images/bestsellers-festive-bg.webp')` }}
+          aria-hidden="true"
+        />
+
+        {/* Softening Lighter Wash Overlay (keeps gold details while ensuring optimal readability) */}
+        <div
+          className="absolute inset-0 bg-gradient-to-b from-white/15 via-white/5 to-white/15 pointer-events-none"
+          aria-hidden="true"
+        />
+
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <SectionHeader
             eyebrow="Customer Favorites"
+            eyebrowClassName="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-white/85 border border-[#C79A3D]/40 text-[#7A1129] text-[10px] sm:text-[11px] font-bold uppercase tracking-wider shadow-2xs mb-1.5"
             title="Our Bestselling Mithai"
+            titleClassName="text-[#221A14]"
             actionText="View All Sweets"
+            actionClassName="group inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/90 hover:bg-white text-[#7A1129] hover:text-[#5E0D20] border border-[#C79A3D]/40 shadow-xs text-xs sm:text-sm font-bold transition-all duration-200 self-start sm:self-auto active:scale-95 cursor-pointer"
             actionHref="/catalog"
             onAction={() => onNavigate('/catalog')}
+            className="mb-6 sm:mb-8"
           />
 
           <ProductCarousel
@@ -178,8 +200,8 @@ export const HomePage: React.FC<HomePageProps> = ({
             isLoading={loading}
             onOpenDetail={onOpenProductDetail}
           />
-        </section>
-      </div>
+        </div>
+      </section>
 
       {/* 6. "Shop By Categories" Section (Responsive Mobile Single-View + Desktop Horizontal Row) */}
       <ShopByCategoriesSection

@@ -1,6 +1,9 @@
 import React from 'react';
+import { OrnamentalCircleFrame } from './OrnamentalCircleFrame';
 
-export const ProductCardSkeleton: React.FC = () => {
+export const ProductCardSkeleton: React.FC<{ imageShape?: 'circle' | 'square' }> = ({
+  imageShape = 'square',
+}) => {
   return (
     <div className="bg-white rounded-2xl border border-[#E8DCC8] p-4 sm:p-5 animate-pulse shadow-[0_2px_12px_-2px_rgba(34,26,20,0.05),0_1px_3px_0_rgba(34,26,20,0.03)] flex flex-col items-center">
       {/* Top row: badge skeleton */}
@@ -10,8 +13,18 @@ export const ProductCardSkeleton: React.FC = () => {
       </div>
 
       {/* Photo skeleton */}
-      <div className="py-2">
-        <div className="w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40 aspect-square rounded-2xl bg-[#F5EAD9] border-2 border-white shadow-xs ring-1 ring-[#E8DCC8]" />
+      <div className="py-2 flex justify-center">
+        {imageShape === 'circle' ? (
+          <div className="relative w-36 h-36 sm:w-40 sm:h-40 aspect-square rounded-full flex items-center justify-center shrink-0">
+            <OrnamentalCircleFrame />
+            <div
+              style={{ borderRadius: '50%', aspectRatio: '1 / 1' }}
+              className="w-24 h-24 sm:w-28 sm:h-28 aspect-square rounded-full bg-[#E8DCC8]/60"
+            />
+          </div>
+        ) : (
+          <div className="w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40 aspect-square rounded-2xl bg-[#F5EAD9] border-2 border-white shadow-xs ring-1 ring-[#E8DCC8]" />
+        )}
       </div>
 
       {/* Title & info skeletons */}
