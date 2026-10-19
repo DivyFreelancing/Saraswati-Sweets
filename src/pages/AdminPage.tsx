@@ -681,7 +681,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToStore, onGoToLogin
         const data = await res.json();
         if (res.ok) {
           setProductForm((prev) => ({ ...prev, image_url: data.imageUrl }));
-          showToast('Photo uploaded as primary sweet image!', 'success');
+          showToast(data.message || 'Photo optimized and uploaded as primary sweet image!', 'success');
         } else {
           showToast(data.message || 'Upload failed', 'error');
         }

@@ -4,6 +4,7 @@ import { Product, ProductVariant } from '../../types/database';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
 import { formatINR } from '../../utils/formatters';
+import { getOptimizedImageUrl } from '../../utils/imageUtils';
 import { ProductImagePlaceholder } from './ProductImagePlaceholder';
 
 interface ChooseOptionsModalProps {
@@ -53,10 +54,11 @@ export const ChooseOptionsModal: React.FC<ChooseOptionsModalProps> = ({
 
   if (!isOpen || !product) return null;
 
-  const primaryImage =
+  const rawPrimaryImage =
     product.images?.find((i) => i.is_primary)?.image_url ||
     product.images?.[0]?.image_url ||
     '';
+  const primaryImage = getOptimizedImageUrl(rawPrimaryImage, 160, 80);
 
   const isCurrentVariantOutOfStock = Boolean(
     !selectedVariant ||
@@ -153,6 +155,10 @@ export const ChooseOptionsModal: React.FC<ChooseOptionsModalProps> = ({
                 <img
                   src={primaryImage}
                   alt={product.name}
+                  width="80"
+                  height="80"
+                  loading="lazy"
+                  decoding="async"
                   className="w-full h-full object-cover"
                 />
               ) : (

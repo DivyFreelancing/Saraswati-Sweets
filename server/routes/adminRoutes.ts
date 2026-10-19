@@ -31,6 +31,7 @@ import {
 import { createCashfreeRefund, fetchCashfreeRefund } from '../services/cashfreeService';
 import { adminOrderEvents, AdminOrderNotificationPayload, emailProvider, getAdminNotificationRecipient } from '../services/notificationService';
 import { generateReportsAnalytics } from '../services/reportService';
+import { optimizeProductImage, ImageOptimizationError } from '../services/imageOptimizationService';
 
 const router = Router();
 
@@ -239,6 +240,7 @@ router.post('/upload-image', async (req: AuthenticatedRequest, res: Response) =>
     return;
   }
 
+  // Preliminary binary magic bytes detection
   const detectedMime = detectImageMimeType(buffer);
   if (!detectedMime) {
     res.status(400).json({
@@ -249,9 +251,33 @@ router.post('/upload-image', async (req: AuthenticatedRequest, res: Response) =>
     return;
   }
 
+  // Automatic Server-Side Image Optimization
+  // - Downscales oversized photos proportionally to <=1200px max dimension
+  // - Converts to modern WebP with quality 82 and alpha transparency preserved
+  // - Strips heavy and unnecessary EXIF/camera metadata
+  // - Validates image decode integrity and dimensions
+  let optimizationResult;
+  try {
+    optimizationResult = await optimizeProductImage(buffer);
+  } catch (optErr: any) {
+    if (optErr instanceof ImageOptimizationError) {
+      res.status(optErr.statusCode).json({ error: optErr.code, message: optErr.message });
+      return;
+    }
+    res.status(400).json({
+      error: 'IMAGE_OPTIMIZATION_FAILED',
+      message: optErr?.message || 'Failed to optimize image.',
+    });
+    return;
+  }
+
+  const finalBuffer = optimizationResult.buffer;
+  const baseNameWithoutExt = fileName.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9.-]/g, '_');
+  const webpFileName = `${baseNameWithoutExt}.webp`;
+
   let uploadPath: string;
   if (typeof path === 'string' && path.trim()) {
-    const cleaned = path.trim().replace(/\\/g, '/');
+    let cleaned = path.trim().replace(/\\/g, '/');
     if (cleaned.includes('..') || cleaned.startsWith('/') || (!cleaned.startsWith('products/') && !cleaned.startsWith('hampers/'))) {
       res.status(400).json({
         error: 'INVALID_PATH',
@@ -259,18 +285,20 @@ router.post('/upload-image', async (req: AuthenticatedRequest, res: Response) =>
       });
       return;
     }
+    // Ensure the destination path consistently ends with .webp
+    cleaned = cleaned.replace(/\.[^/.]+$/, '') + '.webp';
     uploadPath = cleaned;
   } else {
     const folder = req.body.folder === 'hampers' ? 'hampers' : 'products';
-    uploadPath = `${folder}/${Date.now()}-${fileName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+    uploadPath = `${folder}/${Date.now()}-${webpFileName}`;
   }
 
   let publicUrl = `https://mock-storage.supabase.co/storage/v1/object/public/product-images/${uploadPath}`;
   if (supabaseServer) {
     const { data, error } = await supabaseServer.storage
       .from('product-images')
-      .upload(uploadPath, buffer, {
-        contentType: detectedMime,
+      .upload(uploadPath, finalBuffer, {
+        contentType: 'image/webp',
         upsert: true
       });
 
@@ -287,17 +315,33 @@ router.post('/upload-image', async (req: AuthenticatedRequest, res: Response) =>
   }
 
   logAuditEvent(req.user, 'PRODUCT_IMAGE_UPLOADED', 'PRODUCT', 'media', {
-    fileName,
-    fileType: detectedMime,
-    fileSize: buffer.length,
+    fileName: webpFileName,
+    originalFileName: fileName,
+    fileType: 'image/webp',
+    originalFormat: optimizationResult.originalFormat,
+    originalSize: optimizationResult.originalBytes,
+    optimizedSize: optimizationResult.optimizedBytes,
+    savingsPercent: optimizationResult.savingsPercent,
+    width: optimizationResult.width,
+    height: optimizationResult.height,
     publicUrl
   });
 
   res.json({
     success: true,
-    message: 'Image uploaded successfully.',
+    message: `Image optimized and uploaded successfully as WebP (${optimizationResult.savingsPercent}% size reduction).`,
     imageUrl: publicUrl,
-    fileName,
+    fileName: webpFileName,
+    optimization: {
+      originalBytes: optimizationResult.originalBytes,
+      optimizedBytes: optimizationResult.optimizedBytes,
+      savedBytes: optimizationResult.savedBytes,
+      savingsPercent: optimizationResult.savingsPercent,
+      width: optimizationResult.width,
+      height: optimizationResult.height,
+      format: 'webp',
+      originalFormat: optimizationResult.originalFormat,
+    },
   });
 });
 
@@ -315,7 +359,7 @@ router.post('/signed-upload-url', (req: AuthenticatedRequest, res: Response) => 
   }
 
   const cleanFolder = folder === 'hampers' ? 'hampers' : 'products';
-  const cleanName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+  const cleanName = fileName.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9.-]/g, '_') + '.webp';
   const path = `${cleanFolder}/${Date.now()}-${cleanName}`;
   res.json({ success: true, path, uploadUrl: '/api/admin/upload-image', token: `signed_token_${Date.now()}`, expiresIn: 3600 });
 });
