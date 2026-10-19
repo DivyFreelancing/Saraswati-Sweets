@@ -58,6 +58,26 @@ function AppContent() {
     return '';
   });
 
+  // Track modal history state with refs to prevent stale closures in popstate listener
+  const isDetailModalOpenRef = React.useRef(false);
+  const selectedProductRef = React.useRef<Product | null>(null);
+  const modalEntryActiveRef = React.useRef(false);
+  const isClosingViaButtonRef = React.useRef(false);
+  const justClosedAtRef = React.useRef(0);
+  const backgroundPathRef = React.useRef<string>(
+    typeof window !== 'undefined' && window.location.pathname.startsWith('/products/')
+      ? '/catalog'
+      : (typeof window !== 'undefined' ? window.location.pathname || '/' : '/')
+  );
+
+  useEffect(() => {
+    isDetailModalOpenRef.current = isDetailModalOpen;
+  }, [isDetailModalOpen]);
+
+  useEffect(() => {
+    selectedProductRef.current = selectedProduct;
+  }, [selectedProduct]);
+
   // Handle client-side routing & browser back/forward
   useEffect(() => {
     if (currentPath === '/login' || currentPath === '/auth') {
@@ -80,8 +100,63 @@ function AppContent() {
       }
     }
   }, [currentPath]);
+
+  // Direct product URL normalization on initial mount:
+  // If user opens a direct product URL (e.g. /products/chandrakala), establish /catalog
+  // as the underlying base route and push the product modal entry at the top of history.
+  // This allows the mobile back gesture or browser Back button to close the modal only and
+  // leave the customer on the catalog page rather than navigating away from the website.
+  useEffect(() => {
+    const initialPath = window.location.pathname || '/';
+    if (initialPath.startsWith('/products/') && initialPath !== '/products') {
+      const slug = decodeURIComponent(initialPath.replace('/products/', '')).replace(/\/$/, '');
+      backgroundPathRef.current = '/catalog';
+      window.history.replaceState({ path: '/catalog' }, '', '/catalog');
+      window.history.pushState(
+        { modal: 'product', productSlug: slug, backgroundPath: '/catalog' },
+        '',
+        initialPath
+      );
+      modalEntryActiveRef.current = true;
+    }
+  }, []);
+
+  // Listen for browser popstate (back gesture, Back/Forward buttons)
   useEffect(() => {
     const handlePopState = () => {
+      // 1. If this popstate was triggered programmatically by handleCloseProductDetail calling history.back(),
+      // consume the flag and synchronize route state without double closing.
+      if (isClosingViaButtonRef.current) {
+        isClosingViaButtonRef.current = false;
+        modalEntryActiveRef.current = false;
+        const path = window.location.pathname || '/';
+        const searchParams = new URLSearchParams(window.location.search);
+        const cat = searchParams.get('category');
+        if (cat) setActiveCategorySlug(cat);
+        setCurrentPath(path);
+        return;
+      }
+
+      // 2. If the product detail modal is open and the user navigated back:
+      if (isDetailModalOpenRef.current) {
+        // Record timestamp to debounce touch ghost-clicks
+        justClosedAtRef.current = Date.now();
+        // Close modal without calling history.back() because the browser already popped the history entry
+        setIsDetailModalOpen(false);
+        isDetailModalOpenRef.current = false;
+        setSelectedProduct(null);
+        selectedProductRef.current = null;
+        modalEntryActiveRef.current = false;
+
+        const path = window.location.pathname || '/';
+        const searchParams = new URLSearchParams(window.location.search);
+        const cat = searchParams.get('category');
+        if (cat) setActiveCategorySlug(cat);
+        setCurrentPath(path);
+        return;
+      }
+
+      // 3. Normal navigation when no modal is open:
       const path = window.location.pathname || '/';
       const searchParams = new URLSearchParams(window.location.search);
       const cat = searchParams.get('category');
@@ -94,6 +169,16 @@ function AppContent() {
   }, []);
 
   const navigateTo = (pathWithQuery: string) => {
+    // If modal is open, close it cleanly first
+    if (isDetailModalOpenRef.current) {
+      justClosedAtRef.current = Date.now();
+      setIsDetailModalOpen(false);
+      isDetailModalOpenRef.current = false;
+      setSelectedProduct(null);
+      selectedProductRef.current = null;
+      modalEntryActiveRef.current = false;
+    }
+
     const [path, query] = pathWithQuery.split('?');
     if (query) {
       const params = new URLSearchParams(query);
@@ -103,33 +188,97 @@ function AppContent() {
       setActiveCategorySlug('');
     }
 
+    backgroundPathRef.current = path;
     setCurrentPath(path);
-    window.history.pushState({}, '', pathWithQuery);
+    window.history.pushState({ path }, '', pathWithQuery);
     window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
   const handleOpenProductDetail = (product: Product) => {
-    setSelectedProduct(product);
-    setIsDetailModalOpen(true);
-    if (product.slug && !currentPath.startsWith('/products/')) {
-      window.history.pushState({}, '', `/products/${product.slug}`);
-      setCurrentPath(`/products/${product.slug}`);
+    // Debounce touch ghost-clicks and rapid clicks after closing
+    if (Date.now() - justClosedAtRef.current < 250) {
+      return;
     }
+
+    const productSlug = product.slug || product.id;
+    const newPath = `/products/${productSlug}`;
+
+    // If modal is already open and switching products (e.g. from related products):
+    if (isDetailModalOpenRef.current) {
+      handleSelectRelatedProduct(product);
+      return;
+    }
+
+    setSelectedProduct(product);
+    selectedProductRef.current = product;
+    setIsDetailModalOpen(true);
+    isDetailModalOpenRef.current = true;
+
+    // Check if browser is already at this product URL (e.g. direct load initial setup)
+    if (window.location.pathname === newPath && modalEntryActiveRef.current) {
+      return;
+    }
+
+    // Preserve underlying page for background rendering
+    const bgPath = currentPath.startsWith('/products/')
+      ? '/catalog'
+      : (window.location.pathname + window.location.search || currentPath);
+    backgroundPathRef.current = bgPath;
+
+    window.history.pushState(
+      { modal: 'product', productSlug, backgroundPath: bgPath },
+      '',
+      newPath
+    );
+    modalEntryActiveRef.current = true;
+    setCurrentPath(newPath);
+  };
+
+  const handleSelectRelatedProduct = (product: Product) => {
+    setSelectedProduct(product);
+    selectedProductRef.current = product;
+    const productSlug = product.slug || product.id;
+    const newPath = `/products/${productSlug}`;
+
+    // Use replaceState so switching products does NOT pile up modal history entries
+    window.history.replaceState(
+      { modal: 'product', productSlug, backgroundPath: backgroundPathRef.current },
+      '',
+      newPath
+    );
+    setCurrentPath(newPath);
   };
 
   const handleCloseProductDetail = () => {
+    justClosedAtRef.current = Date.now();
     setIsDetailModalOpen(false);
+    isDetailModalOpenRef.current = false;
     setSelectedProduct(null);
-    if (currentPath.startsWith('/products/')) {
-      window.history.pushState({}, '', '/catalog');
-      setCurrentPath('/catalog');
+    selectedProductRef.current = null;
+
+    if (modalEntryActiveRef.current) {
+      // Revert the modal-specific history entry without navigating away from the underlying page
+      isClosingViaButtonRef.current = true;
+      modalEntryActiveRef.current = false;
+      window.history.back();
+    } else {
+      // Direct URL fallback: transition route to the background path
+      const targetPath = backgroundPathRef.current || '/catalog';
+      if (window.location.pathname.startsWith('/products/')) {
+        window.history.replaceState({ path: targetPath }, '', targetPath);
+        setCurrentPath(targetPath);
+      }
     }
   };
 
   const renderCurrentPage = () => {
+    // When the product modal is open, render the background page so the underlying UI,
+    // scroll position, and browsing state are preserved without unmounting.
+    const displayPath = isDetailModalOpen ? backgroundPathRef.current : currentPath;
+
     // Dynamic order confirmation route: /order-confirmation/:orderNumber
-    if (currentPath.startsWith('/order-confirmation/')) {
-      const orderNumber = currentPath.replace('/order-confirmation/', '');
+    if (displayPath.startsWith('/order-confirmation/')) {
+      const orderNumber = displayPath.replace('/order-confirmation/', '');
       return (
         <OrderConfirmationPage
           orderNumber={orderNumber}
@@ -141,8 +290,8 @@ function AppContent() {
     }
 
     // Dynamic order tracking route: /orders/:orderNumber
-    if (currentPath.startsWith('/orders/') && currentPath !== '/orders') {
-      const orderNumber = currentPath.replace('/orders/', '');
+    if (displayPath.startsWith('/orders/') && displayPath !== '/orders') {
+      const orderNumber = displayPath.replace('/orders/', '');
       return (
         <OrderDetailPage
           orderNumber={orderNumber}
@@ -153,8 +302,8 @@ function AppContent() {
     }
 
     // Dynamic category route: /categories/:slug
-    if (currentPath.startsWith('/categories/') && currentPath !== '/categories') {
-      const categorySlug = decodeURIComponent(currentPath.replace('/categories/', '')).replace(/\/$/, '');
+    if (displayPath.startsWith('/categories/') && displayPath !== '/categories') {
+      const categorySlug = decodeURIComponent(displayPath.replace('/categories/', '')).replace(/\/$/, '');
       return (
         <CatalogPage
           initialCategorySlug={categorySlug}
@@ -164,9 +313,9 @@ function AppContent() {
       );
     }
 
-    // Dynamic product route: /products/:slug
-    if (currentPath.startsWith('/products/') && currentPath !== '/products') {
-      const productSlug = decodeURIComponent(currentPath.replace('/products/', '')).replace(/\/$/, '');
+    // Dynamic product route: /products/:slug (only when modal is NOT open, e.g. direct load initial render)
+    if (displayPath.startsWith('/products/') && displayPath !== '/products') {
+      const productSlug = decodeURIComponent(displayPath.replace('/products/', '')).replace(/\/$/, '');
       return (
         <CatalogPage
           initialProductSlug={productSlug}
@@ -176,8 +325,8 @@ function AppContent() {
       );
     }
 
-    const canonicalPath = getCanonicalStaticPath(currentPath);
-    switch (canonicalPath || currentPath) {
+    const canonicalPath = getCanonicalStaticPath(displayPath);
+    switch (canonicalPath || displayPath) {
       case '/catalog':
         return (
           <CatalogPage
@@ -262,7 +411,7 @@ function AppContent() {
           <AdminPage
             onBackToStore={() => navigateTo('/')}
             onGoToLogin={() => navigateTo('/admin/login')}
-            initialTab={currentPath === '/admin/coupons' ? 'coupons' : undefined}
+            initialTab={displayPath === '/admin/coupons' ? 'coupons' : undefined}
           />
         );
       case '/':
@@ -290,11 +439,13 @@ function AppContent() {
     );
   }
 
+  const activeDisplayPath = isDetailModalOpen ? backgroundPathRef.current : currentPath;
+
   return (
     <div className="min-h-screen flex flex-col bg-[#FBF6EF] text-[#221A14] selection:bg-[#7A1129]/15 selection:text-[#7A1129] pb-16 lg:pb-0 overflow-x-clip w-full max-w-full">
       {/* Header */}
       <Header
-        currentPath={currentPath}
+        currentPath={activeDisplayPath}
         onNavigate={navigateTo}
         onOpenCart={() => setIsCartDrawerOpen(true)}
       />
@@ -303,9 +454,9 @@ function AppContent() {
       <main className="flex-1 min-h-[calc(100vh-80px)]">
         <React.Suspense
           fallback={
-            currentPath.startsWith('/catalog') ||
-            currentPath.startsWith('/categories') ||
-            currentPath.startsWith('/products') ? (
+            activeDisplayPath.startsWith('/catalog') ||
+            activeDisplayPath.startsWith('/categories') ||
+            activeDisplayPath.startsWith('/products') ? (
               <CatalogPageSkeleton />
             ) : (
               <div className="min-h-[calc(100vh-80px)] flex items-center justify-center text-xs text-[#6E6259]">
@@ -323,7 +474,7 @@ function AppContent() {
 
       {/* Mobile Sticky Bottom Navigation */}
       <MobileBottomNav
-        currentPath={currentPath}
+        currentPath={activeDisplayPath}
         onNavigate={navigateTo}
         onOpenCart={() => setIsCartDrawerOpen(true)}
       />
@@ -347,7 +498,7 @@ function AppContent() {
             product={selectedProduct}
             isOpen={isDetailModalOpen}
             onClose={handleCloseProductDetail}
-            onSelectRelatedProduct={(rel) => setSelectedProduct(rel)}
+            onSelectRelatedProduct={handleSelectRelatedProduct}
           />
         </React.Suspense>
       )}

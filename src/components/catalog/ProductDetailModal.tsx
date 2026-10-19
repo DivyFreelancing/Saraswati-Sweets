@@ -66,6 +66,26 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     }
   }, [product]);
 
+  // Handle Escape key navigation and lock body scroll while modal is active
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
   const handleOpenReviewForm = async () => {
     if (!isAuthenticated) {
       showToast('Please sign in to write a review as a verified customer.', 'warning');
@@ -141,16 +161,29 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     <div className="fixed inset-0 z-50 overflow-y-auto">
       {/* Backdrop */}
       <div
-        onClick={onClose}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onClose();
+        }}
         className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
       />
 
       <div className="min-h-full flex items-center justify-center p-3 sm:p-6 lg:p-8">
-        <div className="relative w-full max-w-4xl bg-white rounded-2xl border border-[#E8DFD2] shadow-2xl overflow-hidden my-8 animate-in zoom-in-95 duration-200">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="product-modal-title"
+          className="relative w-full max-w-4xl bg-white rounded-2xl border border-[#E8DFD2] shadow-2xl overflow-hidden my-8 animate-in zoom-in-95 duration-200"
+        >
           {/* Close button */}
           <button
             type="button"
-            onClick={onClose}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose();
+            }}
             aria-label="Close dialog"
             className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-white/90 backdrop-blur-xs text-[#1F1B16] hover:bg-white flex items-center justify-center border border-[#E8DFD2] shadow-xs transition-colors"
           >
@@ -245,7 +278,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 </div>
 
                 {/* Title */}
-                <h2 className="font-display font-bold text-2xl sm:text-3xl text-[#1F1B16] leading-tight">
+                <h2 id="product-modal-title" className="font-display font-bold text-2xl sm:text-3xl text-[#1F1B16] leading-tight">
                   {product.name}
                 </h2>
 
